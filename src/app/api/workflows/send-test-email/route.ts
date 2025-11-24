@@ -105,41 +105,9 @@ export async function POST(request: Request) {
       html = textToHtml(renderedText || "(Empty body)");
     }
 
-    const sendUrl = new URL("/api/emails/send", request.url);
-
-    const response = await fetch(sendUrl.toString(), {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        to,
-        subject,
-        html,
-        fromUserEmail: null,
-        emailId: null,
-      }),
-    });
-
-    let payload: any = null;
-    try {
-      payload = await response.json();
-    } catch {
-      payload = null;
-    }
-
-    if (!response.ok) {
-      return NextResponse.json(
-        {
-          error:
-            payload?.error ||
-            "Failed to send test email via provider. Check MAILGUN configuration.",
-        },
-        { status: 502 },
-      );
-    }
-
-    return NextResponse.json({ ok: true });
+    // Email provider integration has been removed. Instead of actually sending,
+    // return the rendered subject and HTML so the caller can preview them.
+    return NextResponse.json({ ok: true, subject, html });
   } catch (error) {
     console.error("Error in /api/workflows/send-test-email", error);
     return NextResponse.json(

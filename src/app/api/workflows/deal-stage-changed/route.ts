@@ -3,13 +3,6 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 
-const mailgunApiKey = process.env.MAILGUN_API_KEY;
-const mailgunDomain = process.env.MAILGUN_DOMAIN;
-const mailgunFromEmail = process.env.MAILGUN_FROM_EMAIL;
-const mailgunFromName = process.env.MAILGUN_FROM_NAME || "Clinic";
-const mailgunApiBaseUrl =
-  process.env.MAILGUN_API_BASE_URL || "https://api.mailgun.net";
-
 type DealStageChangedPayload = {
   dealId: string;
   patientId: string;
@@ -315,60 +308,6 @@ export async function POST(request: Request) {
             }
 
             actionsRun += 1;
-
-            if (!mailgunApiKey || !mailgunDomain) {
-              return;
-            }
-
-            try {
-              const domain = mailgunDomain as string;
-              const emailId = (inserted as any).id as string;
-              const replyAlias = emailId ? `reply+${emailId}@${domain}` : null;
-
-              const fromAddress = mailgunFromEmail || `no-reply@${domain}`;
-
-              const params = new URLSearchParams();
-              params.append("from", `${mailgunFromName} <${fromAddress}>`);
-              params.append("to", safePatient.email as string);
-              params.append("subject", subject);
-              params.append("html", bodyHtml);
-
-              if (replyAlias) {
-                params.append("h:Reply-To", replyAlias);
-              }
-
-              if (isFuture) {
-                params.append("o:deliverytime", effectiveDate.toUTCString());
-              }
-
-              const auth = Buffer.from(`api:${mailgunApiKey}`).toString("base64");
-
-              const response = await fetch(
-                `${mailgunApiBaseUrl}/v3/${domain}/messages`,
-                {
-                  method: "POST",
-                  headers: {
-                    Authorization: `Basic ${auth}`,
-                    "Content-Type": "application/x-www-form-urlencoded",
-                  },
-                  body: params.toString(),
-                },
-              );
-
-              if (!response.ok) {
-                const text = await response.text().catch(() => "");
-                console.error(
-                  "Error sending workflow email via Mailgun",
-                  response.status,
-                  text,
-                );
-              }
-            } catch (sendError) {
-              console.error(
-                "Unexpected error sending workflow email via Mailgun",
-                sendError,
-              );
-            }
           }
 
           if (sendMode === "recurring" && recurringEveryDays && recurringTimes) {
