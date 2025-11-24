@@ -48,7 +48,7 @@ export default function AppMenuLauncher() {
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200/80 bg-white/80 text-slate-500 shadow-sm hover:bg-slate-50"
+        className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200/80 bg-white/80 text-slate-500 shadow-sm hover:bg-slate-50 header-icon-button"
         aria-label="Open app menu"
       >
         <span className="grid h-4 w-4 grid-cols-3 grid-rows-3 gap-[2px]">

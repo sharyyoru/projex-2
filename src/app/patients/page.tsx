@@ -415,13 +415,13 @@ export default function PatientsPage() {
                         <div className="flex flex-wrap items-center gap-1">
                           <Link
                             href={buildPatientHref(patient.id)}
-                            className="inline-flex items-center rounded-full border border-emerald-200/80 bg-emerald-500 px-2 py-0.5 text-[10px] font-medium text-white shadow-sm hover:bg-emerald-600"
+                            className="inline-flex items-center rounded-full border border-emerald-200/80 bg-emerald-500 px-2 py-0.5 text-[10px] font-medium text-white shadow-sm hover:bg-emerald-600 btn-primary"
                           >
                             Edit
                           </Link>
                           <Link
                             href={buildPatientHref(patient.id)}
-                            className="inline-flex items-center rounded-full border border-slate-200/80 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+                            className="inline-flex items-center rounded-full border border-slate-200/80 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-700 shadow-sm hover:bg-slate-50 btn-tertiary"
                           >
                             View
                           </Link>
@@ -437,7 +437,7 @@ export default function PatientsPage() {
                 type="button"
                 onClick={() => setPage((prev) => Math.max(1, prev - 1))}
                 disabled={currentPage === 1}
-                className="rounded-full border border-slate-200/80 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60 hover:bg-slate-50"
+                className="rounded-full border border-slate-200/80 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60 hover:bg-slate-50 btn-tertiary"
               >
                 Previous
               </button>
@@ -452,7 +452,7 @@ export default function PatientsPage() {
                   )
                 }
                 disabled={currentPage === totalPages}
-                className="rounded-full border border-slate-200/80 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60 hover:bg-slate-50"
+                className="rounded-full border border-slate-200/80 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60 hover:bg-slate-50 btn-tertiary"
               >
                 Next
               </button>

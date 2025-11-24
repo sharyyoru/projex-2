@@ -86,7 +86,7 @@ export default function HeaderUser() {
       <button
         type="button"
         onClick={() => router.push("/profile")}
-        className="ml-1 inline-flex items-center gap-2 rounded-full bg-white/80 px-2 py-1 text-[11px] shadow-sm hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/70"
+        className="ml-1 inline-flex items-center gap-2 rounded-full bg-white/80 px-2 py-1 text-[11px] shadow-sm hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/70 header-icon-button"
       >
         <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full bg-sky-500 text-[11px] font-medium text-white">
           {userInfo.avatarUrl ? (
@@ -114,7 +114,6 @@ export default function HeaderUser() {
         className="relative inline-flex h-8 w-8 items-center justify-center text-slate-500"
       >
         <span className="sr-only">Log out</span>
-        <div className="power-button-bg absolute inset-0 rounded-full" />
         <Image
           src="/logos/power-button.png"
           alt="Log out"

@@ -337,7 +337,7 @@ export default function TasksPage() {
           <div className="flex items-center gap-2">
             <Link
               href="/patients"
-              className="inline-flex items-center gap-1 rounded-full border border-sky-200/80 bg-sky-600 px-3 py-1.5 text-[11px] font-medium text-white shadow-sm hover:bg-sky-700"
+              className="inline-flex items-center gap-1 rounded-full border border-sky-200/80 bg-sky-600 px-3 py-1.5 text-[11px] font-medium text-white shadow-sm hover:bg-sky-700 btn-primary"
             >
               <span className="inline-flex h-3 w-3 items-center justify-center">
                 <svg
@@ -466,7 +466,7 @@ export default function TasksPage() {
                           {patient ? (
                             <Link
                               href={`/patients/${patient.id}?mode=crm&tab=tasks`}
-                              className="inline-flex items-center rounded-full border border-slate-200/80 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+                              className="inline-flex items-center rounded-full border border-slate-200/80 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-700 shadow-sm hover:bg-slate-50 btn-tertiary"
                             >
                               View
                             </Link>
@@ -476,7 +476,7 @@ export default function TasksPage() {
                               type="button"
                               onClick={() => void handleMarkTaskCompleted(task)}
                               disabled={isUpdating}
-                              className="inline-flex items-center rounded-full border border-slate-300 bg-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-800 shadow-sm hover:bg-slate-300 disabled:cursor-not-allowed disabled:opacity-70"
+                              className="inline-flex items-center rounded-full border border-slate-300 bg-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-800 shadow-sm hover:bg-slate-300 disabled:cursor-not-allowed disabled:opacity-70 btn-secondary"
                             >
                               {isUpdating ? "Updating..." : "Set complete"}
                             </button>

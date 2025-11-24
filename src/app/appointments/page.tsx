@@ -1402,7 +1402,7 @@ export default function CalendarPage() {
               setCreateDoctorCalendarId(defaultCalendar?.id ?? "");
               setCreateModalOpen(true);
             }}
-            className="inline-flex w-full items-center justify-center rounded-full bg-sky-600 px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-sky-700"
+            className="inline-flex w-full items-center justify-center rounded-full bg-sky-600 px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-sky-700 btn-primary"
           >
             Create
           </button>
@@ -2164,7 +2164,7 @@ export default function CalendarPage() {
                     setEditModalOpen(false);
                     setEditingAppointment(null);
                   }}
-                  className="inline-flex items-center rounded-full border border-slate-200/80 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+                  className="inline-flex items-center rounded-full border border-slate-200/80 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-700 shadow-sm hover:bg-slate-50 btn-tertiary"
                 >
                   Close
                 </button>
@@ -2172,7 +2172,7 @@ export default function CalendarPage() {
                   type="button"
                   onClick={() => void handleSaveEditAppointment()}
                   disabled={savingEdit}
-                  className="inline-flex items-center rounded-full border border-sky-500/80 bg-sky-600 px-3 py-1.5 text-[11px] font-medium text-white shadow-sm hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex items-center rounded-full border border-sky-500/80 bg-sky-600 px-3 py-1.5 text-[11px] font-medium text-white shadow-sm hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60 btn-primary"
                 >
                   Save changes
                 </button>

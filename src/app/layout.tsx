@@ -36,7 +36,7 @@ export default function RootLayout({
       <body
         className={`${manrope.variable} ${geistMono.variable} antialiased`}
       >
-        <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#eef2ff,_#e0f2fe_40%,_#fdf2ff_80%)] px-4 py-6 sm:px-6 lg:px-8">
+        <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#eef2ff,_#ffedd5_40%,_#fdf2ff_80%)] py-6">
           <MessagesUnreadProvider>
           <TasksNotificationsProvider>
           <ShellFrame>
@@ -47,10 +47,10 @@ export default function RootLayout({
               className="peer sr-only"
             />
             <ShellSidebar>
-              <aside className="hidden w-60 border-r border-slate-100/80 bg-gradient-to-b from-slate-50/90 to-slate-50/40 px-4 py-5 transition-all duration-200 ease-out sm:flex sm:flex-col peer-checked:sm:w-0 peer-checked:sm:border-r-0 peer-checked:sm:px-0 peer-checked:sm:opacity-0 peer-checked:sm:pointer-events-none app-shell-sidebar">
+              <aside className="hidden w-60 bg-gradient-to-b from-slate-50/90 to-slate-50/40 px-4 py-5 transition-all duration-200 ease-out sm:flex sm:flex-col peer-checked:sm:w-0 peer-checked:sm:px-0 peer-checked:sm:opacity-0 peer-checked:sm:pointer-events-none app-shell-sidebar">
               <div className="mb-6 flex justify-center px-2">
                 <Image
-                  src="/logos/aliice-logo.png"
+                  src="/logos/projex-2.avif"
                   alt="Aliice logo"
                   width={120}
                   height={28}
@@ -83,7 +83,7 @@ export default function RootLayout({
                 </div>
                 <div className="border-b border-slate-100/80">
                   <Link
-                    href="/patients"
+                    href="/companies"
                     className="group flex items-center gap-3 px-3 py-2.5 text-xs font-medium text-slate-700 hover:bg-sky-50/80 hover:text-slate-900 sm:text-sm"
                   >
                     <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-white/70 text-slate-500 shadow-[0_6px_18px_rgba(15,23,42,0.18)] backdrop-blur group-hover:bg-sky-500/90 group-hover:text-white">
@@ -101,7 +101,7 @@ export default function RootLayout({
                         <path d="M4 20a6 6 0 0 1 8-5.29A6 6 0 0 1 20 20" />
                       </svg>
                     </span>
-                    <span>Patients</span>
+                    <span>Companies</span>
                   </Link>
                 </div>
                 <div className="border-b border-slate-100/80">
@@ -297,7 +297,7 @@ export default function RootLayout({
               <RequireAuth>
                 <div className="flex h-full flex-col">
                 <ShellHeader>
-                  <header className="flex items-center justify-between border-b border-slate-100/80 bg-white/70 px-4 py-3 sm:px-6 lg:px-8 app-shell-header">
+                  <header className="flex items-center justify-between bg-gradient-to-b from-slate-50/90 to-slate-50/40 px-4 py-3 sm:px-6 lg:px-8 app-shell-header">
                     <div className="flex items-center gap-4">
                       <label
                         htmlFor="sidebar-toggle"
@@ -319,7 +319,7 @@ export default function RootLayout({
                       <div className="flex items-center gap-3">
                         <Link href="/" aria-label="Go to dashboard" className="inline-flex items-center">
                           <Image
-                            src="/logos/maisontoa-logo.png"
+                            src="/logos/mutant-logo.avif"
                             alt="Maison Tōa logo"
                             width={90}
                             height={32}

@@ -30,16 +30,8 @@ export function ShellFrame({ children }: { children: ReactNode }) {
     );
   }
 
-  if (pathname === "/appointments") {
-    return (
-      <div className="min-h-[80vh] w-full overflow-x-hidden overflow-y-auto mx-[-1rem] sm:mx-[-1.5rem] lg:mx-[-2rem]">
-        {children}
-      </div>
-    );
-  }
-
   return (
-    <div className="mx-auto flex max-w-6xl min-h-[80vh] overflow-x-hidden overflow-y-auto rounded-3xl border border-white/60 bg-white/80 shadow-[0_22px_60px_rgba(15,23,42,0.12)] backdrop-blur-xl">
+    <div className="min-h-[80vh] w-full overflow-x-hidden overflow-y-auto">
       {children}
     </div>
   );

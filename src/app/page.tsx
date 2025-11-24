@@ -32,6 +32,7 @@ export default function Home() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [mentions, setMentions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUserName, setCurrentUserName] = useState<string | null>(null);
 
   const { unreadCount } = useMessagesUnread();
 
@@ -60,6 +61,19 @@ export default function Home() {
 
         const { data: authData } = await supabaseClient.auth.getUser();
         const user = authData?.user ?? null;
+
+        if (!cancelled) {
+          if (user) {
+            const meta = (user.user_metadata || {}) as Record<string, unknown>;
+            const first = (meta["first_name"] as string) || "";
+            const last = (meta["last_name"] as string) || "";
+            const full = [first, last].filter(Boolean).join(" ").trim();
+            const name = full || user.email || null;
+            setCurrentUserName(name);
+          } else {
+            setCurrentUserName(null);
+          }
+        }
 
         const today = new Date();
         const dayStart = new Date(
@@ -388,8 +402,11 @@ export default function Home() {
     <div className="space-y-8">
       <header className="flex items-center justify-between gap-4">
         <div>
+          <p className="mb-1 inline-flex items-center rounded-full bg-sky-50 px-3 py-0.5 text-[11px] font-medium text-sky-700 shadow-sm">
+            Today at your clinic
+          </p>
           <h1 className="text-2xl font-semibold text-slate-900">
-            Hi Dr. Smith
+            {currentUserName ? `Hi ${currentUserName}` : "Hi there"}
           </h1>
           <p className="text-sm text-slate-500">
             Let&apos;s get you on a productive routine today!
@@ -397,17 +414,17 @@ export default function Home() {
         </div>
         <div className="flex flex-wrap gap-2 text-xs sm:text-sm">
           <Link
-            href="/add-patients"
-            className="inline-flex items-center gap-2 rounded-full border border-sky-200/70 bg-white/70 px-4 py-1.5 font-medium text-sky-700 shadow-[0_10px_25px_rgba(15,23,42,0.16)] backdrop-blur hover:bg-white hover:text-sky-800"
+            href="/companies"
+            className="inline-flex items-center gap-2 rounded-full border border-sky-200/70 bg-white/70 px-4 py-1.5 font-medium text-sky-700 shadow-[0_10px_25px_rgba(15,23,42,0.16)] backdrop-blur hover:bg-white hover:text-sky-800 btn-pill-primary"
           >
             <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-sky-500 text-[12px] font-semibold text-white shadow-sm">
               +
             </span>
-            <span>Add patient</span>
+            <span>New Project</span>
           </Link>
           <Link
             href="/appointments"
-            className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/60 px-4 py-1.5 font-medium text-slate-700 shadow-[0_10px_25px_rgba(15,23,42,0.10)] backdrop-blur hover:bg-white hover:text-slate-900"
+            className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/60 px-4 py-1.5 font-medium text-slate-700 shadow-[0_10px_25px_rgba(15,23,42,0.10)] backdrop-blur hover:bg-white hover:text-slate-900 btn-pill-secondary"
           >
             <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-900/80 text-[11px] text-white shadow-sm">
               <svg

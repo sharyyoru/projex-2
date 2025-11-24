@@ -11,6 +11,14 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  webpack: (config) => {
+    config.resolve = config.resolve || {};
+    config.resolve.alias = {
+      ...(config.resolve.alias || {}),
+      "@supabase/storage-js": "@supabase/storage-js/dist/main/index.js",
+    };
+    return config;
+  },
 };
 
 export default nextConfig;

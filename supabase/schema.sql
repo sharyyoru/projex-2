@@ -10,6 +10,79 @@ create table if not exists users (
   created_at timestamptz default now()
 );
 
+-- Companies (B2B accounts / organizations)
+create table if not exists companies (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  legal_name text,
+  website text,
+  email text,
+  phone text,
+  industry text,
+  size text,
+  street_address text,
+  postal_code text,
+  town text,
+  country text,
+  notes text,
+  created_by_user_id uuid references users(id),
+  created_by text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+alter table if exists companies
+  add column if not exists social_facebook text,
+  add column if not exists social_instagram text,
+  add column if not exists social_twitter text,
+  add column if not exists social_linkedin text,
+  add column if not exists social_youtube text,
+  add column if not exists social_tiktok text;
+
+create index if not exists companies_name_idx on companies(name);
+create index if not exists companies_email_idx on companies(email);
+
+-- Contacts belonging to a company
+create table if not exists contacts (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references companies(id) on delete cascade,
+  first_name text not null,
+  last_name text not null,
+  email text,
+  phone text,
+  mobile text,
+  job_title text,
+  is_primary boolean not null default false,
+  notes text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create index if not exists contacts_company_id_idx on contacts(company_id);
+create index if not exists contacts_email_idx on contacts(email);
+
+-- Projects tracked under a company (optionally tied to a primary contact)
+create table if not exists projects (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references companies(id) on delete cascade,
+  primary_contact_id uuid references contacts(id) on delete set null,
+  name text not null,
+  description text,
+  status text,
+  pipeline text,
+  value numeric(12, 2),
+  start_date date,
+  due_date date,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create index if not exists projects_company_id_idx on projects(company_id);
+create index if not exists projects_primary_contact_id_idx on projects(primary_contact_id);
+
+alter table if exists projects
+  add column if not exists processed_outcome text;
+
 -- Patients
 create table if not exists patients (
   id uuid primary key default gen_random_uuid(),
@@ -68,13 +141,19 @@ create table if not exists providers (
 );
 
 -- Appointment status enum
-create type if not exists appointment_status as enum (
-  'scheduled',
-  'confirmed',
-  'completed',
-  'cancelled',
-  'no_show'
-);
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'appointment_status') then
+    create type appointment_status as enum (
+      'scheduled',
+      'confirmed',
+      'completed',
+      'cancelled',
+      'no_show'
+    );
+  end if;
+end
+$$;
 
 -- Appointments
 create table if not exists appointments (
@@ -95,14 +174,20 @@ create index if not exists appointments_provider_id_idx on appointments(provider
 create index if not exists appointments_start_time_idx on appointments(start_time);
 
 -- Deal stage type enum
-create type if not exists deal_stage_type as enum (
-  'lead',
-  'consultation',
-  'surgery',
-  'post_op',
-  'follow_up',
-  'other'
-);
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'deal_stage_type') then
+    create type deal_stage_type as enum (
+      'lead',
+      'consultation',
+      'surgery',
+      'post_op',
+      'follow_up',
+      'other'
+    );
+  end if;
+end
+$$;
 
 -- Deal pipeline stages
 create table if not exists deal_stages (
@@ -144,6 +229,11 @@ create table if not exists deals (
 create index if not exists deals_patient_id_idx on deals(patient_id);
 create index if not exists deals_stage_id_idx on deals(stage_id);
 
+alter table if exists deals
+  add column if not exists project_id uuid references projects(id) on delete set null;
+
+create index if not exists deals_project_id_idx on deals(project_id);
+
 -- Crisalix reconstructions
 create table if not exists crisalix_reconstructions (
   id uuid primary key default gen_random_uuid(),
@@ -157,11 +247,17 @@ create table if not exists crisalix_reconstructions (
 create index if not exists crisalix_reconstructions_patient_type_idx on crisalix_reconstructions(patient_id, reconstruction_type);
 
 -- Workflow trigger type enum
-create type if not exists workflow_trigger_type as enum (
-  'deal_stage_changed',
-  'appointment_created',
-  'appointment_updated'
-);
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'workflow_trigger_type') then
+    create type workflow_trigger_type as enum (
+      'deal_stage_changed',
+      'appointment_created',
+      'appointment_updated'
+    );
+  end if;
+end
+$$;
 
 -- Workflows
 create table if not exists workflows (
@@ -177,11 +273,17 @@ alter table if exists workflows
   add column if not exists config jsonb not null default '{}'::jsonb;
 
 -- Workflow action type enum
-create type if not exists workflow_action_type as enum (
-  'draft_email_patient',
-  'draft_email_insurance',
-  'generate_postop_doc'
-);
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'workflow_action_type') then
+    create type workflow_action_type as enum (
+      'draft_email_patient',
+      'draft_email_insurance',
+      'generate_postop_doc'
+    );
+  end if;
+end
+$$;
 
 -- Workflow actions
 create table if not exists workflow_actions (
@@ -195,11 +297,17 @@ create table if not exists workflow_actions (
 create index if not exists workflow_actions_workflow_id_idx on workflow_actions(workflow_id);
 
 -- Email template type enum
-create type if not exists email_template_type as enum (
-  'patient',
-  'insurance',
-  'post_op'
-);
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'email_template_type') then
+    create type email_template_type as enum (
+      'patient',
+      'insurance',
+      'post_op'
+    );
+  end if;
+end
+$$;
 
 -- Email templates
 create table if not exists email_templates (
@@ -212,17 +320,29 @@ create table if not exists email_templates (
 );
 
 -- Email status and direction enums
-create type if not exists email_status as enum (
-  'draft',
-  'queued',
-  'sent',
-  'failed'
-);
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'email_status') then
+    create type email_status as enum (
+      'draft',
+      'queued',
+      'sent',
+      'failed'
+    );
+  end if;
+end
+$$;
 
-create type if not exists email_direction as enum (
-  'outbound',
-  'inbound'
-);
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'email_direction') then
+    create type email_direction as enum (
+      'outbound',
+      'inbound'
+    );
+  end if;
+end
+$$;
 
 -- Emails (patient + insurance)
 create table if not exists emails (
@@ -255,17 +375,29 @@ create table if not exists email_attachments (
 create index if not exists email_attachments_email_id_idx on email_attachments(email_id);
 
 -- WhatsApp message status and direction enums
-create type if not exists whatsapp_status as enum (
-  'queued',
-  'sent',
-  'delivered',
-  'failed'
-);
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'whatsapp_status') then
+    create type whatsapp_status as enum (
+      'queued',
+      'sent',
+      'delivered',
+      'failed'
+    );
+  end if;
+end
+$$;
 
-create type if not exists whatsapp_direction as enum (
-  'outbound',
-  'inbound'
-);
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'whatsapp_direction') then
+    create type whatsapp_direction as enum (
+      'outbound',
+      'inbound'
+    );
+  end if;
+end
+$$;
 
 -- WhatsApp messages linked to a patient
 create table if not exists whatsapp_messages (
@@ -284,11 +416,17 @@ create table if not exists whatsapp_messages (
 create index if not exists whatsapp_messages_patient_id_idx on whatsapp_messages(patient_id);
 
 -- Document type enum
-create type if not exists document_type as enum (
-  'post_op',
-  'report',
-  'other'
-);
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'document_type') then
+    create type document_type as enum (
+      'post_op',
+      'report',
+      'other'
+    );
+  end if;
+end
+$$;
 
 -- Documents (e.g. AI-generated post-op instructions)
 create table if not exists documents (
@@ -317,6 +455,18 @@ create table if not exists patient_notes (
 
 create index if not exists patient_notes_patient_id_idx on patient_notes(patient_id);
 
+-- Project notes (internal collaboration notes on a project)
+create table if not exists project_notes (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references projects(id) on delete cascade,
+  author_user_id uuid references users(id),
+  author_name text,
+  body text not null,
+  created_at timestamptz default now()
+);
+
+create index if not exists project_notes_project_id_idx on project_notes(project_id);
+
 -- Mentions/messages generated from patient notes
 create table if not exists patient_note_mentions (
   id uuid primary key default gen_random_uuid(),
@@ -331,24 +481,42 @@ create index if not exists patient_note_mentions_recipient_idx
   on patient_note_mentions(mentioned_user_id, read_at);
 
 -- Task status / priority / type enums
-create type if not exists task_status as enum (
-  'not_started',
-  'in_progress',
-  'completed'
-);
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'task_status') then
+    create type task_status as enum (
+      'not_started',
+      'in_progress',
+      'completed'
+    );
+  end if;
+end
+$$;
 
-create type if not exists task_priority as enum (
-  'low',
-  'medium',
-  'high'
-);
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'task_priority') then
+    create type task_priority as enum (
+      'low',
+      'medium',
+      'high'
+    );
+  end if;
+end
+$$;
 
-create type if not exists task_type as enum (
-  'todo',
-  'call',
-  'email',
-  'other'
-);
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'task_type') then
+    create type task_type as enum (
+      'todo',
+      'call',
+      'email',
+      'other'
+    );
+  end if;
+end
+$$;
 
 -- Tasks linked to a patient with optional assignee
 create table if not exists tasks (
@@ -372,6 +540,24 @@ create table if not exists tasks (
 create index if not exists tasks_patient_id_idx on tasks(patient_id);
 create index if not exists tasks_assigned_user_id_idx on tasks(assigned_user_id);
 
+alter table if exists tasks
+  add column if not exists project_id uuid references projects(id) on delete set null;
+
+create index if not exists tasks_project_id_idx on tasks(project_id);
+
+-- Checklist items for tasks (patient or project)
+create table if not exists task_checklist_items (
+  id uuid primary key default gen_random_uuid(),
+  task_id uuid not null references tasks(id) on delete cascade,
+  label text not null,
+  is_completed boolean not null default false,
+  sort_order int not null default 0,
+  created_at timestamptz default now()
+);
+
+create index if not exists task_checklist_items_task_id_idx
+  on task_checklist_items(task_id);
+
 -- Patient edit locks (which user is currently editing which patient)
 create table if not exists patient_edit_locks (
   patient_id uuid primary key references patients(id) on delete cascade,
@@ -385,17 +571,23 @@ create index if not exists patient_edit_locks_user_id_idx
   on patient_edit_locks(user_id);
 
 -- Consultation record type enum (aligns with medical tabs: notes onward)
-create type if not exists consultation_record_type as enum (
-  'notes',
-  'prescription',
-  'invoice',
-  'file',
-  'photo',
-  '3d',
-  'patient_information',
-  'documents',
-  'form_photos'
-);
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'consultation_record_type') then
+    create type consultation_record_type as enum (
+      'notes',
+      'prescription',
+      'invoice',
+      'file',
+      'photo',
+      '3d',
+      'patient_information',
+      'documents',
+      'form_photos'
+    );
+  end if;
+end
+$$;
 
 -- Consultations linked to a patient
 create table if not exists consultations (
@@ -422,6 +614,14 @@ create table if not exists consultations (
 );
 
 create index if not exists consultations_patient_id_idx on consultations(patient_id);
+
+alter table if exists consultations
+  add column if not exists project_id uuid references projects(id) on delete set null;
+
+create index if not exists consultations_project_id_idx on consultations(project_id);
+
+alter table if exists consultations
+  alter column patient_id drop not null;
 
 -- Comments on tasks
 create table if not exists task_comments (
@@ -576,7 +776,13 @@ create index if not exists chat_conversations_user_archived_idx
   on chat_conversations(user_id, is_archived, updated_at desc);
 
 -- Chat messages belonging to conversations
-create type if not exists chat_message_role as enum ('user', 'assistant', 'system');
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'chat_message_role') then
+    create type chat_message_role as enum ('user', 'assistant', 'system');
+  end if;
+end
+$$;
 
 create table if not exists chat_messages (
   id uuid primary key default gen_random_uuid(),

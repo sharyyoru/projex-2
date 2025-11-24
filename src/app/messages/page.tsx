@@ -5,6 +5,8 @@ import Link from "next/link";
 import { supabaseClient } from "@/lib/supabaseClient";
 import { useMessagesUnread } from "@/components/MessagesUnreadContext";
 
+const ENABLE_PATIENT_MESSAGES = false;
+
 type MentionNote = {
   id: string;
   body: string;
@@ -45,6 +47,13 @@ export default function MessagesPage() {
       try {
         setLoading(true);
         setError(null);
+
+        if (!ENABLE_PATIENT_MESSAGES) {
+          if (!isMounted) return;
+          setMentions([]);
+          setLoading(false);
+          return;
+        }
 
         const { data: authData } = await supabaseClient.auth.getUser();
         const user = authData?.user;
@@ -98,6 +107,8 @@ export default function MessagesPage() {
   }, [refreshKey]);
 
   async function handleMarkAllRead() {
+    if (!ENABLE_PATIENT_MESSAGES) return;
+
     const unread = mentions.filter((m) => !m.read_at).map((m) => m.id);
     if (unread.length === 0) return;
 
@@ -150,6 +161,8 @@ export default function MessagesPage() {
   }, [toastMessage]);
 
   async function handleOpenMention(mention: MentionRow) {
+    if (!ENABLE_PATIENT_MESSAGES) return;
+
     if (mention.read_at) return;
 
     const nowIso = new Date().toISOString();
@@ -175,7 +188,7 @@ export default function MessagesPage() {
         <div>
           <h1 className="text-lg font-semibold text-slate-900">Messages</h1>
           <p className="text-xs text-slate-500">
-            Notes where teammates mentioned you. Click through to open the patient.
+            Notes-based mentions are disabled in this CRM-only environment.
           </p>
         </div>
         <div className="flex items-center gap-2">

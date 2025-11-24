@@ -9,6 +9,8 @@ import {
 } from "react";
 import { supabaseClient } from "@/lib/supabaseClient";
 
+const ENABLE_PATIENT_MESSAGES = false;
+
 type MessagesUnreadContextValue = {
   unreadCount: number | null;
   refreshUnread: () => Promise<void>;
@@ -23,6 +25,11 @@ export function MessagesUnreadProvider({ children }: { children: ReactNode }) {
   const [unreadCount, setUnreadCount] = useState<number | null>(null);
 
   const refreshUnread = async () => {
+    if (!ENABLE_PATIENT_MESSAGES) {
+      setUnreadCount(0);
+      return;
+    }
+
     try {
       const { data: authData } = await supabaseClient.auth.getUser();
       const user = authData?.user;

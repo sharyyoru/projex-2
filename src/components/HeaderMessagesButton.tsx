@@ -14,7 +14,7 @@ export default function HeaderMessagesButton() {
     <button
       type="button"
       onClick={() => router.push("/messages")}
-      className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200/80 bg-white/80 text-slate-500 shadow-sm hover:bg-slate-50"
+      className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200/80 bg-white/80 text-slate-500 shadow-sm hover:bg-slate-50 header-icon-button"
     >
       <span className="sr-only">Messages</span>
       <svg
