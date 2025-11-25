@@ -132,18 +132,24 @@ CREATE TRIGGER leave_balance_update_trigger
 -- RLS Policies for leaves table
 ALTER TABLE leaves ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Users can view own leaves" ON leaves;
+DROP POLICY IF EXISTS "Users can create own leaves" ON leaves;
+DROP POLICY IF EXISTS "Admins can view all leaves" ON leaves;
+DROP POLICY IF EXISTS "Admins can update leaves" ON leaves;
+
 -- Users can view their own leaves
-CREATE POLICY IF NOT EXISTS "Users can view own leaves"
+CREATE POLICY "Users can view own leaves"
   ON leaves FOR SELECT
   USING (auth.uid() = user_id);
 
 -- Users can insert their own leaves
-CREATE POLICY IF NOT EXISTS "Users can create own leaves"
+CREATE POLICY "Users can create own leaves"
   ON leaves FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
 -- Admins can view all leaves
-CREATE POLICY IF NOT EXISTS "Admins can view all leaves"
+CREATE POLICY "Admins can view all leaves"
   ON leaves FOR SELECT
   USING (
     EXISTS (
@@ -154,7 +160,7 @@ CREATE POLICY IF NOT EXISTS "Admins can view all leaves"
   );
 
 -- Admins can update leaves (for approvals)
-CREATE POLICY IF NOT EXISTS "Admins can update leaves"
+CREATE POLICY "Admins can update leaves"
   ON leaves FOR UPDATE
   USING (
     EXISTS (
