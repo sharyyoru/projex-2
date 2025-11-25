@@ -6,7 +6,7 @@ import InvoiceCreateModal from "./InvoiceCreateModal";
 import InvoiceSettingsModal from "./InvoiceSettingsModal";
 import InvoicePdfModal from "./InvoicePdfModal";
 
-export type InvoiceStatus = "draft" | "sent" | "paid" | "overdue" | "cancelled";
+export type InvoiceStatus = "draft" | "sent" | "paid" | "unpaid" | "overdue" | "cancelled" | "accepted" | "rejected";
 export type InvoiceType = "quote" | "invoice";
 
 export type InvoiceItem = {
@@ -79,8 +79,11 @@ const statusColors: Record<InvoiceStatus, string> = {
   draft: "bg-slate-100 text-slate-700",
   sent: "bg-blue-100 text-blue-700",
   paid: "bg-emerald-100 text-emerald-700",
+  unpaid: "bg-amber-100 text-amber-700",
   overdue: "bg-red-100 text-red-700",
   cancelled: "bg-slate-100 text-slate-500",
+  accepted: "bg-emerald-100 text-emerald-700",
+  rejected: "bg-red-100 text-red-700",
 };
 
 export default function InvoiceManagement({ projectId, projectName, clientName }: { projectId: string; projectName: string; clientName?: string }) {
@@ -132,6 +135,71 @@ export default function InvoiceManagement({ projectId, projectName, clientName }
     if (newStatus === "paid") updates.paid_date = new Date().toISOString().split("T")[0];
     await supabaseClient.from("invoices").update(updates).eq("id", invoice.id);
     loadInvoices();
+  }
+
+  async function handleCreateInvoiceFromQuote(quote: Invoice) {
+    try {
+      const { data: authData } = await supabaseClient.auth.getUser();
+      if (!authData?.user) return;
+
+      // Get quote items
+      const { data: items } = await supabaseClient.from("invoice_items").select("*").eq("invoice_id", quote.id).order("sort_order");
+
+      // Generate new invoice number
+      const prefix = settings?.invoice_prefix || "INV";
+      const invoiceNumber = `${prefix}-${Date.now().toString().slice(-6)}`;
+
+      // Create invoice from quote
+      const { data: invoice, error } = await supabaseClient.from("invoices").insert({
+        project_id: projectId,
+        invoice_number: invoiceNumber,
+        invoice_type: "invoice",
+        status: "unpaid",
+        client_name: quote.client_name,
+        client_email: quote.client_email,
+        client_phone: quote.client_phone,
+        client_address: quote.client_address,
+        issue_date: new Date().toISOString().split("T")[0],
+        subtotal: quote.subtotal,
+        tax_rate: quote.tax_rate,
+        tax_amount: quote.tax_amount,
+        discount_amount: quote.discount_amount,
+        total: quote.total,
+        currency: quote.currency,
+        notes: quote.notes,
+        company_name: quote.company_name,
+        company_logo_url: quote.company_logo_url,
+        company_address: quote.company_address,
+        company_phone: quote.company_phone,
+        company_email: quote.company_email,
+        bank_name: quote.bank_name,
+        bank_account_number: quote.bank_account_number,
+        bank_iban: quote.bank_iban,
+        created_by: authData.user.id,
+      }).select().single();
+
+      if (error || !invoice) return;
+
+      // Copy items to new invoice
+      if (items && items.length > 0) {
+        const newItems = items.map((item: InvoiceItem) => ({
+          invoice_id: invoice.id,
+          description: item.description,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          amount: item.amount,
+          sort_order: item.sort_order,
+        }));
+        await supabaseClient.from("invoice_items").insert(newItems);
+      }
+
+      // Mark quote as accepted
+      await supabaseClient.from("invoices").update({ status: "accepted", updated_at: new Date().toISOString() }).eq("id", quote.id);
+
+      loadInvoices();
+    } catch (err) {
+      console.error("Failed to create invoice from quote:", err);
+    }
   }
 
   return (
@@ -212,8 +280,27 @@ export default function InvoiceManagement({ projectId, projectName, clientName }
                     <button type="button" onClick={() => handleViewPdf(inv)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50" title="View PDF">
                       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                     </button>
+                    {/* Draft actions */}
                     {inv.status === "draft" && <button type="button" onClick={() => handleUpdateStatus(inv, "sent")} className="h-9 rounded-lg bg-blue-50 px-3 text-[11px] font-semibold text-blue-700 hover:bg-blue-100">Send</button>}
-                    {inv.status === "sent" && inv.invoice_type === "invoice" && <button type="button" onClick={() => handleUpdateStatus(inv, "paid")} className="h-9 rounded-lg bg-emerald-50 px-3 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100">Mark Paid</button>}
+                    
+                    {/* Quote actions */}
+                    {inv.invoice_type === "quote" && inv.status === "sent" && (
+                      <>
+                        <button type="button" onClick={() => handleUpdateStatus(inv, "accepted")} className="h-9 rounded-lg bg-emerald-50 px-3 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100">Accept</button>
+                        <button type="button" onClick={() => handleUpdateStatus(inv, "rejected")} className="h-9 rounded-lg bg-red-50 px-3 text-[11px] font-semibold text-red-700 hover:bg-red-100">Reject</button>
+                      </>
+                    )}
+                    {inv.invoice_type === "quote" && inv.status === "accepted" && (
+                      <button type="button" onClick={() => handleCreateInvoiceFromQuote(inv)} className="h-9 rounded-lg bg-violet-50 px-3 text-[11px] font-semibold text-violet-700 hover:bg-violet-100">Create Invoice</button>
+                    )}
+                    
+                    {/* Invoice actions */}
+                    {inv.invoice_type === "invoice" && (inv.status === "sent" || inv.status === "unpaid") && (
+                      <button type="button" onClick={() => handleUpdateStatus(inv, "paid")} className="h-9 rounded-lg bg-emerald-50 px-3 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100">Mark Paid</button>
+                    )}
+                    {inv.invoice_type === "invoice" && inv.status === "paid" && (
+                      <button type="button" onClick={() => handleUpdateStatus(inv, "unpaid")} className="h-9 rounded-lg bg-amber-50 px-3 text-[11px] font-semibold text-amber-700 hover:bg-amber-100">Mark Unpaid</button>
+                    )}
                   </div>
                 </div>
               </div>

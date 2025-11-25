@@ -905,7 +905,7 @@ create table if not exists invoices (
   project_id uuid references projects(id) on delete set null,
   invoice_number text not null,
   invoice_type text check (invoice_type in ('quote', 'invoice')) default 'invoice',
-  status text check (status in ('draft', 'sent', 'paid', 'overdue', 'cancelled')) default 'draft',
+  status text check (status in ('draft', 'sent', 'paid', 'unpaid', 'overdue', 'cancelled', 'accepted', 'rejected')) default 'draft',
   
   -- Client details
   client_name text not null,

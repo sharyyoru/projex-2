@@ -406,10 +406,10 @@ export default function InvoiceCreateModal({ projectId, projectName, clientName,
           </div>
 
           <div className="rounded-xl bg-slate-50 p-4 space-y-2">
-            <div className="flex justify-between text-[13px]"><span className="text-slate-600">Subtotal</span><span className="font-semibold">{subtotal.toFixed(2)}</span></div>
-            {formDiscount > 0 && <div className="flex justify-between text-[13px]"><span className="text-slate-600">Discount</span><span className="font-semibold text-red-600">-{formDiscount.toFixed(2)}</span></div>}
-            <div className="flex justify-between text-[13px]"><span className="text-slate-600">Tax ({formTaxRate}%)</span><span className="font-semibold">{taxAmount.toFixed(2)}</span></div>
-            <div className="flex justify-between text-[15px] font-bold border-t border-slate-200 pt-2"><span>Total</span><span>{total.toFixed(2)}</span></div>
+            <div className="flex justify-between text-[13px]"><span className="text-slate-700">Subtotal</span><span className="font-semibold text-slate-900">{subtotal.toFixed(2)}</span></div>
+            {formDiscount > 0 && <div className="flex justify-between text-[13px]"><span className="text-slate-700">Discount</span><span className="font-semibold text-red-600">-{formDiscount.toFixed(2)}</span></div>}
+            <div className="flex justify-between text-[13px]"><span className="text-slate-700">Tax ({formTaxRate}%)</span><span className="font-semibold text-slate-900">{taxAmount.toFixed(2)}</span></div>
+            <div className="flex justify-between text-[15px] font-bold border-t border-slate-200 pt-2"><span className="text-slate-900">Total</span><span className="text-slate-900">{total.toFixed(2)}</span></div>
           </div>
         </div>
 
