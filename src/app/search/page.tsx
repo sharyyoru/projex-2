@@ -5,34 +5,45 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { supabaseClient } from "@/lib/supabaseClient";
 
-type PatientHit = {
+type CompanyHit = {
   id: string;
-  first_name: string | null;
-  last_name: string | null;
+  name: string;
   email: string | null;
   phone: string | null;
-  contact_owner_name: string | null;
+  industry: string | null;
 };
 
-type DealHit = {
+type ContactHit = {
   id: string;
-  patient_id: string;
-  title: string | null;
-  pipeline: string | null;
-  notes: string | null;
+  first_name: string;
+  last_name: string;
+  email: string | null;
+  phone: string | null;
+  company_id: string | null;
 };
 
-type TaskHit = {
-  id: string;
-  patient_id: string;
-  name: string;
-  content: string | null;
-};
-
-type ServiceHit = {
+type ProjectHit = {
   id: string;
   name: string;
   description: string | null;
+  status: string | null;
+  company_id: string;
+};
+
+type QuoteHit = {
+  id: string;
+  quote_number: string | null;
+  title: string | null;
+  status: string | null;
+  project_id: string | null;
+};
+
+type InvoiceHit = {
+  id: string;
+  invoice_number: string | null;
+  status: string | null;
+  project_id: string | null;
+  total: number | null;
 };
 
 export default function GlobalSearchPage() {
@@ -40,10 +51,11 @@ export default function GlobalSearchPage() {
   const rawQuery = searchParams.get("q") ?? "";
   const trimmedQuery = rawQuery.trim();
 
-  const [patients, setPatients] = useState<PatientHit[]>([]);
-  const [deals, setDeals] = useState<DealHit[]>([]);
-  const [tasks, setTasks] = useState<TaskHit[]>([]);
-  const [services, setServices] = useState<ServiceHit[]>([]);
+  const [companies, setCompanies] = useState<CompanyHit[]>([]);
+  const [contacts, setContacts] = useState<ContactHit[]>([]);
+  const [projects, setProjects] = useState<ProjectHit[]>([]);
+  const [quotes, setQuotes] = useState<QuoteHit[]>([]);
+  const [invoices, setInvoices] = useState<InvoiceHit[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,10 +64,11 @@ export default function GlobalSearchPage() {
 
     async function runSearch() {
       if (!trimmedQuery) {
-        setPatients([]);
-        setDeals([]);
-        setTasks([]);
-        setServices([]);
+        setCompanies([]);
+        setContacts([]);
+        setProjects([]);
+        setQuotes([]);
+        setInvoices([]);
         setError(null);
         setLoading(false);
         return;
@@ -69,71 +82,72 @@ export default function GlobalSearchPage() {
         const escaped = normalized.replace(/[%]/g, "");
         const pattern = `%${escaped}%`;
 
-        const [patientsResult, dealsResult, tasksResult, servicesResult] =
+        const [companiesResult, contactsResult, projectsResult, quotesResult, invoicesResult] =
           await Promise.all([
             supabaseClient
-              .from("patients")
-              .select(
-                "id, first_name, last_name, email, phone, contact_owner_name",
-              )
-              .or(
-                `first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern},phone.ilike.${pattern}`,
-              )
+              .from("companies")
+              .select("id, name, email, phone, industry")
+              .or(`name.ilike.${pattern},email.ilike.${pattern},industry.ilike.${pattern}`)
               .limit(8),
             supabaseClient
-              .from("deals")
-              .select("id, patient_id, title, pipeline, notes")
-              .or(
-                `title.ilike.${pattern},pipeline.ilike.${pattern},notes.ilike.${pattern}`,
-              )
+              .from("contacts")
+              .select("id, first_name, last_name, email, phone, company_id")
+              .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern}`)
               .limit(8),
             supabaseClient
-              .from("tasks")
-              .select("id, patient_id, name, content")
-              .or(`name.ilike.${pattern},content.ilike.${pattern}`)
-              .limit(8),
-            supabaseClient
-              .from("services")
-              .select("id, name, description")
+              .from("projects")
+              .select("id, name, description, status, company_id")
               .or(`name.ilike.${pattern},description.ilike.${pattern}`)
+              .limit(8),
+            supabaseClient
+              .from("quotes")
+              .select("id, quote_number, title, status, project_id")
+              .or(`quote_number.ilike.${pattern},title.ilike.${pattern}`)
+              .limit(8),
+            supabaseClient
+              .from("invoices")
+              .select("id, invoice_number, status, project_id, total")
+              .or(`invoice_number.ilike.${pattern}`)
               .limit(8),
           ]);
 
         if (cancelled) return;
 
-        if (
-          patientsResult.error ||
-          dealsResult.error ||
-          tasksResult.error ||
-          servicesResult.error
-        ) {
+        const hasError = companiesResult.error || contactsResult.error || 
+          projectsResult.error || quotesResult.error || invoicesResult.error;
+
+        if (hasError) {
           const message =
-            patientsResult.error?.message ??
-            dealsResult.error?.message ??
-            tasksResult.error?.message ??
-            servicesResult.error?.message ??
+            companiesResult.error?.message ??
+            contactsResult.error?.message ??
+            projectsResult.error?.message ??
+            quotesResult.error?.message ??
+            invoicesResult.error?.message ??
             "Failed to run search.";
           setError(message);
-          setPatients([]);
-          setDeals([]);
-          setTasks([]);
-          setServices([]);
+          setCompanies([]);
+          setContacts([]);
+          setProjects([]);
+          setQuotes([]);
+          setInvoices([]);
           setLoading(false);
           return;
         }
 
-        setPatients((patientsResult.data ?? []) as PatientHit[]);
-        setDeals((dealsResult.data ?? []) as DealHit[]);
-        setTasks((tasksResult.data ?? []) as TaskHit[]);
-        setServices((servicesResult.data ?? []) as ServiceHit[]);
+        setCompanies((companiesResult.data ?? []) as CompanyHit[]);
+        setContacts((contactsResult.data ?? []) as ContactHit[]);
+        setProjects((projectsResult.data ?? []) as ProjectHit[]);
+        setQuotes((quotesResult.data ?? []) as QuoteHit[]);
+        setInvoices((invoicesResult.data ?? []) as InvoiceHit[]);
         setLoading(false);
       } catch {
         if (cancelled) return;
         setError("Failed to run search.");
-        setPatients([]);
-        setDeals([]);
-        setTasks([]);
-        setServices([]);
+        setCompanies([]);
+        setContacts([]);
+        setProjects([]);
+        setQuotes([]);
+        setInvoices([]);
         setLoading(false);
       }
     }
@@ -146,8 +160,8 @@ export default function GlobalSearchPage() {
   }, [trimmedQuery]);
 
   const totalResults = useMemo(
-    () => patients.length + deals.length + tasks.length + services.length,
-    [patients.length, deals.length, tasks.length, services.length],
+    () => companies.length + contacts.length + projects.length + quotes.length + invoices.length,
+    [companies.length, contacts.length, projects.length, quotes.length, invoices.length],
   );
 
   return (
@@ -155,13 +169,13 @@ export default function GlobalSearchPage() {
       <header className="flex flex-col gap-1">
         <h1 className="text-lg font-semibold text-slate-900">Search</h1>
         <p className="text-xs text-slate-500">
-          Search across patients, deals, tasks, and services.
+          Search across companies, contacts, projects, quotes, and invoices.
         </p>
       </header>
 
       {!trimmedQuery ? (
         <p className="text-xs text-slate-500">
-          Use the search bar in the header to find any content across the CRM.
+          Use the search bar in the header to find any content.
         </p>
       ) : loading ? (
         <p className="text-xs text-slate-500">Searching for "{trimmedQuery}"...</p>
@@ -173,142 +187,158 @@ export default function GlobalSearchPage() {
         </p>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
-          {patients.length > 0 ? (
+          {companies.length > 0 && (
             <div className="rounded-xl border border-slate-200/80 bg-white/90 p-4 text-xs shadow-[0_16px_40px_rgba(15,23,42,0.08)] backdrop-blur">
               <div className="mb-2 flex items-center justify-between gap-2">
-                <h2 className="text-sm font-semibold text-slate-900">Patients</h2>
+                <h2 className="text-sm font-semibold text-slate-900">Companies</h2>
                 <span className="text-[11px] text-slate-400">
-                  {patients.length} match{patients.length === 1 ? "" : "es"}
+                  {companies.length} match{companies.length === 1 ? "" : "es"}
                 </span>
               </div>
               <ul className="space-y-1.5">
-                {patients.map((patient) => {
-                  const fullName = `${patient.first_name ?? ""} ${
-                    patient.last_name ?? ""
-                  }`
-                    .trim()
-                    .replace(/\s+/g, " ");
+                {companies.map((company) => (
+                  <li key={company.id}>
+                    <Link
+                      href={`/companies/${company.id}`}
+                      className="flex items-center justify-between rounded-lg bg-slate-50/80 px-3 py-2 text-slate-800 hover:bg-slate-100"
+                    >
+                      <div>
+                        <p className="text-[11px] font-semibold text-sky-700">
+                          {company.name}
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          {company.email || company.phone || company.industry || "No details"}
+                        </p>
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {contacts.length > 0 && (
+            <div className="rounded-xl border border-slate-200/80 bg-white/90 p-4 text-xs shadow-[0_16px_40px_rgba(15,23,42,0.08)] backdrop-blur">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <h2 className="text-sm font-semibold text-slate-900">Contacts</h2>
+                <span className="text-[11px] text-slate-400">
+                  {contacts.length} match{contacts.length === 1 ? "" : "es"}
+                </span>
+              </div>
+              <ul className="space-y-1.5">
+                {contacts.map((contact) => {
+                  const fullName = `${contact.first_name} ${contact.last_name}`.trim();
                   return (
-                    <li key={patient.id}>
+                    <li key={contact.id}>
                       <Link
-                        href={`/patients/${patient.id}`}
+                        href={contact.company_id ? `/companies/${contact.company_id}` : "/companies"}
                         className="flex items-center justify-between rounded-lg bg-slate-50/80 px-3 py-2 text-slate-800 hover:bg-slate-100"
                       >
                         <div>
-                          <p className="text-[11px] font-semibold text-sky-700">
-                            {fullName || "Unnamed patient"}
+                          <p className="text-[11px] font-semibold text-emerald-700">
+                            {fullName || "Unnamed contact"}
                           </p>
                           <p className="text-[11px] text-slate-500">
-                            {patient.email || patient.phone || "No contact details"}
+                            {contact.email || contact.phone || "No contact details"}
                           </p>
                         </div>
-                        <span className="text-[10px] text-slate-400">
-                          {patient.contact_owner_name || "Unassigned"}
-                        </span>
                       </Link>
                     </li>
                   );
                 })}
               </ul>
             </div>
-          ) : null}
+          )}
 
-          {deals.length > 0 ? (
+          {projects.length > 0 && (
             <div className="rounded-xl border border-slate-200/80 bg-white/90 p-4 text-xs shadow-[0_16px_40px_rgba(15,23,42,0.08)] backdrop-blur">
               <div className="mb-2 flex items-center justify-between gap-2">
-                <h2 className="text-sm font-semibold text-slate-900">Deals</h2>
+                <h2 className="text-sm font-semibold text-slate-900">Projects</h2>
                 <span className="text-[11px] text-slate-400">
-                  {deals.length} match{deals.length === 1 ? "" : "es"}
+                  {projects.length} match{projects.length === 1 ? "" : "es"}
                 </span>
               </div>
               <ul className="space-y-1.5">
-                {deals.map((deal) => (
-                  <li key={deal.id}>
+                {projects.map((project) => (
+                  <li key={project.id}>
                     <Link
-                      href={`/patients/${deal.patient_id}?mode=crm&tab=deals`}
+                      href={`/projects/${project.id}`}
                       className="flex items-center justify-between rounded-lg bg-slate-50/80 px-3 py-2 text-slate-800 hover:bg-slate-100"
                     >
                       <div>
-                        <p className="text-[11px] font-semibold text-slate-800">
-                          {deal.title || "Untitled deal"}
+                        <p className="text-[11px] font-semibold text-violet-700">
+                          {project.name}
                         </p>
                         <p className="text-[11px] text-slate-500">
-                          {deal.pipeline || "Pipeline"}
+                          {project.status || project.description || "No description"}
                         </p>
                       </div>
-                      <span className="line-clamp-2 max-w-[160px] text-right text-[10px] text-slate-400">
-                        {deal.notes || ""}
-                      </span>
                     </Link>
                   </li>
                 ))}
               </ul>
             </div>
-          ) : null}
+          )}
 
-          {tasks.length > 0 ? (
+          {quotes.length > 0 && (
             <div className="rounded-xl border border-slate-200/80 bg-white/90 p-4 text-xs shadow-[0_16px_40px_rgba(15,23,42,0.08)] backdrop-blur">
               <div className="mb-2 flex items-center justify-between gap-2">
-                <h2 className="text-sm font-semibold text-slate-900">Tasks</h2>
+                <h2 className="text-sm font-semibold text-slate-900">Quotes</h2>
                 <span className="text-[11px] text-slate-400">
-                  {tasks.length} match{tasks.length === 1 ? "" : "es"}
+                  {quotes.length} match{quotes.length === 1 ? "" : "es"}
                 </span>
               </div>
               <ul className="space-y-1.5">
-                {tasks.map((task) => (
-                  <li key={task.id}>
+                {quotes.map((quote) => (
+                  <li key={quote.id}>
                     <Link
-                      href={`/patients/${task.patient_id}?mode=crm&tab=tasks`}
+                      href={quote.project_id ? `/projects/${quote.project_id}` : "/projects"}
                       className="flex items-center justify-between rounded-lg bg-slate-50/80 px-3 py-2 text-slate-800 hover:bg-slate-100"
                     >
                       <div>
-                        <p className="text-[11px] font-semibold text-slate-800">
-                          {task.name}
+                        <p className="text-[11px] font-semibold text-amber-700">
+                          {quote.quote_number || quote.title || "Untitled quote"}
                         </p>
-                        {task.content ? (
-                          <p className="line-clamp-2 text-[11px] text-slate-500">
-                            {task.content}
-                          </p>
-                        ) : null}
+                        <p className="text-[11px] text-slate-500">
+                          {quote.status || "No status"}
+                        </p>
                       </div>
                     </Link>
                   </li>
                 ))}
               </ul>
             </div>
-          ) : null}
+          )}
 
-          {services.length > 0 ? (
+          {invoices.length > 0 && (
             <div className="rounded-xl border border-slate-200/80 bg-white/90 p-4 text-xs shadow-[0_16px_40px_rgba(15,23,42,0.08)] backdrop-blur">
               <div className="mb-2 flex items-center justify-between gap-2">
-                <h2 className="text-sm font-semibold text-slate-900">Services</h2>
+                <h2 className="text-sm font-semibold text-slate-900">Invoices</h2>
                 <span className="text-[11px] text-slate-400">
-                  {services.length} match{services.length === 1 ? "" : "es"}
+                  {invoices.length} match{invoices.length === 1 ? "" : "es"}
                 </span>
               </div>
               <ul className="space-y-1.5">
-                {services.map((service) => (
-                  <li key={service.id}>
+                {invoices.map((invoice) => (
+                  <li key={invoice.id}>
                     <Link
-                      href="/services"
+                      href={invoice.project_id ? `/projects/${invoice.project_id}` : "/financials"}
                       className="flex items-center justify-between rounded-lg bg-slate-50/80 px-3 py-2 text-slate-800 hover:bg-slate-100"
                     >
                       <div>
-                        <p className="text-[11px] font-semibold text-slate-800">
-                          {service.name}
+                        <p className="text-[11px] font-semibold text-rose-700">
+                          {invoice.invoice_number || "Untitled invoice"}
                         </p>
-                        {service.description ? (
-                          <p className="line-clamp-2 text-[11px] text-slate-500">
-                            {service.description}
-                          </p>
-                        ) : null}
+                        <p className="text-[11px] text-slate-500">
+                          {invoice.status || "No status"} {invoice.total ? `• $${invoice.total.toLocaleString()}` : ""}
+                        </p>
                       </div>
                     </Link>
                   </li>
                 ))}
               </ul>
             </div>
-          ) : null}
+          )}
         </div>
       )}
     </div>
