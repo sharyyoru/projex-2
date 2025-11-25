@@ -23,7 +23,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Projex - Mutant",
+  title: "Projext by Mutant",
   description: "Project management and collaboration platform",
 };
 

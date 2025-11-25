@@ -5,6 +5,7 @@ import ProjectModeToggle from "./ProjectModeToggle";
 import ProjectNotesTasksCard from "./ProjectNotesTasksCard";
 import ProjectContextCard from "./ProjectContextCard";
 import ProjectDetailsCard from "./ProjectDetailsCard";
+import InvoiceManagement from "./InvoiceManagement";
 
 interface ProjectPageProps {
   params: Promise<{ id: string }>;
@@ -335,26 +336,10 @@ export default async function ProjectPage({
               ) : null}
 
               {adminTab === "invoice" ? (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-7 w-7 items-center justify-center rounded-md bg-slate-100">
-                      <svg className="h-4 w-4 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="2" y="5" width="20" height="14" rx="2" />
-                        <path d="M2 10h20" />
-                      </svg>
-                    </div>
-                    <h3 className="text-sm font-semibold text-slate-800">Invoice Management</h3>
-                  </div>
-                  <p className="text-xs text-slate-500 border-l-2 border-slate-200 pl-3">
-                    Project-level invoicing can be surfaced here. For now this shows only the approximate project value.
-                  </p>
-                  <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50/80 p-4">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Estimated Project Value</p>
-                    <p className="mt-1 text-xl font-bold text-slate-800">
-                      {formatMoney(project.value)}
-                    </p>
-                  </div>
-                </div>
+                <InvoiceManagement 
+                  projectId={project.id} 
+                  projectName={project.name}
+                />
               ) : null}
             </div>
           </div>

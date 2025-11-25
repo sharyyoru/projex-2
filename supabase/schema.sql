@@ -848,3 +848,126 @@ create index if not exists chat_messages_conversation_id_idx
 
 create index if not exists chat_messages_conversation_created_idx
   on chat_messages(conversation_id, created_at);
+
+-- ============================================
+-- INVOICING SYSTEM
+-- ============================================
+
+-- Invoice settings (company details, logo, etc.)
+create table if not exists invoice_settings (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references users(id) on delete cascade,
+  company_name text,
+  company_logo_url text,
+  company_address text,
+  company_city text,
+  company_country text,
+  company_phone text,
+  company_email text,
+  company_website text,
+  company_tax_id text,
+  bank_name text,
+  bank_account_name text,
+  bank_account_number text,
+  bank_iban text,
+  bank_swift text,
+  invoice_prefix text default 'INV',
+  quote_prefix text default 'QUO',
+  invoice_notes text,
+  quote_notes text,
+  currency text default 'AED',
+  tax_rate numeric(5,2) default 5.00,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create unique index if not exists invoice_settings_user_id_idx
+  on invoice_settings(user_id);
+
+-- Invoice/Quote status enum
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'invoice_status') then
+    create type invoice_status as enum ('draft', 'sent', 'paid', 'overdue', 'cancelled');
+  end if;
+end$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'invoice_type') then
+    create type invoice_type as enum ('quote', 'invoice');
+  end if;
+end$$;
+
+-- Invoices and quotes table
+create table if not exists invoices (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid references projects(id) on delete set null,
+  invoice_number text not null,
+  invoice_type text check (invoice_type in ('quote', 'invoice')) default 'invoice',
+  status text check (status in ('draft', 'sent', 'paid', 'overdue', 'cancelled')) default 'draft',
+  
+  -- Client details
+  client_name text not null,
+  client_email text,
+  client_phone text,
+  client_address text,
+  client_city text,
+  client_country text,
+  client_tax_id text,
+  
+  -- Dates
+  issue_date date not null default current_date,
+  due_date date,
+  paid_date date,
+  
+  -- Amounts
+  subtotal numeric(12,2) not null default 0,
+  tax_rate numeric(5,2) default 5.00,
+  tax_amount numeric(12,2) not null default 0,
+  discount_amount numeric(12,2) default 0,
+  total numeric(12,2) not null default 0,
+  currency text default 'AED',
+  
+  -- Notes
+  notes text,
+  terms text,
+  
+  -- Company snapshot (copied from settings at creation)
+  company_name text,
+  company_logo_url text,
+  company_address text,
+  company_city text,
+  company_country text,
+  company_phone text,
+  company_email text,
+  company_tax_id text,
+  bank_name text,
+  bank_account_name text,
+  bank_account_number text,
+  bank_iban text,
+  bank_swift text,
+  
+  created_by uuid references users(id) on delete set null,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create index if not exists invoices_project_id_idx on invoices(project_id);
+create index if not exists invoices_status_idx on invoices(status);
+create index if not exists invoices_type_idx on invoices(invoice_type);
+create index if not exists invoices_created_at_idx on invoices(created_at desc);
+
+-- Invoice line items
+create table if not exists invoice_items (
+  id uuid primary key default gen_random_uuid(),
+  invoice_id uuid not null references invoices(id) on delete cascade,
+  description text not null,
+  quantity numeric(10,2) not null default 1,
+  unit_price numeric(12,2) not null default 0,
+  amount numeric(12,2) not null default 0,
+  sort_order int default 0,
+  created_at timestamptz default now()
+);
+
+create index if not exists invoice_items_invoice_id_idx on invoice_items(invoice_id);
