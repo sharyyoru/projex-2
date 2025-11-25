@@ -2,9 +2,11 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { supabaseClient } from "@/lib/supabaseClient";
-import { useProjectActivityFeed } from "./ProjectActivityFeed";
+import { useProjectActivityFeed, ActivitySource } from "./ProjectActivityFeed";
 import ProjectDocumentsTab from "./ProjectDocumentsTab";
 import FilePreviewModal from "@/components/FilePreviewModal";
+import MentionTextarea, { extractMentionedUserIds, NoteBodyWithMentions } from "@/components/MentionTextarea";
+import { useMessagesUnread } from "@/components/MessagesUnreadContext";
 
 type Note = {
   id: string;
@@ -46,6 +48,14 @@ type UserSummary = {
   id: string;
   full_name: string | null;
   email: string | null;
+};
+
+type TaskComment = {
+  id: string;
+  task_id: string;
+  body: string;
+  author_name: string | null;
+  created_at: string;
 };
 
 function formatDate(value: string | null): string {
@@ -109,9 +119,13 @@ function isWithinDateRange(
 
 export default function ProjectNotesTasksCard({
   projectId,
+  source = "operations",
 }: {
   projectId: string;
+  source?: ActivitySource;
 }) {
+  const { refreshUnread } = useMessagesUnread();
+  
   const [activeTab, setActiveTab] =
     useState<"activity" | "notes" | "tasks" | "files" | "links">("activity");
   
@@ -200,6 +214,12 @@ export default function ProjectNotesTasksCard({
   );
   const [modalStatusDropdownOpen, setModalStatusDropdownOpen] = useState(false);
 
+  // Task comments state
+  const [taskComments, setTaskComments] = useState<TaskComment[]>([]);
+  const [taskCommentsLoading, setTaskCommentsLoading] = useState(false);
+  const [newCommentBody, setNewCommentBody] = useState("");
+  const [commentSaving, setCommentSaving] = useState(false);
+
   const selectedTaskAllCompleted =
     selectedTaskGroup?.statuses.every((status) => status === "completed") ??
     false;
@@ -222,19 +242,14 @@ export default function ProjectNotesTasksCard({
     error: activityError,
     hasItems: activityHasItems,
   } = useProjectActivityFeed(projectId, {
-    includeDeals: false,
-    includeInvoices: false,
     reloadKey: activityReloadKey,
+    source,
   });
-
-  const activityItemsWithoutDeals = activityItems.filter(
-    (item) => item.kind !== "deal",
-  );
   const collapsedActivityItems = (() => {
     const result: typeof activityItems = [];
     const seenTaskKeys = new Set<string>();
 
-    for (const item of activityItemsWithoutDeals) {
+    for (const item of activityItems) {
       if (item.kind !== "task") {
         result.push(item);
         continue;
@@ -255,7 +270,7 @@ export default function ProjectNotesTasksCard({
     return result;
   })();
 
-  const activityHasItemsWithoutDeals = collapsedActivityItems.length > 0;
+  const activityHasFilteredItems = collapsedActivityItems.length > 0;
 
   const filteredActivityItems = collapsedActivityItems.filter((item) => {
     if (!isWithinDateRange(item.at ?? null, filterFromDate, filterToDate)) {
@@ -283,11 +298,16 @@ export default function ProjectNotesTasksCard({
         setNotesLoading(true);
         setNotesError(null);
 
-        const { data, error } = await supabaseClient
+        let query = supabaseClient
           .from("project_notes")
-          .select("id, body, author_name, created_at")
-          .eq("project_id", projectId)
-          .order("created_at", { ascending: false });
+          .select("id, body, author_name, created_at, source")
+          .eq("project_id", projectId);
+        
+        if (source !== "all") {
+          query = query.or(`source.eq.${source},source.is.null`);
+        }
+        
+        const { data, error } = await query.order("created_at", { ascending: false });
 
         if (!isMounted) return;
 
@@ -311,7 +331,7 @@ export default function ProjectNotesTasksCard({
     return () => {
       isMounted = false;
     };
-  }, [projectId]);
+  }, [projectId, source]);
 
   useEffect(() => {
     let isMounted = true;
@@ -358,13 +378,18 @@ export default function ProjectNotesTasksCard({
         setTasksLoading(true);
         setTasksError(null);
 
-        const { data, error } = await supabaseClient
+        let query = supabaseClient
           .from("tasks")
           .select(
-            "id, project_id, name, content, status, priority, type, activity_date, created_by_name, assigned_user_id, assigned_user_name, created_at",
+            "id, project_id, name, content, status, priority, type, activity_date, created_by_name, assigned_user_id, assigned_user_name, created_at, source",
           )
-          .eq("project_id", projectId)
-          .order("activity_date", { ascending: false });
+          .eq("project_id", projectId);
+        
+        if (source !== "all") {
+          query = query.or(`source.eq.${source},source.is.null`);
+        }
+        
+        const { data, error } = await query.order("activity_date", { ascending: false });
 
         if (!isMounted) return;
 
@@ -425,7 +450,7 @@ export default function ProjectNotesTasksCard({
     return () => {
       isMounted = false;
     };
-  }, [projectId]);
+  }, [projectId, source]);
 
   async function handleNoteSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -460,6 +485,7 @@ export default function ProjectNotesTasksCard({
           author_user_id: authUser.id,
           author_name: fullName,
           body: trimmed,
+          source: source === "all" ? "operations" : source,
         })
         .select("id, body, author_name, created_at")
         .single();
@@ -468,6 +494,25 @@ export default function ProjectNotesTasksCard({
         setNoteSaveError(error?.message ?? "Failed to save note.");
         setNoteSaving(false);
         return;
+      }
+
+      // Save mentions and notify
+      const mentionedUserIds = extractMentionedUserIds(trimmed);
+      if (mentionedUserIds.length > 0) {
+        const mentionSource = source === "all" ? "operations" : source;
+        const mentionRows = mentionedUserIds.map((userId: string) => ({
+          note_id: data.id,
+          project_id: projectId,
+          mentioned_user_id: userId,
+          source: mentionSource,
+        }));
+
+        await supabaseClient
+          .from("project_note_mentions")
+          .insert(mentionRows);
+
+        // Refresh unread count for mentioned users
+        refreshUnread().catch(() => {});
       }
 
       setNotes((prev) => [data as Note, ...prev]);
@@ -536,6 +581,7 @@ export default function ProjectNotesTasksCard({
           created_by_name: fullName,
           assigned_user_id: assigneeId,
           assigned_user_name: assigneeName,
+          source: source === "all" ? "operations" : source,
         };
       });
 
@@ -736,6 +782,8 @@ export default function ProjectNotesTasksCard({
     const checklistItems = checklistByTaskId[task.id] ?? [];
 
     setIsEditingTask(false);
+    setNewCommentBody("");
+    setTaskComments([]);
     setSelectedTaskGroup({
       key: task.id,
       primaryTaskId: task.id,
@@ -750,6 +798,7 @@ export default function ProjectNotesTasksCard({
       taskIds: [task.id],
       checklistItems,
     });
+    void loadTaskComments(task.id);
   }
 
   function extractFileNameFromBody(body: string | null): string | null {
@@ -775,6 +824,92 @@ export default function ProjectNotesTasksCard({
       setFilePreviewUrl(data.publicUrl);
       setFilePreviewName(fileName);
       setFilePreviewOpen(true);
+    }
+  }
+
+  // Load comments for a task
+  async function loadTaskComments(taskId: string) {
+    try {
+      setTaskCommentsLoading(true);
+      const { data, error } = await supabaseClient
+        .from("task_comments")
+        .select("id, task_id, body, author_name, created_at")
+        .eq("task_id", taskId)
+        .order("created_at", { ascending: true });
+
+      if (error) {
+        setTaskComments([]);
+      } else {
+        setTaskComments((data as TaskComment[]) || []);
+      }
+    } catch {
+      setTaskComments([]);
+    } finally {
+      setTaskCommentsLoading(false);
+    }
+  }
+
+  // Save a new comment
+  async function handleSubmitComment() {
+    if (!selectedTaskGroup?.primaryTaskId || !newCommentBody.trim()) return;
+
+    try {
+      setCommentSaving(true);
+
+      const { data: authData } = await supabaseClient.auth.getUser();
+      const authUser = authData?.user;
+      if (!authUser) {
+        setCommentSaving(false);
+        return;
+      }
+
+      const meta = (authUser.user_metadata || {}) as Record<string, unknown>;
+      const first = (meta["first_name"] as string) || "";
+      const last = (meta["last_name"] as string) || "";
+      const fullName = [first, last].filter(Boolean).join(" ") || authUser.email || null;
+
+      const { data, error } = await supabaseClient
+        .from("task_comments")
+        .insert({
+          task_id: selectedTaskGroup.primaryTaskId,
+          project_id: projectId,
+          author_user_id: authUser.id,
+          author_name: fullName,
+          body: newCommentBody.trim(),
+          source: source === "all" ? "operations" : source,
+        })
+        .select("id, task_id, body, author_name, created_at")
+        .single();
+
+      if (error || !data) {
+        setCommentSaving(false);
+        return;
+      }
+
+      // Save mentions from comment
+      const mentionedUserIds = extractMentionedUserIds(newCommentBody.trim());
+      if (mentionedUserIds.length > 0) {
+        const mentionSource = source === "all" ? "operations" : source;
+        const mentionRows = mentionedUserIds.map((userId: string) => ({
+          comment_id: data.id,
+          task_id: selectedTaskGroup.primaryTaskId,
+          project_id: projectId,
+          mentioned_user_id: userId,
+          source: mentionSource,
+        }));
+
+        await supabaseClient
+          .from("task_comment_mentions")
+          .insert(mentionRows);
+
+        refreshUnread().catch(() => {});
+      }
+
+      setTaskComments((prev) => [...prev, data as TaskComment]);
+      setNewCommentBody("");
+      setCommentSaving(false);
+    } catch {
+      setCommentSaving(false);
     }
   }
 
@@ -1058,93 +1193,81 @@ export default function ProjectNotesTasksCard({
         </div>
       </div>
 
-      {/* Enhanced Filters */}
-      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200/60 bg-gradient-to-r from-slate-50/80 to-white/80 p-3 shadow-sm backdrop-blur">
-        {/* Search */}
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-violet-100 to-purple-100 text-violet-500">
-            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.3-4.3" />
-            </svg>
+      {/* Filters for Activity Tab */}
+      {activeTab === "activity" && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200/60 bg-gradient-to-r from-slate-50/80 to-white/80 p-3 shadow-sm">
+          {/* Search */}
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-violet-100 to-purple-100 text-violet-500">
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.3-4.3" />
+              </svg>
+            </div>
+            <input
+              type="text"
+              value={filterText}
+              onChange={(event) => setFilterText(event.target.value)}
+              placeholder="Search..."
+              className="h-8 w-40 rounded-lg border border-slate-200 bg-white px-3 text-[12px] text-slate-900 shadow-sm transition-all focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+            />
           </div>
-          <input
-            type="text"
-            value={filterText}
-            onChange={(event) => setFilterText(event.target.value)}
-            placeholder="Search notes, tasks, files..."
-            className="h-8 w-48 rounded-lg border border-slate-200 bg-white px-3 text-[12px] text-slate-900 shadow-sm transition-all focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
-          />
-        </div>
 
-        {/* Date Range */}
-        <div className="flex items-center gap-2 rounded-lg bg-white/60 px-2 py-1">
-          <div className="flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-amber-100 to-orange-100 text-amber-500">
-            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="4" width="18" height="18" rx="2" />
-              <path d="M16 2v4M8 2v4M3 10h18" />
-            </svg>
+          {/* Date Range */}
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={filterFromDate}
+              onChange={(event) => setFilterFromDate(event.target.value)}
+              className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-[11px] text-slate-700 shadow-sm focus:border-violet-400 focus:outline-none"
+            />
+            <span className="text-[10px] text-slate-400">to</span>
+            <input
+              type="date"
+              value={filterToDate}
+              onChange={(event) => setFilterToDate(event.target.value)}
+              className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-[11px] text-slate-700 shadow-sm focus:border-violet-400 focus:outline-none"
+            />
           </div>
-          <input
-            type="date"
-            value={filterFromDate}
-            onChange={(event) => setFilterFromDate(event.target.value)}
-            className="h-7 rounded-md border border-slate-200 bg-white px-2 text-[11px] text-slate-700 shadow-sm focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-500/20"
-          />
-          <span className="text-[10px] text-slate-400">→</span>
-          <input
-            type="date"
-            value={filterToDate}
-            onChange={(event) => setFilterToDate(event.target.value)}
-            className="h-7 rounded-md border border-slate-200 bg-white px-2 text-[11px] text-slate-700 shadow-sm focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-500/20"
-          />
-        </div>
 
-        {/* Sort Order */}
-        <button
-          type="button"
-          onClick={() =>
-            setFilterSortOrder((previous) =>
-              previous === "desc" ? "asc" : "desc",
-            )
-          }
-          className="group inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-600 shadow-sm transition-all hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700"
-        >
-          <svg className={`h-3.5 w-3.5 transition-transform ${filterSortOrder === "asc" ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="m3 16 4 4 4-4" />
-            <path d="M7 20V4" />
-            <path d="m21 8-4-4-4 4" />
-            <path d="M17 4v16" />
-          </svg>
-          {filterSortOrder === "desc" ? "Newest" : "Oldest"}
-        </button>
-
-        {/* Clear Filters */}
-        {(filterText || filterFromDate || filterToDate) && (
+          {/* Sort Order */}
           <button
             type="button"
-            onClick={handleClearFilters}
-            className="inline-flex items-center gap-1 rounded-lg bg-red-50 px-2.5 py-1.5 text-[11px] font-medium text-red-600 transition-all hover:bg-red-100"
+            onClick={() => setFilterSortOrder((prev) => prev === "desc" ? "asc" : "desc")}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-600 shadow-sm transition-all hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700"
           >
-            <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M18 6 6 18" />
-              <path d="m6 6 12 12" />
+            <svg className={`h-3.5 w-3.5 transition-transform ${filterSortOrder === "asc" ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m3 16 4 4 4-4" />
+              <path d="M7 20V4" />
+              <path d="m21 8-4-4-4 4" />
+              <path d="M17 4v16" />
             </svg>
-            Clear
+            {filterSortOrder === "desc" ? "Newest" : "Oldest"}
           </button>
-        )}
-      </div>
+
+          {/* Clear */}
+          {(filterText || filterFromDate || filterToDate) && (
+            <button
+              type="button"
+              onClick={handleClearFilters}
+              className="inline-flex items-center gap-1 rounded-lg bg-red-50 px-2.5 py-1.5 text-[11px] font-medium text-red-600 transition-all hover:bg-red-100"
+            >
+              <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 6 6 18" />
+                <path d="m6 6 12 12" />
+              </svg>
+              Clear
+            </button>
+          )}
+
+          <div className="ml-auto text-[11px] text-slate-400">
+            {orderedActivityItems.length} entries
+          </div>
+        </div>
+      )}
 
       {activeTab === "activity" ? (
         <div className="space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-[11px] text-slate-500">
-              Notes and tasks for this project.
-            </p>
-            <p className="text-[11px] text-slate-400">
-              {orderedActivityItems.length} entries
-            </p>
-          </div>
 
           {activityLoading ? (
             <div className="flex items-center justify-center py-8">
@@ -1161,7 +1284,7 @@ export default function ProjectNotesTasksCard({
               </svg>
               <p className="text-[11px] text-red-600">{activityError}</p>
             </div>
-          ) : !activityHasItemsWithoutDeals ? (
+          ) : !activityHasFilteredItems ? (
             <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-gradient-to-br from-slate-50 to-white py-10">
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-100 to-purple-100 text-violet-400">
                 <svg className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -1181,21 +1304,13 @@ export default function ProjectNotesTasksCard({
                   ? "from-amber-400 to-orange-500 shadow-amber-500/30"
                   : item.kind === "task"
                   ? "from-emerald-400 to-teal-500 shadow-emerald-500/30"
-                  : item.kind === "invoice"
-                  ? "from-sky-400 to-blue-500 shadow-sky-500/30"
-                  : item.kind === "file"
-                  ? "from-purple-400 to-violet-500 shadow-violet-500/30"
-                  : "from-pink-400 to-rose-500 shadow-pink-500/30";
+                  : "from-purple-400 to-violet-500 shadow-violet-500/30";
 
                 const cardBg = item.kind === "note"
                   ? "from-amber-50/80 to-orange-50/50 border-amber-200/60 hover:border-amber-300"
                   : item.kind === "task"
                   ? "from-emerald-50/80 to-teal-50/50 border-emerald-200/60 hover:border-emerald-300"
-                  : item.kind === "invoice"
-                  ? "from-sky-50/80 to-blue-50/50 border-sky-200/60 hover:border-sky-300"
-                  : item.kind === "file"
-                  ? "from-purple-50/80 to-violet-50/50 border-purple-200/60 hover:border-purple-300"
-                  : "from-pink-50/80 to-rose-50/50 border-pink-200/60 hover:border-pink-300";
+                  : "from-purple-50/80 to-violet-50/50 border-purple-200/60 hover:border-purple-300";
 
                 return (
                   <div
@@ -1214,18 +1329,9 @@ export default function ProjectNotesTasksCard({
                           <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
                           <polyline points="22 4 12 14.01 9 11.01" />
                         </svg>
-                      ) : item.kind === "invoice" ? (
-                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <rect x="2" y="5" width="20" height="14" rx="2" />
-                          <path d="M2 10h20" />
-                        </svg>
-                      ) : item.kind === "file" ? (
-                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                        </svg>
                       ) : (
                         <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                         </svg>
                       )}
                     </div>
@@ -1247,9 +1353,7 @@ export default function ProjectNotesTasksCard({
                             <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
                               item.kind === "note" ? "bg-amber-500/10 text-amber-700" :
                               item.kind === "task" ? "bg-emerald-500/10 text-emerald-700" :
-                              item.kind === "invoice" ? "bg-sky-500/10 text-sky-700" :
-                              item.kind === "file" ? "bg-purple-500/10 text-purple-700" :
-                              "bg-pink-500/10 text-pink-700"
+                              "bg-purple-500/10 text-purple-700"
                             }`}>
                               {item.kind}
                             </span>
@@ -1258,7 +1362,9 @@ export default function ProjectNotesTasksCard({
                             </h4>
                           </div>
                           {item.body ? (
-                            <p className="text-[11px] text-slate-600 line-clamp-2">{item.body}</p>
+                            <p className="text-[11px] text-slate-600 line-clamp-2">
+                              <NoteBodyWithMentions body={item.body} />
+                            </p>
                           ) : null}
                           <div className="flex flex-wrap items-center gap-2 pt-0.5">
                             {item.kind === "task" && item.taskStatus && item.taskId ? (
@@ -1299,16 +1405,16 @@ export default function ProjectNotesTasksCard({
         </div>
       ) : activeTab === "notes" ? (
         <div className="space-y-4">
-          <form onSubmit={handleNoteSubmit} className="space-y-2">
+          <form onSubmit={handleNoteSubmit} className="space-y-3">
             <label className="block text-[11px] font-medium text-slate-700">
               Add note
             </label>
-            <textarea
+            <MentionTextarea
               value={noteBody}
-              onChange={(event) => setNoteBody(event.target.value)}
+              onChange={setNoteBody}
+              users={users}
+              placeholder="Write an internal note about this project... Use @ to mention someone"
               rows={3}
-              className="block w-full rounded-lg border border-slate-200 bg-white/90 px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-              placeholder="Write an internal note about this project..."
             />
             {noteSaveError ? (
               <p className="text-[11px] text-red-600">{noteSaveError}</p>
@@ -1372,7 +1478,9 @@ export default function ProjectNotesTasksCard({
 
                     {/* Note card */}
                     <div className="flex-1 rounded-xl border border-amber-200/60 bg-gradient-to-r from-amber-50/80 to-orange-50/50 p-3 shadow-sm transition-all duration-200 hover:border-amber-300 hover:shadow-md">
-                      <p className="text-[11px] leading-relaxed text-slate-700">{note.body}</p>
+                      <p className="text-[11px] leading-relaxed text-slate-700">
+                        <NoteBodyWithMentions body={note.body} />
+                      </p>
                       <div className="mt-2 flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <div className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 text-[9px] font-bold text-amber-600">
@@ -2336,149 +2444,245 @@ export default function ProjectNotesTasksCard({
         <div className="fixed inset-0 z-40 flex items-center justify-center px-4 py-6">
           <button
             type="button"
-            className="absolute inset-0 bg-slate-900/40"
+            className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
             onClick={() => setSelectedTaskGroup(null)}
           />
-          <div className="relative z-10 w-full max-w-lg rounded-xl border border-slate-200/80 bg-white/95 p-4 text-xs shadow-[0_20px_60px_rgba(15,23,42,0.45)] backdrop-blur">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900">
-                  {selectedTaskGroup.name}
-                </h3>
-                <p className="text-[11px] text-slate-500">
-                  Task details and checklist.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedTaskGroup(null)}
-                className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-[11px] text-slate-500 hover:bg-slate-50"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              {selectedTaskGroup.content ? (
-                <p className="text-[11px] text-slate-700">
-                  {selectedTaskGroup.content}
-                </p>
-              ) : null}
-              <p className="text-[10px] text-slate-500">
-                Due {formatDate(selectedTaskGroup.activity_date ?? selectedTaskGroup.created_at)} • Priority {selectedTaskGroup.priority}
-              </p>
-              <p className="text-[10px] text-slate-400">
-                Created {formatDate(selectedTaskGroup.created_at)}
-              </p>
-              <p className="text-[10px] text-slate-400">
-                Created by {selectedTaskGroup.created_by_name || "Unknown"}
-              </p>
-              <p className="text-[10px] text-slate-400">
-                Assigned to {selectedTaskGroup.assignedNames.join(", ") || "Unassigned"}
-              </p>
-              {selectedTaskDisplayStatus ? (
-                <div className="flex items-center gap-2 text-[10px] text-slate-400">
-                  <span>Status</span>
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setModalStatusDropdownOpen((previous) => !previous)
-                      }
-                      className={
-                        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium " +
-                        taskStatusPillClasses(selectedTaskDisplayStatus)
-                      }
-                    >
-                      <span>
-                        {formatTaskStatusLabel(selectedTaskDisplayStatus)}
-                      </span>
-                      <span className="text-[9px]">▾</span>
-                    </button>
-                    {modalStatusDropdownOpen ? (
-                      <div className="absolute right-0 z-10 mt-1 w-32 rounded-md border border-slate-200 bg-white py-1 text-[10px] shadow-lg">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setModalStatusDropdownOpen(false);
-                            void handleChangeTaskStatus(
-                              selectedTaskGroup.taskIds,
-                              "not_started",
-                            );
-                          }}
-                          className="flex w-full items-center justify-between px-2 py-1 text-left text-slate-700 hover:bg-red-50"
-                        >
-                          <span>Not started</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setModalStatusDropdownOpen(false);
-                            void handleChangeTaskStatus(
-                              selectedTaskGroup.taskIds,
-                              "in_progress",
-                            );
-                          }}
-                          className="flex w-full items-center justify-between px-2 py-1 text-left text-slate-700 hover:bg-amber-50"
-                        >
-                          <span>In progress</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setModalStatusDropdownOpen(false);
-                            void handleChangeTaskStatus(
-                              selectedTaskGroup.taskIds,
-                              "completed",
-                            );
-                          }}
-                          className="flex w-full items-center justify-between px-2 py-1 text-left text-slate-700 hover:bg-emerald-50"
-                        >
-                          <span>Completed</span>
-                        </button>
-                      </div>
-                    ) : null}
+          <div className="relative z-10 w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200/50 bg-white shadow-2xl">
+            {/* Header with gradient */}
+            <div className="relative overflow-hidden bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 px-6 py-5">
+              <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
+              <div className="absolute -bottom-10 -left-10 h-24 w-24 rounded-full bg-white/10 blur-xl" />
+              <div className="relative flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm shadow-lg">
+                    <svg className="h-6 w-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9 11l3 3L22 4" />
+                      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white line-clamp-1">
+                      {selectedTaskGroup.name}
+                    </h3>
+                    <p className="text-[11px] text-white/80">
+                      Created by {selectedTaskGroup.created_by_name || "Unknown"}
+                    </p>
                   </div>
                 </div>
-              ) : null}
+                <button
+                  type="button"
+                  onClick={() => setSelectedTaskGroup(null)}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-white backdrop-blur-sm transition-all hover:bg-white/30"
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M18 6 6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
 
-              {selectedTaskGroup.checklistItems.length > 0 ? (
-                <div className="mt-2 space-y-1">
-                  <p className="text-[11px] font-medium text-slate-700">
-                    Checklist
+            {/* Content */}
+            <div className="max-h-[60vh] overflow-y-auto px-6 py-5">
+              {/* Description */}
+              {selectedTaskGroup.content && (
+                <div className="mb-4 rounded-xl bg-slate-50 p-4">
+                  <p className="text-[12px] text-slate-700 leading-relaxed">
+                    {selectedTaskGroup.content}
                   </p>
-                  {selectedTaskGroup.checklistItems.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => void handleToggleChecklistItem(item)}
-                      className="flex w-full items-center gap-2 text-left text-[10px] text-slate-600 hover:text-slate-900"
-                    >
-                      <span
-                        className={
-                          "inline-flex h-3.5 w-3.5 items-center justify-center rounded border " +
-                          (item.is_completed
-                            ? "border-emerald-500 bg-emerald-500 text-white"
-                            : "border-slate-300 bg-white text-transparent")
-                        }
-                      >
-                        ✓
-                      </span>
-                      <span
-                        className={
-                          item.is_completed ? "line-through opacity-60" : ""
-                        }
-                      >
-                        {item.label}
-                      </span>
-                    </button>
-                  ))}
                 </div>
-              ) : (
-                <p className="mt-2 text-[10px] text-slate-500">
-                  No checklist items for this task.
-                </p>
               )}
+
+              {/* Info Cards */}
+              <div className="mb-5 grid grid-cols-2 gap-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Due Date</p>
+                  <p className="mt-1 text-[13px] font-semibold text-slate-800">
+                    {formatDate(selectedTaskGroup.activity_date ?? selectedTaskGroup.created_at)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Priority</p>
+                  <p className={`mt-1 text-[13px] font-semibold ${
+                    selectedTaskGroup.priority === "high" ? "text-red-600" :
+                    selectedTaskGroup.priority === "medium" ? "text-amber-600" : "text-slate-600"
+                  }`}>
+                    {selectedTaskGroup.priority.charAt(0).toUpperCase() + selectedTaskGroup.priority.slice(1)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Assigned To</p>
+                  <p className="mt-1 text-[13px] font-semibold text-slate-800">
+                    {selectedTaskGroup.assignedNames.join(", ") || "Unassigned"}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Status</p>
+                  <div className="relative mt-1">
+                    <button
+                      type="button"
+                      onClick={() => setModalStatusDropdownOpen((prev) => !prev)}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold shadow-sm transition-all hover:scale-105 ${taskStatusPillClasses(selectedTaskDisplayStatus!)}`}
+                    >
+                      {formatTaskStatusLabel(selectedTaskDisplayStatus)}
+                      <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </button>
+                    {modalStatusDropdownOpen && (
+                      <div className="absolute left-0 top-full z-20 mt-2 w-40 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+                        {(["not_started", "in_progress", "completed"] as TaskStatus[]).map((s) => (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={() => {
+                              setModalStatusDropdownOpen(false);
+                              void handleChangeTaskStatus(selectedTaskGroup.taskIds, s);
+                            }}
+                            className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[11px] font-medium text-slate-700 transition-all hover:bg-slate-50"
+                          >
+                            <span className={`h-2 w-2 rounded-full ${
+                              s === "completed" ? "bg-emerald-500" :
+                              s === "in_progress" ? "bg-amber-500" : "bg-red-400"
+                            }`} />
+                            {formatTaskStatusLabel(s)}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Checklist */}
+              <div className="mb-5">
+                <div className="mb-3 flex items-center gap-2">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-100 text-violet-600">
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M9 11l3 3L22 4" />
+                      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                    </svg>
+                  </div>
+                  <span className="text-[12px] font-bold text-slate-800">Checklist</span>
+                  {selectedTaskGroup.checklistItems.length > 0 && (
+                    <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold text-violet-700">
+                      {selectedTaskGroup.checklistItems.filter(i => i.is_completed).length}/{selectedTaskGroup.checklistItems.length}
+                    </span>
+                  )}
+                </div>
+                {selectedTaskGroup.checklistItems.length > 0 ? (
+                  <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                    {selectedTaskGroup.checklistItems.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => void handleToggleChecklistItem(item)}
+                        className="flex w-full items-center gap-3 rounded-lg p-2 text-left transition-all hover:bg-white"
+                      >
+                        <span className={`flex h-5 w-5 items-center justify-center rounded-md border-2 transition-all ${
+                          item.is_completed
+                            ? "border-emerald-500 bg-emerald-500 text-white"
+                            : "border-slate-300 bg-white"
+                        }`}>
+                          {item.is_completed && (
+                            <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          )}
+                        </span>
+                        <span className={`text-[12px] ${item.is_completed ? "text-slate-400 line-through" : "text-slate-700"}`}>
+                          {item.label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-4 text-center text-[11px] text-slate-400">
+                    No checklist items for this task
+                  </p>
+                )}
+              </div>
+
+              {/* Comments Section */}
+              <div>
+                <div className="mb-3 flex items-center gap-2">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-100 text-sky-600">
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    </svg>
+                  </div>
+                  <span className="text-[12px] font-bold text-slate-800">Comments</span>
+                  {taskComments.length > 0 && (
+                    <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold text-sky-700">
+                      {taskComments.length}
+                    </span>
+                  )}
+                </div>
+
+                {taskCommentsLoading ? (
+                  <div className="flex items-center justify-center py-6">
+                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-sky-200 border-t-sky-600" />
+                  </div>
+                ) : taskComments.length === 0 ? (
+                  <p className="mb-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-4 text-center text-[11px] text-slate-400">
+                    No comments yet. Be the first to comment!
+                  </p>
+                ) : (
+                  <div className="mb-4 max-h-48 space-y-3 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                    {taskComments.map((comment) => (
+                      <div key={comment.id} className="rounded-lg bg-white p-3 shadow-sm">
+                        <div className="mb-2 flex items-center gap-2">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-blue-600 text-[10px] font-bold text-white shadow-sm">
+                            {(comment.author_name || "U")[0].toUpperCase()}
+                          </div>
+                          <div>
+                            <span className="text-[11px] font-semibold text-slate-800">
+                              {comment.author_name || "Unknown"}
+                            </span>
+                            <span className="ml-2 text-[10px] text-slate-400">
+                              {formatDate(comment.created_at)}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="pl-9 text-[11px] text-slate-600 leading-relaxed">
+                          <NoteBodyWithMentions body={comment.body} />
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Add Comment */}
+                <div className="space-y-3">
+                  <MentionTextarea
+                    value={newCommentBody}
+                    onChange={setNewCommentBody}
+                    users={users}
+                    placeholder="Write a comment... Use @ to mention someone"
+                    rows={2}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleSubmitComment()}
+                    disabled={commentSaving || !newCommentBody.trim()}
+                    className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2 text-[11px] font-semibold text-white shadow-lg shadow-sky-500/25 transition-all hover:shadow-xl hover:shadow-sky-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {commentSaving ? (
+                      <>
+                        <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                        Posting...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M22 2L11 13" />
+                          <path d="M22 2l-7 20-4-9-9-4 20-7z" />
+                        </svg>
+                        Post Comment
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

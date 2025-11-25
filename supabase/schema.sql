@@ -467,6 +467,24 @@ create table if not exists project_notes (
 
 create index if not exists project_notes_project_id_idx on project_notes(project_id);
 
+-- Add source column to project_notes to track if created from admin or operations mode
+alter table if exists project_notes
+  add column if not exists source text check (source in ('operations','admin')) default 'operations';
+
+-- Mentions/messages generated from project notes
+create table if not exists project_note_mentions (
+  id uuid primary key default gen_random_uuid(),
+  note_id uuid not null references project_notes(id) on delete cascade,
+  project_id uuid not null references projects(id) on delete cascade,
+  mentioned_user_id uuid not null references users(id) on delete cascade,
+  source text check (source in ('operations','admin')) default 'operations',
+  created_at timestamptz default now(),
+  read_at timestamptz
+);
+
+create index if not exists project_note_mentions_recipient_idx
+  on project_note_mentions(mentioned_user_id, read_at);
+
 -- Mentions/messages generated from patient notes
 create table if not exists patient_note_mentions (
   id uuid primary key default gen_random_uuid(),
@@ -545,6 +563,10 @@ alter table if exists tasks
 
 create index if not exists tasks_project_id_idx on tasks(project_id);
 
+-- Add source column to tasks to track if created from admin or operations mode
+alter table if exists tasks
+  add column if not exists source text check (source in ('operations','admin')) default 'operations';
+
 -- Checklist items for tasks (patient or project)
 create table if not exists task_checklist_items (
   id uuid primary key default gen_random_uuid(),
@@ -557,6 +579,35 @@ create table if not exists task_checklist_items (
 
 create index if not exists task_checklist_items_task_id_idx
   on task_checklist_items(task_id);
+
+-- Task comments with mention support
+create table if not exists task_comments (
+  id uuid primary key default gen_random_uuid(),
+  task_id uuid not null references tasks(id) on delete cascade,
+  project_id uuid references projects(id) on delete set null,
+  author_user_id uuid references users(id) on delete set null,
+  author_name text,
+  body text not null,
+  source text check (source in ('operations','admin')) default 'operations',
+  created_at timestamptz default now()
+);
+
+create index if not exists task_comments_task_id_idx on task_comments(task_id);
+
+-- Mentions from task comments
+create table if not exists task_comment_mentions (
+  id uuid primary key default gen_random_uuid(),
+  comment_id uuid not null references task_comments(id) on delete cascade,
+  task_id uuid not null references tasks(id) on delete cascade,
+  project_id uuid references projects(id) on delete set null,
+  mentioned_user_id uuid not null references users(id) on delete cascade,
+  source text check (source in ('operations','admin')) default 'operations',
+  created_at timestamptz default now(),
+  read_at timestamptz
+);
+
+create index if not exists task_comment_mentions_recipient_idx
+  on task_comment_mentions(mentioned_user_id, read_at);
 
 -- Patient edit locks (which user is currently editing which patient)
 create table if not exists patient_edit_locks (

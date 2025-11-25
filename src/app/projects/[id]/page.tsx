@@ -3,8 +3,6 @@ import { supabaseClient } from "@/lib/supabaseClient";
 import CollapseSidebarOnMount from "@/components/CollapseSidebarOnMount";
 import ProjectModeToggle from "./ProjectModeToggle";
 import ProjectNotesTasksCard from "./ProjectNotesTasksCard";
-import ProjectAdminCockpit from "./ProjectAdminCockpit";
-import ProjectActivityFeed from "./ProjectActivityFeed";
 import ProjectContextCard from "./ProjectContextCard";
 import ProjectDetailsCard from "./ProjectDetailsCard";
 
@@ -15,14 +13,7 @@ interface ProjectPageProps {
 
 type Mode = "operations" | "admin";
 
-type AdminTab =
-  | "cockpit"
-  | "notes"
-  | "invoice"
-  | "file"
-  | "photo"
-  | "project_information"
-  | "documents";
+type AdminTab = "cockpit" | "invoice";
 
 type ProjectRow = {
   id: string;
@@ -167,24 +158,13 @@ export default async function ProjectPage({
   })();
 
   const adminTab: AdminTab =
-    rawAdminTab === "cockpit" ||
-    rawAdminTab === "notes" ||
-    rawAdminTab === "invoice" ||
-    rawAdminTab === "file" ||
-    rawAdminTab === "photo" ||
-    rawAdminTab === "project_information" ||
-    rawAdminTab === "documents"
+    rawAdminTab === "cockpit" || rawAdminTab === "invoice"
       ? (rawAdminTab as AdminTab)
       : "cockpit";
 
   const adminTabs: { id: AdminTab; label: string }[] = [
     { id: "cockpit", label: "Cockpit" },
-    { id: "notes", label: "Notes" },
     { id: "invoice", label: "Invoice" },
-    { id: "file", label: "File" },
-    { id: "photo", label: "Photo" },
-    { id: "project_information", label: "Project Information" },
-    { id: "documents", label: "Documents" },
   ];
 
   const statusDisplay = (() => {
@@ -292,9 +272,31 @@ export default async function ProjectPage({
           <ProjectNotesTasksCard projectId={project.id} />
         </>
       ) : (
-        <div className="space-y-6">
-          <div className="border-b border-slate-200">
-            <nav className="-mb-px flex flex-wrap gap-4 text-xs font-medium text-slate-500">
+        <div className="space-y-5">
+          {/* Admin Mode Header Bar */}
+          <div className="rounded-lg border border-slate-300/80 bg-gradient-to-r from-slate-50 to-slate-100/80 px-4 py-3 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800 text-white shadow-sm">
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 20h9" />
+                    <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-sm font-semibold text-slate-800">Administrative Panel</h2>
+                  <p className="text-[10px] text-slate-500">Manage financials, documents, and administrative records</p>
+                </div>
+              </div>
+              <div className="hidden sm:flex items-center gap-2 text-[10px] text-slate-500">
+                <span className="rounded-full bg-slate-200 px-2 py-0.5 font-medium text-slate-600">Admin Mode</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Tab Navigation - More Formal Style */}
+          <div className="rounded-lg border border-slate-200/80 bg-white shadow-sm">
+            <nav className="flex flex-wrap border-b border-slate-200 px-2">
               {adminTabs.map((tab) => {
                 const isActive = tab.id === adminTab;
                 return (
@@ -303,88 +305,59 @@ export default async function ProjectPage({
                     href={`/projects/${project.id}?mode=admin&tab=${tab.id}`}
                     className={
                       (isActive
-                        ? "border-sky-500 text-sky-600"
-                        : "border-transparent text-slate-500 hover:border-slate-200 hover:text-slate-700") +
-                      " inline-flex items-center border-b-2 px-1.5 py-1"
+                        ? "border-slate-800 bg-slate-800 text-white"
+                        : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-800") +
+                      " relative inline-flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-[11px] font-semibold tracking-wide transition-all"
                     }
+                    style={isActive ? { borderRadius: '6px 6px 0 0', marginBottom: '-1px' } : {}}
                   >
+                    {tab.id === "cockpit" && (
+                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                      </svg>
+                    )}
+                    {tab.id === "invoice" && (
+                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="2" y="5" width="20" height="14" rx="2" />
+                        <path d="M2 10h20" />
+                      </svg>
+                    )}
                     {tab.label}
                   </Link>
                 );
               })}
             </nav>
+
+            {/* Tab Content Area */}
+            <div className="p-4">
+              {adminTab === "cockpit" ? (
+                <ProjectNotesTasksCard projectId={project.id} source="admin" />
+              ) : null}
+
+              {adminTab === "invoice" ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-md bg-slate-100">
+                      <svg className="h-4 w-4 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="2" y="5" width="20" height="14" rx="2" />
+                        <path d="M2 10h20" />
+                      </svg>
+                    </div>
+                    <h3 className="text-sm font-semibold text-slate-800">Invoice Management</h3>
+                  </div>
+                  <p className="text-xs text-slate-500 border-l-2 border-slate-200 pl-3">
+                    Project-level invoicing can be surfaced here. For now this shows only the approximate project value.
+                  </p>
+                  <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50/80 p-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Estimated Project Value</p>
+                    <p className="mt-1 text-xl font-bold text-slate-800">
+                      {formatMoney(project.value)}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+            </div>
           </div>
-
-          {adminTab === "cockpit" ? (
-            <div className="space-y-4">
-              <ProjectAdminCockpit projectId={project.id} />
-              <ProjectActivityFeed projectId={project.id} />
-            </div>
-          ) : null}
-
-          {adminTab === "notes" ? (
-            <div className="rounded-xl border border-slate-200/80 bg-white/90 p-4 text-sm shadow-[0_16px_40px_rgba(15,23,42,0.08)]">
-              <h3 className="text-sm font-semibold text-slate-900">Notes</h3>
-              <p className="mt-2 text-xs text-slate-500">
-                Notes for this project will appear here. You can extend this area with
-                a notes timeline or comment system.
-              </p>
-            </div>
-          ) : null}
-
-          {adminTab === "invoice" ? (
-            <div className="rounded-xl border border-slate-200/80 bg-white/90 p-4 text-sm shadow-[0_16px_40px_rgba(15,23,42,0.08)]">
-              <h3 className="text-sm font-semibold text-slate-900">Invoice</h3>
-              <p className="mt-2 text-xs text-slate-500">
-                Project-level invoicing can be surfaced here. For now this shows only
-                the approximate project value.
-              </p>
-              <div className="mt-3 rounded-lg border border-slate-100 bg-slate-50/80 p-3 text-[11px]">
-                <p className="font-medium text-slate-500">Estimated project value</p>
-                <p className="mt-1 text-base font-semibold text-slate-900">
-                  {formatMoney(project.value)}
-                </p>
-              </div>
-            </div>
-          ) : null}
-
-          {adminTab === "file" ? (
-            <div className="rounded-xl border border-slate-200/80 bg-white/90 p-4 text-sm shadow-[0_16px_40px_rgba(15,23,42,0.08)]">
-              <h3 className="text-sm font-semibold text-slate-900">File</h3>
-              <p className="mt-2 text-xs text-slate-500">
-                Project files and admin documents can be shown here in a future
-                iteration.
-              </p>
-            </div>
-          ) : null}
-
-          {adminTab === "photo" ? (
-            <div className="rounded-xl border border-slate-200/80 bg-white/90 p-4 text-sm shadow-[0_16px_40px_rgba(15,23,42,0.08)]">
-              <h3 className="text-sm font-semibold text-slate-900">Photo</h3>
-              <p className="mt-2 text-xs text-slate-500">
-                Photos related to this project will appear here.
-              </p>
-            </div>
-          ) : null}
-
-          {adminTab === "project_information" ? (
-            <div className="rounded-xl border border-slate-200/80 bg-white/90 p-4 text-sm shadow-[0_16px_40px_rgba(15,23,42,0.08)]">
-              <h3 className="text-sm font-semibold text-slate-900">Project information</h3>
-              <p className="mt-2 text-xs text-slate-500">
-                Additional structured information about this project can be modelled
-                here.
-              </p>
-            </div>
-          ) : null}
-
-          {adminTab === "documents" ? (
-            <div className="rounded-xl border border-slate-200/80 bg-white/90 p-4 text-sm shadow-[0_16px_40px_rgba(15,23,42,0.08)]">
-              <h3 className="text-sm font-semibold text-slate-900">Documents</h3>
-              <p className="mt-2 text-xs text-slate-500">
-                Documents associated with this project can be listed here.
-              </p>
-            </div>
-          ) : null}
         </div>
       )}
     </div>

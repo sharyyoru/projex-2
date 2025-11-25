@@ -9,8 +9,6 @@ import {
 } from "react";
 import { supabaseClient } from "@/lib/supabaseClient";
 
-const ENABLE_PATIENT_MESSAGES = false;
-
 type MessagesUnreadContextValue = {
   unreadCount: number | null;
   refreshUnread: () => Promise<void>;
@@ -25,11 +23,6 @@ export function MessagesUnreadProvider({ children }: { children: ReactNode }) {
   const [unreadCount, setUnreadCount] = useState<number | null>(null);
 
   const refreshUnread = async () => {
-    if (!ENABLE_PATIENT_MESSAGES) {
-      setUnreadCount(0);
-      return;
-    }
-
     try {
       const { data: authData } = await supabaseClient.auth.getUser();
       const user = authData?.user;
@@ -39,18 +32,26 @@ export function MessagesUnreadProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const { count, error } = await supabaseClient
-        .from("patient_note_mentions")
+      // Count unread project note mentions
+      const { count: noteCount, error: noteError } = await supabaseClient
+        .from("project_note_mentions")
         .select("id", { count: "exact", head: true })
         .eq("mentioned_user_id", user.id)
         .is("read_at", null);
 
-      if (error) {
+      // Count unread task comment mentions
+      const { count: taskCount, error: taskError } = await supabaseClient
+        .from("task_comment_mentions")
+        .select("id", { count: "exact", head: true })
+        .eq("mentioned_user_id", user.id)
+        .is("read_at", null);
+
+      if (noteError && taskError) {
         setUnreadCount(0);
         return;
       }
 
-      setUnreadCount(count ?? 0);
+      setUnreadCount((noteCount ?? 0) + (taskCount ?? 0));
     } catch {
       setUnreadCount(0);
     }

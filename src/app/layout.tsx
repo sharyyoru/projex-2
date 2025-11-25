@@ -23,8 +23,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Clinic CRM",
-  description: "Medical CRM and ERP for clinics",
+  title: "Projex - Mutant",
+  description: "Project management and collaboration platform",
 };
 
 export default function RootLayout({

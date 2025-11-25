@@ -116,6 +116,8 @@ export default function CompanyDetailPage() {
   const [editingSocial, setEditingSocial] = useState(false);
   const [savingSocial, setSavingSocial] = useState(false);
   const [socialError, setSocialError] = useState<string | null>(null);
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [showProjectModal, setShowProjectModal] = useState(false);
 
   useEffect(() => {
     if (!companyId) return;
@@ -486,45 +488,67 @@ export default function CompanyDetailPage() {
         </div>
       </div>
 
-      {/* Tab Switcher */}
-      <div className="flex items-center gap-3">
-        <div className="inline-flex items-center gap-1 rounded-full border border-slate-200/80 bg-white/90 p-1 shadow-sm backdrop-blur">
+      {/* Contacts & Projects Section */}
+      <section className="space-y-6">
+        {/* Section Header with Actions */}
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-1 rounded-full border border-slate-200/80 bg-white/90 p-1 shadow-sm backdrop-blur">
+            <button
+              type="button"
+              className={`rounded-full px-4 py-2 text-[12px] font-medium transition-all ${
+                activeTab === "contacts"
+                  ? "bg-gradient-to-r from-violet-500 to-purple-500 text-white shadow-lg shadow-violet-500/25"
+                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              }`}
+              onClick={() => setActiveTab("contacts")}
+            >
+              <span className="flex items-center gap-2">
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                </svg>
+                Contacts ({contacts.length})
+              </span>
+            </button>
+            <button
+              type="button"
+              className={`rounded-full px-4 py-2 text-[12px] font-medium transition-all ${
+                activeTab === "projects"
+                  ? "bg-gradient-to-r from-violet-500 to-purple-500 text-white shadow-lg shadow-violet-500/25"
+                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              }`}
+              onClick={() => setActiveTab("projects")}
+            >
+              <span className="flex items-center gap-2">
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                </svg>
+                Projects ({projects.length})
+              </span>
+            </button>
+          </div>
+          
           <button
             type="button"
-            className={`rounded-full px-4 py-2 text-[12px] font-medium transition-all ${
-              activeTab === "contacts"
-                ? "bg-gradient-to-r from-violet-500 to-purple-500 text-white shadow-lg shadow-violet-500/25"
-                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-            }`}
-            onClick={() => setActiveTab("contacts")}
+            onClick={() => activeTab === "contacts" ? setShowContactModal(true) : setShowProjectModal(true)}
+            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-violet-500 to-purple-500 px-4 py-2 text-[12px] font-medium text-white shadow-lg shadow-violet-500/25 transition-all hover:shadow-xl hover:shadow-violet-500/30"
           >
-            <span className="flex items-center gap-2">
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                <circle cx="9" cy="7" r="4" />
-              </svg>
-              Contacts ({contacts.length})
-            </span>
-          </button>
-          <button
-            type="button"
-            className={`rounded-full px-4 py-2 text-[12px] font-medium transition-all ${
-              activeTab === "projects"
-                ? "bg-gradient-to-r from-violet-500 to-purple-500 text-white shadow-lg shadow-violet-500/25"
-                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-            }`}
-            onClick={() => setActiveTab("projects")}
-          >
-            <span className="flex items-center gap-2">
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-              </svg>
-              Projects ({projects.length})
-            </span>
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            Add {activeTab === "contacts" ? "Contact" : "Project"}
           </button>
         </div>
-      </div>
 
+        {/* Content Area */}
+        {activeTab === "contacts" ? (
+          <ContactsDisplay contacts={contacts} />
+        ) : (
+          <ProjectsDisplay projects={projects} contactsById={contactsById} />
+        )}
+      </section>
+
+      {/* Company Details Section */}
       <section className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <div className="space-y-4">
           <div className="rounded-xl border border-slate-200/80 bg-white/90 p-4 text-xs shadow-[0_16px_40px_rgba(15,23,42,0.08)] backdrop-blur">
@@ -929,23 +953,33 @@ export default function CompanyDetailPage() {
             companyName={company.name}
             onLogoUpdated={(url) => setCompany((prev) => prev ? { ...prev, logo_url: url } : prev)}
           />
-
-          {activeTab === "contacts" ? (
-            <ContactsPanel
-              companyId={company.id}
-              contacts={contacts}
-              onCreated={handleContactCreated}
-            />
-          ) : (
-            <ProjectsPanel
-              companyId={company.id}
-              projects={projects}
-              contactsById={contactsById}
-              onCreated={handleProjectCreated}
-            />
-          )}
         </div>
       </section>
+
+      {/* Add Contact Modal */}
+      {showContactModal && (
+        <AddContactModal
+          companyId={company.id}
+          onClose={() => setShowContactModal(false)}
+          onCreated={(contact) => {
+            handleContactCreated(contact);
+            setShowContactModal(false);
+          }}
+        />
+      )}
+
+      {/* Add Project Modal */}
+      {showProjectModal && (
+        <AddProjectModal
+          companyId={company.id}
+          contacts={contacts}
+          onClose={() => setShowProjectModal(false)}
+          onCreated={(project) => {
+            handleProjectCreated(project);
+            setShowProjectModal(false);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -988,547 +1022,207 @@ function DetailField({
   );
 }
 
-function ContactsPanel({
-  companyId,
-  contacts,
-  onCreated,
-}: {
-  companyId: string;
-  contacts: Contact[];
-  onCreated: (contact: Contact) => void;
-}) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const formData = new FormData(form);
-
-    const firstName = (formData.get("first_name") as string | null)?.trim();
-    const lastName = (formData.get("last_name") as string | null)?.trim();
-    const email = (formData.get("email") as string | null)?.trim();
-    const phone = (formData.get("phone") as string | null)?.trim();
-    const mobile = (formData.get("mobile") as string | null)?.trim();
-    const jobTitle = (formData.get("job_title") as string | null)?.trim();
-    const isPrimary = (formData.get("is_primary") as string | null) === "on";
-
-    if (!firstName || !lastName) {
-      setError("First and last name are required.");
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const { data, error: insertError } = await supabaseClient
-        .from("contacts")
-        .insert({
-          company_id: companyId,
-          first_name: firstName,
-          last_name: lastName,
-          email: email || null,
-          phone: phone || null,
-          mobile: mobile || null,
-          job_title: jobTitle || null,
-          is_primary: isPrimary,
-        })
-        .select(
-          "id, company_id, first_name, last_name, email, phone, mobile, job_title, is_primary, created_at",
-        )
-        .single();
-
-      if (insertError || !data) {
-        setError(insertError?.message ?? "Failed to create contact.");
-        setLoading(false);
-        return;
-      }
-
-      onCreated(data as Contact);
-      form.reset();
-      setLoading(false);
-    } catch {
-      setError("Failed to create contact.");
-      setLoading(false);
-    }
+// Beautiful Contacts Display Component
+function ContactsDisplay({ contacts }: { contacts: Contact[] }) {
+  if (contacts.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 py-16">
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-100 to-purple-100">
+          <svg className="h-8 w-8 text-violet-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+        </div>
+        <p className="mt-4 text-[14px] font-medium text-slate-700">No contacts yet</p>
+        <p className="mt-1 text-[12px] text-slate-500">Add your first contact to get started</p>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-4">
-      <form
-        onSubmit={handleSubmit}
-        className="space-y-3 rounded-xl border border-slate-200/80 bg-white/90 p-4 text-xs shadow-[0_16px_40px_rgba(15,23,42,0.08)] backdrop-blur"
-      >
-        <div className="flex items-center justify-between gap-2">
-          <div>
-            <h2 className="text-sm font-semibold text-slate-900">Contacts</h2>
-            <p className="text-[11px] text-slate-500">
-              People associated with this company.
-            </p>
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {contacts.map((contact) => {
+        const name = formatFullName(contact.first_name, contact.last_name) || "Unnamed";
+        const initials = `${(contact.first_name || "?").charAt(0)}${(contact.last_name || "").charAt(0)}`.toUpperCase();
+        
+        return (
+          <div
+            key={contact.id}
+            className="group relative overflow-hidden rounded-2xl border border-slate-200/50 bg-white p-5 shadow-lg shadow-slate-200/30 transition-all hover:shadow-xl hover:shadow-violet-200/30"
+          >
+            {/* Primary badge */}
+            {contact.is_primary && (
+              <div className="absolute right-3 top-3">
+                <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-violet-500 to-purple-500 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm">
+                  <svg className="h-2.5 w-2.5" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                  </svg>
+                  Primary
+                </span>
+              </div>
+            )}
+            
+            {/* Avatar */}
+            <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-500 text-lg font-bold text-white shadow-lg shadow-violet-500/25">
+              {initials}
+            </div>
+            
+            {/* Info */}
+            <div className="mt-4">
+              <h3 className="text-[14px] font-semibold text-slate-900">{name}</h3>
+              {contact.job_title && (
+                <p className="mt-0.5 text-[12px] text-slate-500">{contact.job_title}</p>
+              )}
+            </div>
+            
+            {/* Contact details */}
+            <div className="mt-4 space-y-2">
+              {contact.email && (
+                <a href={`mailto:${contact.email}`} className="flex items-center gap-2 text-[12px] text-slate-600 hover:text-violet-600 transition-colors">
+                  <svg className="h-3.5 w-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="2" y="4" width="20" height="16" rx="2" />
+                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                  </svg>
+                  <span className="truncate">{contact.email}</span>
+                </a>
+              )}
+              {contact.mobile && (
+                <a href={`tel:${contact.mobile}`} className="flex items-center gap-2 text-[12px] text-slate-600 hover:text-violet-600 transition-colors">
+                  <svg className="h-3.5 w-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="5" y="2" width="14" height="20" rx="2" />
+                    <path d="M12 18h.01" />
+                  </svg>
+                  {contact.mobile}
+                </a>
+              )}
+              {contact.phone && !contact.mobile && (
+                <a href={`tel:${contact.phone}`} className="flex items-center gap-2 text-[12px] text-slate-600 hover:text-violet-600 transition-colors">
+                  <svg className="h-3.5 w-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                  </svg>
+                  {contact.phone}
+                </a>
+              )}
+            </div>
+            
+            {/* Date footer */}
+            <div className="mt-4 pt-3 border-t border-slate-100">
+              <p className="text-[10px] text-slate-400">Added {formatDate(contact.created_at)}</p>
+            </div>
           </div>
-        </div>
-
-        <div className="grid gap-3 md:grid-cols-2">
-          <div className="space-y-1">
-            <label
-              htmlFor="first_name"
-              className="block text-[11px] font-medium text-slate-700"
-            >
-              First name
-            </label>
-            <input
-              id="first_name"
-              name="first_name"
-              type="text"
-              required
-              className="block w-full rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-            />
-          </div>
-          <div className="space-y-1">
-            <label
-              htmlFor="last_name"
-              className="block text-[11px] font-medium text-slate-700"
-            >
-              Last name
-            </label>
-            <input
-              id="last_name"
-              name="last_name"
-              type="text"
-              required
-              className="block w-full rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-            />
-          </div>
-        </div>
-
-        <div className="grid gap-3 md:grid-cols-2">
-          <div className="space-y-1">
-            <label
-              htmlFor="email"
-              className="block text-[11px] font-medium text-slate-700"
-            >
-              Email
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              className="block w-full rounded-lg border border-slate-200 bg-white/90 px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-            />
-          </div>
-          <div className="space-y-1">
-            <label
-              htmlFor="mobile"
-              className="block text-[11px] font-medium text-slate-700"
-            >
-              Mobile
-            </label>
-            <input
-              id="mobile"
-              name="mobile"
-              type="tel"
-              className="block w-full rounded-lg border border-slate-200 bg-white/90 px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-            />
-          </div>
-        </div>
-
-        <div className="grid gap-3 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] items-center">
-          <div className="space-y-1">
-            <label
-              htmlFor="job_title"
-              className="block text-[11px] font-medium text-slate-700"
-            >
-              Job title
-            </label>
-            <input
-              id="job_title"
-              name="job_title"
-              type="text"
-              placeholder="e.g. Practice Manager"
-              className="block w-full rounded-lg border border-slate-200 bg-white/90 px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-            />
-          </div>
-          <label className="flex items-center gap-2 text-[11px] text-slate-700">
-            <input
-              type="checkbox"
-              name="is_primary"
-              className="h-3.5 w-3.5 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
-            />
-            Primary contact
-          </label>
-        </div>
-
-        {error ? <p className="text-[11px] text-red-600">{error}</p> : null}
-
-        <button
-          type="submit"
-          disabled={loading}
-          className="inline-flex items-center rounded-full border border-sky-200/80 bg-sky-600 px-3 py-1 text-[11px] font-medium text-white shadow-sm hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {loading ? "Saving..." : "Add contact"}
-        </button>
-      </form>
-
-      <div className="rounded-xl border border-slate-200/80 bg-white/90 p-4 text-xs shadow-[0_16px_40px_rgba(15,23,42,0.08)] backdrop-blur">
-        <h3 className="mb-2 text-sm font-semibold text-slate-900">All contacts</h3>
-        {contacts.length === 0 ? (
-          <p className="text-[11px] text-slate-500">No contacts yet.</p>
-        ) : (
-          <div className="space-y-1.5">
-            {contacts.map((contact) => {
-              const name = formatFullName(contact.first_name, contact.last_name) ||
-                "Unnamed contact";
-
-              return (
-                <div
-                  key={contact.id}
-                  className="flex items-center justify-between rounded-lg bg-slate-50/80 px-3 py-2"
-                >
-                  <div>
-                    <p className="text-xs font-medium text-slate-900">
-                      {name}
-                      {contact.is_primary ? (
-                        <span className="ml-2 inline-flex rounded-full bg-slate-900 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white">
-                          Primary
-                        </span>
-                      ) : null}
-                    </p>
-                    <p className="mt-0.5 text-[11px] text-slate-500">
-                      {[contact.job_title, contact.email]
-                        .filter(Boolean)
-                        .join(" • ") || "—"}
-                    </p>
-                  </div>
-                  <p className="text-[11px] text-slate-400">
-                    {formatDate(contact.created_at)}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+        );
+      })}
     </div>
   );
 }
 
-function ProjectsPanel({
-  companyId,
-  projects,
-  contactsById,
-  onCreated,
-}: {
-  companyId: string;
-  projects: Project[];
-  contactsById: Map<string, Contact>;
-  onCreated: (project: Project) => void;
-}) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [statusValue, setStatusValue] = useState("");
+// Status colors for project badges
+const STATUS_COLORS: Record<string, string> = {
+  "New Lead": "from-sky-500 to-cyan-500",
+  "Processed": "from-slate-500 to-gray-500",
+  "Discovery": "from-indigo-500 to-blue-500",
+  "Proposal": "from-violet-500 to-purple-500",
+  "Quotation": "from-amber-500 to-orange-500",
+  "Invoice": "from-emerald-500 to-teal-500",
+  "Project Started": "from-lime-500 to-green-500",
+  "Project Delivered": "from-emerald-500 to-green-500",
+  "Closed": "from-slate-600 to-gray-600",
+  "Abandoned": "from-red-500 to-rose-500",
+};
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const formData = new FormData(form);
-
-    const name = (formData.get("name") as string | null)?.trim();
-    const description = (formData.get("description") as string | null)?.trim();
-    const status = (formData.get("status") as string | null)?.trim();
-    const pipeline = (formData.get("pipeline") as string | null)?.trim();
-    const processedOutcome =
-      (formData.get("processed_outcome") as string | null)?.trim();
-    const valueRaw = (formData.get("value") as string | null)?.trim();
-    const startDate = (formData.get("start_date") as string | null)?.trim();
-    const dueDate = (formData.get("due_date") as string | null)?.trim();
-    const primaryContactId = (formData.get("primary_contact_id") as string | null)?.trim() || null;
-
-    if (!name) {
-      setError("Project name is required.");
-      return;
-    }
-
-    let value: number | null = null;
-    if (valueRaw) {
-      const parsed = Number(valueRaw.replace(/,/g, ""));
-      if (!Number.isNaN(parsed) && parsed >= 0) {
-        value = parsed;
-      }
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const { data, error: insertError } = await supabaseClient
-        .from("projects")
-        .insert({
-          company_id: companyId,
-          primary_contact_id: primaryContactId,
-          name,
-          description: description || null,
-          status: status || null,
-          processed_outcome:
-            status === "Processed" ? processedOutcome || null : null,
-          pipeline: pipeline || null,
-          value,
-          start_date: startDate || null,
-          due_date: dueDate || null,
-        })
-        .select(
-          "id, company_id, primary_contact_id, name, description, status, processed_outcome, pipeline, value, start_date, due_date, created_at",
-        )
-        .single();
-
-      if (insertError || !data) {
-        setError(insertError?.message ?? "Failed to create project.");
-        setLoading(false);
-        return;
-      }
-
-      onCreated(data as Project);
-      form.reset();
-      setStatusValue("");
-      setLoading(false);
-    } catch {
-      setError("Failed to create project.");
-      setLoading(false);
-    }
+// Beautiful Projects Display Component
+function ProjectsDisplay({ projects, contactsById }: { projects: Project[]; contactsById: Map<string, Contact> }) {
+  if (projects.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 py-16">
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-100">
+          <svg className="h-8 w-8 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            <path d="M12 11v6M9 14h6" />
+          </svg>
+        </div>
+        <p className="mt-4 text-[14px] font-medium text-slate-700">No projects yet</p>
+        <p className="mt-1 text-[12px] text-slate-500">Add your first project to get started</p>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-4">
-      <form
-        onSubmit={handleSubmit}
-        className="space-y-3 rounded-xl border border-slate-200/80 bg-white/90 p-4 text-xs shadow-[0_16px_40px_rgba(15,23,42,0.08)] backdrop-blur"
-      >
-        <div className="flex items-center justify-between gap-2">
-          <div>
-            <h2 className="text-sm font-semibold text-slate-900">Projects</h2>
-            <p className="text-[11px] text-slate-500">
-              Track engagements, deals, or initiatives with this company.
-            </p>
-          </div>
-        </div>
-
-        <div className="space-y-1">
-          <label
-            htmlFor="name"
-            className="block text-[11px] font-medium text-slate-700"
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {projects.map((project) => {
+        const primaryContact = project.primary_contact_id
+          ? contactsById.get(project.primary_contact_id) || null
+          : null;
+        const statusColor = STATUS_COLORS[project.status || ""] || "from-slate-500 to-gray-500";
+        
+        return (
+          <Link
+            key={project.id}
+            href={`/projects/${project.id}`}
+            className="group relative overflow-hidden rounded-2xl border border-slate-200/50 bg-white shadow-lg shadow-slate-200/30 transition-all hover:shadow-xl hover:shadow-emerald-200/30"
           >
-            Project name
-          </label>
-          <input
-            id="name"
-            name="name"
-            type="text"
-            required
-            className="block w-full rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-          />
-        </div>
-
-        <div className="space-y-1">
-          <label
-            htmlFor="description"
-            className="block text-[11px] font-medium text-slate-700"
-          >
-            Description
-          </label>
-          <textarea
-            id="description"
-            name="description"
-            rows={3}
-            className="block w-full rounded-lg border border-slate-200 bg-white/90 px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-          />
-        </div>
-
-        <div className="grid gap-3 md:grid-cols-2">
-          <div className="space-y-1">
-            <label
-              htmlFor="status"
-              className="block text-[11px] font-medium text-slate-700"
-            >
-              Status
-            </label>
-            <select
-              id="status"
-              name="status"
-              className="block w-full rounded-lg border border-slate-200 bg-white/90 px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-              value={statusValue}
-              onChange={(event) => setStatusValue(event.target.value)}
-            >
-              <option value="">Select status</option>
-              <option value="New Lead">New Lead</option>
-              <option value="Processed">Processed</option>
-              <option value="Discovery">Discovery</option>
-              <option value="Proposal">Proposal</option>
-              <option value="Quotation">Quotation</option>
-              <option value="Invoice">Invoice</option>
-              <option value="Project Started">Project Started</option>
-              <option value="Project Delivered">Project Delivered</option>
-              <option value="Closed">Closed</option>
-              <option value="Abandoned">Abandoned</option>
-            </select>
-            {statusValue === "Processed" ? (
-              <div className="mt-2 space-y-1">
-                <label
-                  htmlFor="processed_outcome"
-                  className="block text-[11px] font-medium text-slate-700"
-                >
-                  Processed outcome
-                </label>
-                <select
-                  id="processed_outcome"
-                  name="processed_outcome"
-                  className="block w-full rounded-lg border border-slate-200 bg-white/90 px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                  defaultValue=""
-                >
-                  <option value="">Select outcome</option>
-                  <option value="Valid">Valid</option>
-                  <option value="Invalid">Invalid</option>
-                </select>
-              </div>
-            ) : null}
-          </div>
-          <div className="space-y-1">
-            <label
-              htmlFor="pipeline"
-              className="block text-[11px] font-medium text-slate-700"
-            >
-              Pipeline
-            </label>
-            <input
-              id="pipeline"
-              name="pipeline"
-              type="text"
-              placeholder="New Strategy"
-              className="block w-full rounded-lg border border-slate-200 bg-white/90 px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-            />
-          </div>
-        </div>
-
-        <div className="grid gap-3 md:grid-cols-3">
-          <div className="space-y-1">
-            <label
-              htmlFor="value"
-              className="block text-[11px] font-medium text-slate-700"
-            >
-              Value (approx.)
-            </label>
-            <input
-              id="value"
-              name="value"
-              type="number"
-              min={0}
-              step={100}
-              className="block w-full rounded-lg border border-slate-200 bg-white/90 px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-            />
-          </div>
-          <div className="space-y-1">
-            <label
-              htmlFor="start_date"
-              className="block text-[11px] font-medium text-slate-700"
-            >
-              Start date
-            </label>
-            <input
-              id="start_date"
-              name="start_date"
-              type="date"
-              className="block w-full rounded-lg border border-slate-200 bg-white/90 px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-            />
-          </div>
-          <div className="space-y-1">
-            <label
-              htmlFor="due_date"
-              className="block text-[11px] font-medium text-slate-700"
-            >
-              Target date
-            </label>
-            <input
-              id="due_date"
-              name="due_date"
-              type="date"
-              className="block w-full rounded-lg border border-slate-200 bg-white/90 px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-            />
-          </div>
-        </div>
-
-        <div className="space-y-1">
-          <label
-            htmlFor="primary_contact_id"
-            className="block text-[11px] font-medium text-slate-700"
-          >
-            Primary contact
-          </label>
-          <select
-            id="primary_contact_id"
-            name="primary_contact_id"
-            className="block w-full rounded-lg border border-slate-200 bg-white/90 px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-            defaultValue=""
-          >
-            <option value="">None</option>
-            {Array.from(contactsById.values()).map((contact) => (
-              <option key={contact.id} value={contact.id}>
-                {formatFullName(contact.first_name, contact.last_name) || "Contact"}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {error ? <p className="text-[11px] text-red-600">{error}</p> : null}
-
-        <button
-          type="submit"
-          disabled={loading}
-          className="inline-flex items-center rounded-full border border-sky-200/80 bg-sky-600 px-3 py-1 text-[11px] font-medium text-white shadow-sm hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {loading ? "Saving..." : "Add project"}
-        </button>
-      </form>
-
-      <div className="rounded-xl border border-slate-200/80 bg-white/90 p-4 text-xs shadow-[0_16px_40px_rgba(15,23,42,0.08)] backdrop-blur">
-        <h3 className="mb-2 text-sm font-semibold text-slate-900">All projects</h3>
-        {projects.length === 0 ? (
-          <p className="text-[11px] text-slate-500">No projects yet.</p>
-        ) : (
-          <div className="space-y-1.5">
-            {projects.map((project) => {
-              const primaryContact = project.primary_contact_id
-                ? contactsById.get(project.primary_contact_id) || null
-                : null;
-
-              return (
-                <div
-                  key={project.id}
-                  className="flex items-center justify-between rounded-lg bg-slate-50/80 px-3 py-2"
-                >
-                  <div className="space-y-0.5">
-                    <p className="text-xs font-medium text-slate-900">
-                      <Link
-                        href={`/projects/${project.id}`}
-                        className="hover:underline"
-                      >
-                        {project.name}
-                      </Link>
-                    </p>
-                    <p className="text-[11px] text-slate-500">
-                      {[project.status, primaryContact && formatFullName(primaryContact.first_name, primaryContact.last_name)]
-                        .filter(Boolean)
-                        .join(" • ") || "—" }
-                    </p>
-                  </div>
-                  <div className="text-right text-[11px] text-slate-500">
-                    <p>{formatMoney(project.value)}</p>
-                    <p>{formatDate(project.created_at)}</p>
-                  </div>
+            {/* Gradient bar */}
+            <div className={`h-1.5 w-full bg-gradient-to-r ${statusColor}`} />
+            
+            <div className="p-5">
+              {/* Status badge */}
+              {project.status && (
+                <span className={`inline-flex rounded-full bg-gradient-to-r px-2.5 py-1 text-[10px] font-semibold text-white shadow-sm ${statusColor}`}>
+                  {project.status}
+                </span>
+              )}
+              
+              {/* Project name */}
+              <h3 className="mt-3 text-[15px] font-semibold text-slate-900 group-hover:text-emerald-600 transition-colors">
+                {project.name}
+              </h3>
+              
+              {/* Description preview */}
+              {project.description && (
+                <p className="mt-1.5 text-[12px] text-slate-500 line-clamp-2">{project.description}</p>
+              )}
+              
+              {/* Value */}
+              {project.value != null && project.value > 0 && (
+                <div className="mt-4 flex items-center gap-2">
+                  <span className="text-[18px] font-bold text-emerald-600">{formatMoney(project.value)}</span>
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+              )}
+              
+              {/* Meta info */}
+              <div className="mt-4 flex flex-wrap items-center gap-3 text-[11px] text-slate-500">
+                {primaryContact && (
+                  <span className="flex items-center gap-1">
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
+                    {formatFullName(primaryContact.first_name, primaryContact.last_name)}
+                  </span>
+                )}
+                {project.due_date && (
+                  <span className="flex items-center gap-1">
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="3" y="4" width="18" height="18" rx="2" />
+                      <path d="M16 2v4M8 2v4M3 10h18" />
+                    </svg>
+                    Due {formatDate(project.due_date)}
+                  </span>
+                )}
+              </div>
+              
+              {/* Footer */}
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                <p className="text-[10px] text-slate-400">Created {formatDate(project.created_at)}</p>
+                <svg className="h-4 w-4 text-slate-300 group-hover:text-emerald-500 transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="m9 18 6-6-6-6" />
+                </svg>
+              </div>
+            </div>
+          </Link>
+        );
+      })}
     </div>
   );
 }
@@ -1708,6 +1402,499 @@ function LogoUploadCard({
           </p>
           {error ? <p className="text-[11px] text-red-600">{error}</p> : null}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Add Contact Modal Component
+function AddContactModal({
+  companyId,
+  onClose,
+  onCreated,
+}: {
+  companyId: string;
+  onClose: () => void;
+  onCreated: (contact: Contact) => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+
+    const firstName = (formData.get("first_name") as string | null)?.trim();
+    const lastName = (formData.get("last_name") as string | null)?.trim();
+    const email = (formData.get("email") as string | null)?.trim();
+    const phone = (formData.get("phone") as string | null)?.trim();
+    const mobile = (formData.get("mobile") as string | null)?.trim();
+    const jobTitle = (formData.get("job_title") as string | null)?.trim();
+    const isPrimary = (formData.get("is_primary") as string | null) === "on";
+
+    if (!firstName || !lastName) {
+      setError("First and last name are required.");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const { data, error: insertError } = await supabaseClient
+        .from("contacts")
+        .insert({
+          company_id: companyId,
+          first_name: firstName,
+          last_name: lastName,
+          email: email || null,
+          phone: phone || null,
+          mobile: mobile || null,
+          job_title: jobTitle || null,
+          is_primary: isPrimary,
+        })
+        .select(
+          "id, company_id, first_name, last_name, email, phone, mobile, job_title, is_primary, created_at",
+        )
+        .single();
+
+      if (insertError || !data) {
+        setError(insertError?.message ?? "Failed to create contact.");
+        setLoading(false);
+        return;
+      }
+
+      onCreated(data as Contact);
+    } catch {
+      setError("Failed to create contact.");
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+      <div className="relative w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
+        {/* Gradient bar */}
+        <div className="h-1.5 w-full bg-gradient-to-r from-violet-500 to-purple-500" />
+        
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-500 shadow-lg shadow-violet-500/25">
+              <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M20 8v6M23 11h-6" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Add Contact</h2>
+              <p className="text-[12px] text-slate-500">Add a new contact to this company</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+          >
+            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label htmlFor="first_name" className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide">
+                First Name *
+              </label>
+              <input
+                id="first_name"
+                name="first_name"
+                type="text"
+                required
+                placeholder="John"
+                className="block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm text-black placeholder:text-slate-400 shadow-sm focus:border-violet-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="last_name" className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide">
+                Last Name *
+              </label>
+              <input
+                id="last_name"
+                name="last_name"
+                type="text"
+                required
+                placeholder="Doe"
+                className="block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm text-black placeholder:text-slate-400 shadow-sm focus:border-violet-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+              />
+            </div>
+          </div>
+          
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label htmlFor="email" className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide">
+                Email
+              </label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                placeholder="john@company.com"
+                className="block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm text-black placeholder:text-slate-400 shadow-sm focus:border-violet-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="mobile" className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide">
+                Mobile
+              </label>
+              <input
+                id="mobile"
+                name="mobile"
+                type="tel"
+                placeholder="+971 50 123 4567"
+                className="block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm text-black placeholder:text-slate-400 shadow-sm focus:border-violet-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+              />
+            </div>
+          </div>
+          
+          <div className="grid gap-4 sm:grid-cols-2 items-end">
+            <div className="space-y-1.5">
+              <label htmlFor="job_title" className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide">
+                Job Title
+              </label>
+              <input
+                id="job_title"
+                name="job_title"
+                type="text"
+                placeholder="e.g. Tech Director"
+                className="block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm text-black placeholder:text-slate-400 shadow-sm focus:border-violet-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+              />
+            </div>
+            <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 cursor-pointer hover:bg-violet-50 transition-colors">
+              <input
+                type="checkbox"
+                name="is_primary"
+                className="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500"
+              />
+              <span className="text-sm text-slate-700">Primary Contact</span>
+            </label>
+          </div>
+
+          {error && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700">
+              {error}
+            </div>
+          )}
+          
+          {/* Actions */}
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-full px-5 py-2.5 text-[13px] font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-violet-500 to-purple-500 px-6 py-2.5 text-[13px] font-medium text-white shadow-lg shadow-violet-500/25 transition-all hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loading ? (
+                <>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  Adding...
+                </>
+              ) : (
+                "Add Contact"
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// Add Project Modal Component  
+function AddProjectModal({
+  companyId,
+  contacts,
+  onClose,
+  onCreated,
+}: {
+  companyId: string;
+  contacts: Contact[];
+  onClose: () => void;
+  onCreated: (project: Project) => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [statusValue, setStatusValue] = useState("");
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+
+    const name = (formData.get("name") as string | null)?.trim();
+    const description = (formData.get("description") as string | null)?.trim();
+    const status = (formData.get("status") as string | null)?.trim();
+    const pipeline = (formData.get("pipeline") as string | null)?.trim();
+    const processedOutcome = (formData.get("processed_outcome") as string | null)?.trim();
+    const valueRaw = (formData.get("value") as string | null)?.trim();
+    const startDate = (formData.get("start_date") as string | null)?.trim();
+    const dueDate = (formData.get("due_date") as string | null)?.trim();
+    const primaryContactId = (formData.get("primary_contact_id") as string | null)?.trim() || null;
+
+    if (!name) {
+      setError("Project name is required.");
+      return;
+    }
+
+    let value: number | null = null;
+    if (valueRaw) {
+      const parsed = Number(valueRaw.replace(/,/g, ""));
+      if (!Number.isNaN(parsed) && parsed >= 0) {
+        value = parsed;
+      }
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const { data, error: insertError } = await supabaseClient
+        .from("projects")
+        .insert({
+          company_id: companyId,
+          primary_contact_id: primaryContactId,
+          name,
+          description: description || null,
+          status: status || null,
+          processed_outcome: status === "Processed" ? processedOutcome || null : null,
+          pipeline: pipeline || null,
+          value,
+          start_date: startDate || null,
+          due_date: dueDate || null,
+        })
+        .select(
+          "id, company_id, primary_contact_id, name, description, status, processed_outcome, pipeline, value, start_date, due_date, created_at",
+        )
+        .single();
+
+      if (insertError || !data) {
+        setError(insertError?.message ?? "Failed to create project.");
+        setLoading(false);
+        return;
+      }
+
+      onCreated(data as Project);
+    } catch {
+      setError("Failed to create project.");
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+      <div className="relative w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-2xl bg-white shadow-2xl flex flex-col">
+        {/* Gradient bar */}
+        <div className="h-1.5 w-full bg-gradient-to-r from-emerald-500 to-teal-500 shrink-0" />
+        
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 shadow-lg shadow-emerald-500/25">
+              <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                <path d="M12 11v6M9 14h6" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Add Project</h2>
+              <p className="text-[12px] text-slate-500">Create a new project for this company</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+          >
+            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
+          <div className="space-y-1.5">
+            <label htmlFor="name" className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide">
+              Project Name *
+            </label>
+            <input
+              id="name"
+              name="name"
+              type="text"
+              required
+              placeholder="e.g. Website Redesign"
+              className="block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm text-black placeholder:text-slate-400 shadow-sm focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+            />
+          </div>
+          
+          <div className="space-y-1.5">
+            <label htmlFor="description" className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide">
+              Description
+            </label>
+            <textarea
+              id="description"
+              name="description"
+              rows={3}
+              placeholder="Brief description of the project..."
+              className="block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm text-black placeholder:text-slate-400 shadow-sm focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 resize-none"
+            />
+          </div>
+          
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label htmlFor="status" className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide">
+                Status
+              </label>
+              <select
+                id="status"
+                name="status"
+                value={statusValue}
+                onChange={(e) => setStatusValue(e.target.value)}
+                className="block w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-black shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+              >
+                <option value="">Select status</option>
+                <option value="New Lead">New Lead</option>
+                <option value="Processed">Processed</option>
+                <option value="Discovery">Discovery</option>
+                <option value="Proposal">Proposal</option>
+                <option value="Quotation">Quotation</option>
+                <option value="Invoice">Invoice</option>
+                <option value="Project Started">Project Started</option>
+                <option value="Project Delivered">Project Delivered</option>
+                <option value="Closed">Closed</option>
+                <option value="Abandoned">Abandoned</option>
+              </select>
+            </div>
+            
+            {statusValue === "Processed" && (
+              <div className="space-y-1.5">
+                <label htmlFor="processed_outcome" className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide">
+                  Processed Outcome
+                </label>
+                <select
+                  id="processed_outcome"
+                  name="processed_outcome"
+                  className="block w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-black shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                >
+                  <option value="">Select outcome</option>
+                  <option value="Valid">Valid</option>
+                  <option value="Invalid">Invalid</option>
+                </select>
+              </div>
+            )}
+            
+            <div className="space-y-1.5">
+              <label htmlFor="value" className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide">
+                Value (AED)
+              </label>
+              <input
+                id="value"
+                name="value"
+                type="number"
+                min={0}
+                step={100}
+                placeholder="0"
+                className="block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm text-black placeholder:text-slate-400 shadow-sm focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+              />
+            </div>
+          </div>
+          
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label htmlFor="start_date" className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide">
+                Start Date
+              </label>
+              <input
+                id="start_date"
+                name="start_date"
+                type="date"
+                className="block w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-black shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="due_date" className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide">
+                Due Date
+              </label>
+              <input
+                id="due_date"
+                name="due_date"
+                type="date"
+                className="block w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-black shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+              />
+            </div>
+          </div>
+          
+          <div className="space-y-1.5">
+            <label htmlFor="primary_contact_id" className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide">
+              Primary Contact
+            </label>
+            <select
+              id="primary_contact_id"
+              name="primary_contact_id"
+              className="block w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-black shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+              defaultValue=""
+            >
+              <option value="">None</option>
+              {contacts.map((contact) => (
+                <option key={contact.id} value={contact.id}>
+                  {formatFullName(contact.first_name, contact.last_name) || "Contact"}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {error && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700">
+              {error}
+            </div>
+          )}
+          
+          {/* Actions */}
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-full px-5 py-2.5 text-[13px] font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 px-6 py-2.5 text-[13px] font-medium text-white shadow-lg shadow-emerald-500/25 transition-all hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loading ? (
+                <>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  Creating...
+                </>
+              ) : (
+                "Create Project"
+              )}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

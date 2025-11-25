@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabaseClient } from "@/lib/supabaseClient";
 
-type ActivityKind = "note" | "task" | "invoice" | "deal" | "file";
+type ActivityKind = "note" | "task" | "file";
 
 type TaskStatus = "not_started" | "in_progress" | "completed";
 
@@ -32,26 +32,18 @@ function formatShortDateTime(value: string | null): string {
   return d.toLocaleString();
 }
 
-function formatMoneyAed(value: number | null): string {
-  if (value == null) return "—";
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: "AED",
-    maximumFractionDigits: 0,
-  }).format(value);
-}
+export type ActivitySource = "operations" | "admin" | "all";
 
 export function useProjectActivityFeed(
   projectId: string,
-  options?: { includeDeals?: boolean; includeInvoices?: boolean; reloadKey?: number },
+  options?: { reloadKey?: number; source?: ActivitySource },
 ) {
   const [items, setItems] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const includeDeals = options?.includeDeals ?? true;
-  const includeInvoices = options?.includeInvoices ?? true;
   const reloadKey = options?.reloadKey ?? 0;
+  const source = options?.source ?? "all";
 
   useEffect(() => {
     let isMounted = true;
@@ -61,48 +53,34 @@ export function useProjectActivityFeed(
         setLoading(true);
         setError(null);
 
-        const notesPromise = supabaseClient
+        let notesQuery = supabaseClient
           .from("project_notes")
-          .select("id, body, author_name, created_at")
-          .eq("project_id", projectId)
-          .order("created_at", { ascending: false });
-        const tasksPromise = supabaseClient
+          .select("id, body, author_name, created_at, source")
+          .eq("project_id", projectId);
+        
+        if (source !== "all") {
+          notesQuery = notesQuery.or(`source.eq.${source},source.is.null`);
+        }
+        
+        const notesPromise = notesQuery.order("created_at", { ascending: false });
+
+        let tasksQuery = supabaseClient
           .from("tasks")
           .select(
-            "id, project_id, name, content, status, priority, activity_date, created_at",
+            "id, project_id, name, content, status, priority, activity_date, created_at, source",
           )
-          .eq("project_id", projectId)
-          .order("activity_date", { ascending: false });
-        const dealsPromise = includeDeals
-          ? supabaseClient
-              .from("deals")
-              .select("id, project_id, title, pipeline, value, created_at")
-              .eq("project_id", projectId)
-              .order("created_at", { ascending: false })
-          : Promise.resolve({
-              data: null,
-              error: null,
-            } as { data: any[] | null; error: { message?: string } | null });
-        const invoicesPromise = includeInvoices
-          ? supabaseClient
-              .from("consultations")
-              .select(
-                "id, project_id, title, content, record_type, scheduled_at, payment_method, invoice_total_amount, invoice_is_complimentary, invoice_is_paid, created_at",
-              )
-              .eq("project_id", projectId)
-              .eq("record_type", "invoice")
-              .order("scheduled_at", { ascending: false })
-          : Promise.resolve({
-              data: null,
-              error: null,
-            } as { data: any[] | null; error: { message?: string } | null });
+          .eq("project_id", projectId);
+        
+        if (source !== "all") {
+          tasksQuery = tasksQuery.or(`source.eq.${source},source.is.null`);
+        }
+        
+        const tasksPromise = tasksQuery.order("activity_date", { ascending: false });
 
-        const [notesResult, tasksResult, dealsResult, invoicesResult] =
+        const [notesResult, tasksResult] =
           await Promise.all([
             notesPromise,
             tasksPromise,
-            dealsPromise,
-            invoicesPromise,
           ]);
 
         if (!isMounted) return;
@@ -171,71 +149,6 @@ export function useProjectActivityFeed(
           }
         }
 
-        {
-          const { data, error } = dealsResult;
-          if (error) {
-            setError((prev) => prev ?? error.message ?? "Failed to load deals.");
-          } else if (data) {
-            for (const row of data as any[]) {
-              const title = (row.title as string | null) ?? "Deal";
-              const pipeline = (row.pipeline as string | null) ?? null;
-              const value = (row.value as number | null) ?? null;
-
-              const metaParts: string[] = [];
-              if (pipeline) metaParts.push(pipeline);
-              if (value !== null) metaParts.push(formatMoneyAed(value));
-
-              all.push({
-                id: `deal-${row.id as string}`,
-                kind: "deal",
-                title,
-                body: null,
-                meta: metaParts.join(" • ") || "Deal",
-                at: (row.created_at as string | null) ?? null,
-              });
-            }
-          }
-        }
-
-        {
-          const { data, error } = invoicesResult;
-          if (error) {
-            setError((prev) => prev ?? error.message ?? "Failed to load invoices.");
-          } else if (data) {
-            for (const row of data as any[]) {
-              const title = (row.title as string | null) ?? "Invoice";
-              const method = (row.payment_method as string | null) ?? null;
-              const amount = (row.invoice_total_amount as number | null) ?? null;
-              const isComplimentary =
-                ((row.invoice_is_complimentary as boolean | null) ?? false) &&
-                amount !== null;
-              const isPaid = (row.invoice_is_paid as boolean | null) ?? false;
-
-              const metaParts: string[] = [];
-              if (method) metaParts.push(method);
-              if (amount !== null) metaParts.push(formatMoneyAed(amount));
-              if (isComplimentary) {
-                metaParts.push("Complimentary");
-              } else {
-                metaParts.push(isPaid ? "Paid" : "Unpaid");
-              }
-
-              const at =
-                ((row.scheduled_at as string | null) ??
-                  (row.created_at as string | null)) ?? null;
-
-              all.push({
-                id: `invoice-${row.id as string}`,
-                kind: "invoice",
-                title,
-                body: null,
-                meta: metaParts.join(" • ") || "Invoice",
-                at,
-              });
-            }
-          }
-        }
-
         all.sort((a, b) => parseTimestamp(b.at) - parseTimestamp(a.at));
 
         setItems(all);
@@ -253,7 +166,7 @@ export function useProjectActivityFeed(
     return () => {
       setLoading(false);
     }
-  }, [projectId, includeDeals, includeInvoices, reloadKey]);
+  }, [projectId, reloadKey, source]);
 
   const hasItems = useMemo(() => items.length > 0, [items]);
 
@@ -262,10 +175,12 @@ export function useProjectActivityFeed(
 
 export default function ProjectActivityFeed({
   projectId,
+  source = "all",
 }: {
   projectId: string;
+  source?: ActivitySource;
 }) {
-  const { items, loading, error, hasItems } = useProjectActivityFeed(projectId);
+  const { items, loading, error, hasItems } = useProjectActivityFeed(projectId, { source });
 
   return (
     <div className="rounded-xl border border-slate-200/80 bg-white/90 p-4 text-xs shadow-[0_16px_40px_rgba(15,23,42,0.08)] backdrop-blur">
@@ -273,7 +188,7 @@ export default function ProjectActivityFeed({
         <div>
           <h2 className="text-sm font-semibold text-slate-900">Activity</h2>
           <p className="text-[11px] text-slate-500">
-            Notes, tasks, invoices, and deals for this project.
+            Notes, tasks, and files for this project.
           </p>
         </div>
         <p className="text-[11px] text-slate-400">{items.length} entries</p>
@@ -299,22 +214,14 @@ export default function ProjectActivityFeed({
                       "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold " +
                       (item.kind === "note" || item.kind === "file"
                         ? "bg-slate-900 text-slate-50"
-                        : item.kind === "task"
-                        ? "bg-emerald-50 text-emerald-700"
-                        : item.kind === "invoice"
-                        ? "bg-sky-50 text-sky-700"
-                        : "bg-amber-50 text-amber-700")
+                        : "bg-emerald-50 text-emerald-700")
                     }
                   >
                     {item.kind === "note"
                       ? "Note"
                       : item.kind === "task"
                       ? "Task"
-                      : item.kind === "invoice"
-                      ? "Invoice"
-                      : item.kind === "file"
-                      ? "File"
-                      : "Deal"}
+                      : "File"}
                   </span>
                   <p className="text-[11px] font-medium text-slate-900">
                     {item.title}
