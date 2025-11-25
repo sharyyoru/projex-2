@@ -168,7 +168,7 @@ export default function HeaderSearch() {
   }
 
   return (
-    <div ref={containerRef} className="relative w-full">
+    <div ref={containerRef} className="relative w-full z-[100]">
       <form onSubmit={handleSubmit} className="relative w-full group">
         <div className="pointer-events-none absolute inset-0 rounded-full bg-gradient-to-r from-sky-400/40 via-emerald-400/40 to-violet-400/40 opacity-0 blur-sm transition duration-300 group-hover:opacity-100" />
         <div className="relative flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/90 px-3 py-1.5 text-[11px] text-slate-600 shadow-[0_10px_30px_rgba(15,23,42,0.12)] backdrop-blur">
@@ -201,7 +201,7 @@ export default function HeaderSearch() {
 
       {/* Live search dropdown */}
       {showDropdown && (
-        <div className="absolute left-0 right-0 top-full z-50 mt-2 max-h-80 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl">
+        <div className="absolute left-0 right-0 top-full z-[9999] mt-2 max-h-80 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-2xl">
           {results.map((result) => (
             <Link
               key={`${result.type}-${result.id}`}
