@@ -30,17 +30,11 @@ type ProjectHit = {
   company_id: string;
 };
 
-type QuoteHit = {
-  id: string;
-  quote_number: string | null;
-  title: string | null;
-  status: string | null;
-  project_id: string | null;
-};
-
 type InvoiceHit = {
   id: string;
   invoice_number: string | null;
+  invoice_type: string | null;
+  client_name: string | null;
   status: string | null;
   project_id: string | null;
   total: number | null;
@@ -54,7 +48,6 @@ export default function GlobalSearchPage() {
   const [companies, setCompanies] = useState<CompanyHit[]>([]);
   const [contacts, setContacts] = useState<ContactHit[]>([]);
   const [projects, setProjects] = useState<ProjectHit[]>([]);
-  const [quotes, setQuotes] = useState<QuoteHit[]>([]);
   const [invoices, setInvoices] = useState<InvoiceHit[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,7 +60,6 @@ export default function GlobalSearchPage() {
         setCompanies([]);
         setContacts([]);
         setProjects([]);
-        setQuotes([]);
         setInvoices([]);
         setError(null);
         setLoading(false);
@@ -82,7 +74,7 @@ export default function GlobalSearchPage() {
         const escaped = normalized.replace(/[%]/g, "");
         const pattern = `%${escaped}%`;
 
-        const [companiesResult, contactsResult, projectsResult, quotesResult, invoicesResult] =
+        const [companiesResult, contactsResult, projectsResult, invoicesResult] =
           await Promise.all([
             supabaseClient
               .from("companies")
@@ -100,35 +92,28 @@ export default function GlobalSearchPage() {
               .or(`name.ilike.${pattern},description.ilike.${pattern}`)
               .limit(8),
             supabaseClient
-              .from("quotes")
-              .select("id, quote_number, title, status, project_id")
-              .or(`quote_number.ilike.${pattern},title.ilike.${pattern}`)
-              .limit(8),
-            supabaseClient
               .from("invoices")
-              .select("id, invoice_number, status, project_id, total")
-              .or(`invoice_number.ilike.${pattern}`)
-              .limit(8),
+              .select("id, invoice_number, invoice_type, client_name, status, project_id, total")
+              .or(`invoice_number.ilike.${pattern},client_name.ilike.${pattern}`)
+              .limit(10),
           ]);
 
         if (cancelled) return;
 
         const hasError = companiesResult.error || contactsResult.error || 
-          projectsResult.error || quotesResult.error || invoicesResult.error;
+          projectsResult.error || invoicesResult.error;
 
         if (hasError) {
           const message =
             companiesResult.error?.message ??
             contactsResult.error?.message ??
             projectsResult.error?.message ??
-            quotesResult.error?.message ??
             invoicesResult.error?.message ??
             "Failed to run search.";
           setError(message);
           setCompanies([]);
           setContacts([]);
           setProjects([]);
-          setQuotes([]);
           setInvoices([]);
           setLoading(false);
           return;
@@ -137,7 +122,6 @@ export default function GlobalSearchPage() {
         setCompanies((companiesResult.data ?? []) as CompanyHit[]);
         setContacts((contactsResult.data ?? []) as ContactHit[]);
         setProjects((projectsResult.data ?? []) as ProjectHit[]);
-        setQuotes((quotesResult.data ?? []) as QuoteHit[]);
         setInvoices((invoicesResult.data ?? []) as InvoiceHit[]);
         setLoading(false);
       } catch {
@@ -146,7 +130,6 @@ export default function GlobalSearchPage() {
         setCompanies([]);
         setContacts([]);
         setProjects([]);
-        setQuotes([]);
         setInvoices([]);
         setLoading(false);
       }
@@ -159,9 +142,13 @@ export default function GlobalSearchPage() {
     };
   }, [trimmedQuery]);
 
+  // Separate quotations and invoices from the combined results
+  const quotations = invoices.filter(inv => inv.invoice_type === "quote");
+  const actualInvoices = invoices.filter(inv => inv.invoice_type !== "quote");
+
   const totalResults = useMemo(
-    () => companies.length + contacts.length + projects.length + quotes.length + invoices.length,
-    [companies.length, contacts.length, projects.length, quotes.length, invoices.length],
+    () => companies.length + contacts.length + projects.length + invoices.length,
+    [companies.length, contacts.length, projects.length, invoices.length],
   );
 
   return (
@@ -280,27 +267,27 @@ export default function GlobalSearchPage() {
             </div>
           )}
 
-          {quotes.length > 0 && (
+          {quotations.length > 0 && (
             <div className="rounded-xl border border-slate-200/80 bg-white/90 p-4 text-xs shadow-[0_16px_40px_rgba(15,23,42,0.08)] backdrop-blur">
               <div className="mb-2 flex items-center justify-between gap-2">
-                <h2 className="text-sm font-semibold text-slate-900">Quotes</h2>
+                <h2 className="text-sm font-semibold text-slate-900">Quotations</h2>
                 <span className="text-[11px] text-slate-400">
-                  {quotes.length} match{quotes.length === 1 ? "" : "es"}
+                  {quotations.length} match{quotations.length === 1 ? "" : "es"}
                 </span>
               </div>
               <ul className="space-y-1.5">
-                {quotes.map((quote) => (
+                {quotations.map((quote) => (
                   <li key={quote.id}>
                     <Link
-                      href={quote.project_id ? `/projects/${quote.project_id}` : "/projects"}
+                      href={quote.project_id ? `/projects/${quote.project_id}` : "/financials"}
                       className="flex items-center justify-between rounded-lg bg-slate-50/80 px-3 py-2 text-slate-800 hover:bg-slate-100"
                     >
                       <div>
                         <p className="text-[11px] font-semibold text-amber-700">
-                          {quote.quote_number || quote.title || "Untitled quote"}
+                          {quote.invoice_number || "Untitled quotation"}
                         </p>
                         <p className="text-[11px] text-slate-500">
-                          {quote.status || "No status"}
+                          {quote.client_name || "Unknown"} • {quote.status || "draft"}
                         </p>
                       </div>
                     </Link>
@@ -310,16 +297,16 @@ export default function GlobalSearchPage() {
             </div>
           )}
 
-          {invoices.length > 0 && (
+          {actualInvoices.length > 0 && (
             <div className="rounded-xl border border-slate-200/80 bg-white/90 p-4 text-xs shadow-[0_16px_40px_rgba(15,23,42,0.08)] backdrop-blur">
               <div className="mb-2 flex items-center justify-between gap-2">
                 <h2 className="text-sm font-semibold text-slate-900">Invoices</h2>
                 <span className="text-[11px] text-slate-400">
-                  {invoices.length} match{invoices.length === 1 ? "" : "es"}
+                  {actualInvoices.length} match{actualInvoices.length === 1 ? "" : "es"}
                 </span>
               </div>
               <ul className="space-y-1.5">
-                {invoices.map((invoice) => (
+                {actualInvoices.map((invoice) => (
                   <li key={invoice.id}>
                     <Link
                       href={invoice.project_id ? `/projects/${invoice.project_id}` : "/financials"}
@@ -330,7 +317,7 @@ export default function GlobalSearchPage() {
                           {invoice.invoice_number || "Untitled invoice"}
                         </p>
                         <p className="text-[11px] text-slate-500">
-                          {invoice.status || "No status"} {invoice.total ? `• $${invoice.total.toLocaleString()}` : ""}
+                          {invoice.client_name || "Unknown"} • {invoice.status || "draft"} {invoice.total ? `• $${invoice.total.toLocaleString()}` : ""}
                         </p>
                       </div>
                     </Link>
