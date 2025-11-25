@@ -206,7 +206,7 @@ export default function RootLayout({
                   <span>Workflows</span>
                 </Link>
 
-                {/* Chat with Aliice */}
+                {/* Chat with Colton */}
                 <Link
                   href="/chat"
                   className="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium text-slate-600 transition-all hover:bg-gradient-to-r hover:from-violet-50 hover:to-indigo-50 hover:text-slate-900 hover:shadow-sm"
@@ -219,7 +219,7 @@ export default function RootLayout({
                       <path d="M16 10h.01" />
                     </svg>
                   </span>
-                  <span>Chat with Aliice</span>
+                  <span>Chat with Colton</span>
                 </Link>
               </nav>
             </aside>

@@ -62,17 +62,21 @@ type Project = {
 const COMPANY_SELECT =
   "id, name, legal_name, website, email, phone, industry, size, street_address, postal_code, town, country, notes, social_facebook, social_instagram, social_twitter, social_linkedin, social_youtube, social_tiktok, logo_url, brand_color_1, brand_color_2";
 
-// Default brand colors (gradient from sky to violet)
-const DEFAULT_BRAND_COLOR_1 = "#0ea5e9";
-const DEFAULT_BRAND_COLOR_2 = "#8b5cf6";
+// Default brand colors (gradient from violet to purple)
+const DEFAULT_BRAND_COLOR_1 = "#8b5cf6";
+const DEFAULT_BRAND_COLOR_2 = "#a855f7";
 
-// Finance stat cards data (placeholder amounts)
-const FINANCE_STATS = [
-  { label: "Quoted", amount: 0, color: "bg-amber-50 text-amber-700 border-amber-200" },
-  { label: "Invoiced", amount: 0, color: "bg-sky-50 text-sky-700 border-sky-200" },
-  { label: "Paid", amount: 0, color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  { label: "Delayed", amount: 0, color: "bg-red-50 text-red-700 border-red-200" },
-];
+// Industry colors for badges
+const INDUSTRY_COLORS: Record<string, string> = {
+  Healthcare: "from-pink-500 to-rose-500",
+  Finance: "from-emerald-500 to-teal-500",
+  Technology: "from-violet-500 to-purple-500",
+  Hospitality: "from-amber-500 to-orange-500",
+  Retail: "from-sky-500 to-cyan-500",
+  Education: "from-indigo-500 to-blue-500",
+  Manufacturing: "from-slate-500 to-gray-500",
+  "Real Estate": "from-lime-500 to-green-500",
+};
 
 function formatFullName(first: string | null, last: string | null): string {
   return [first ?? "", last ?? ""]
@@ -350,113 +354,174 @@ export default function CompanyDetailPage() {
   // Brand colors for gradient (from company or defaults)
   const brandColor1 = company.brand_color_1 || DEFAULT_BRAND_COLOR_1;
   const brandColor2 = company.brand_color_2 || DEFAULT_BRAND_COLOR_2;
+  const industryColor = INDUSTRY_COLORS[company.industry || ""] || "from-violet-500 to-purple-500";
+
+  // Calculate stats
+  const totalProjectsValue = projects.reduce((sum, p) => sum + (p.value || 0), 0);
+  const activeProjects = projects.filter(p => !["Closed", "Abandoned"].includes(p.status || "")).length;
 
   return (
     <div className="space-y-6">
-      {/* Calm wave gradient background - positioned on right side below header */}
-      <div className="pointer-events-none fixed top-[200px] right-0 h-[400px] w-[500px] overflow-hidden">
-        {/* First wave - larger, slower */}
+      {/* Decorative gradient background */}
+      <div className="pointer-events-none fixed top-[120px] right-0 h-[500px] w-[600px] overflow-hidden opacity-60">
         <div
-          className="absolute top-0 -right-10 h-[280px] w-[400px] rounded-[50%] opacity-60"
+          className="absolute top-0 -right-20 h-[350px] w-[450px] rounded-full blur-3xl"
           style={{
-            background: `linear-gradient(160deg, ${brandColor1}50 0%, ${brandColor2}35 50%, transparent 100%)`,
-            filter: "blur(30px)",
-            animation: "wave1 8s ease-in-out infinite",
+            background: `linear-gradient(160deg, ${brandColor1}30 0%, ${brandColor2}20 50%, transparent 100%)`,
           }}
         />
-        {/* Second wave - medium */}
         <div
-          className="absolute top-[60px] -right-5 h-[220px] w-[350px] rounded-[60%_40%_50%_50%] opacity-45"
+          className="absolute top-[100px] right-10 h-[250px] w-[350px] rounded-full blur-3xl"
           style={{
-            background: `linear-gradient(145deg, ${brandColor2}45 0%, ${brandColor1}30 60%, transparent 100%)`,
-            filter: "blur(25px)",
-            animation: "wave2 6s ease-in-out infinite",
-          }}
-        />
-        {/* Third wave - smaller accent */}
-        <div
-          className="absolute top-[100px] right-5 h-[160px] w-[280px] rounded-[45%_55%_50%_50%] opacity-35"
-          style={{
-            background: `linear-gradient(170deg, ${brandColor1}40 0%, ${brandColor2}25 70%, transparent 100%)`,
-            filter: "blur(20px)",
-            animation: "wave3 5s ease-in-out infinite",
+            background: `linear-gradient(145deg, ${brandColor2}25 0%, ${brandColor1}15 60%, transparent 100%)`,
           }}
         />
       </div>
 
-      {/* Finance stat cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {FINANCE_STATS.map((stat) => (
-          <div
-            key={stat.label}
-            className={`rounded-xl border px-4 py-3 shadow-sm ${stat.color}`}
-          >
-            <p className="text-[11px] font-medium opacity-70">{stat.label}</p>
-            <p className="text-lg font-semibold">{formatMoney(stat.amount)}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="relative">
-        <div className="relative z-10 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-semibold text-slate-900">{company.name}</h1>
-            {company.legal_name ? (
-              <p className="text-xs text-slate-500">{company.legal_name}</p>
-            ) : null}
-            <p className="mt-1 text-xs text-slate-500">
-              {company.industry || "Industry not set"}
-              {location ? ` • ${location}` : ""}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white/80 px-1 py-0.5 text-[11px] text-slate-600 shadow-sm">
-              <button
-                type="button"
-                className={
-                  "rounded-full px-2 py-0.5 " +
-                  (activeTab === "contacts"
-                    ? "bg-slate-900 text-white shadow-sm"
-                    : "text-slate-600 hover:text-slate-900")
-                }
-                onClick={() => setActiveTab("contacts")}
-              >
-                Contacts
-              </button>
-              <button
-                type="button"
-                className={
-                  "rounded-full px-2 py-0.5 " +
-                  (activeTab === "projects"
-                    ? "bg-slate-900 text-white shadow-sm"
-                    : "text-slate-600 hover:text-slate-900")
-                }
-                onClick={() => setActiveTab("projects")}
-              >
-                Projects
-              </button>
+      {/* Hero Header Card */}
+      <div className="relative overflow-hidden rounded-2xl border border-slate-200/50 bg-white shadow-xl shadow-slate-200/50">
+        {/* Gradient bar */}
+        <div className={`h-2 w-full bg-gradient-to-r ${industryColor}`} />
+        
+        <div className="relative p-6">
+          {/* Decorative elements */}
+          <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-gradient-to-br from-violet-100/40 to-purple-100/30 blur-2xl" />
+          
+          <div className="relative flex flex-wrap items-start justify-between gap-6">
+            {/* Company info */}
+            <div className="flex items-start gap-4">
+              {/* Logo/Avatar */}
+              <div className="relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-white bg-gradient-to-br from-violet-100 to-purple-100 shadow-lg shadow-violet-500/20">
+                {company.logo_url ? (
+                  <Image
+                    src={company.logo_url}
+                    alt={company.name}
+                    fill
+                    className="object-contain p-2"
+                  />
+                ) : (
+                  <span className="text-3xl font-bold text-violet-600">
+                    {company.name.charAt(0).toUpperCase()}
+                  </span>
+                )}
+              </div>
+              
+              <div className="space-y-2">
+                <div>
+                  <h1 className="text-2xl font-bold text-slate-900">{company.name}</h1>
+                  {company.legal_name && (
+                    <p className="text-sm text-slate-500">{company.legal_name}</p>
+                  )}
+                </div>
+                
+                <div className="flex flex-wrap items-center gap-2">
+                  {company.industry && (
+                    <span className={`inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r px-3 py-1 text-[11px] font-semibold text-white shadow-sm ${industryColor}`}>
+                      <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4" />
+                      </svg>
+                      {company.industry}
+                    </span>
+                  )}
+                  {location && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-medium text-slate-600">
+                      <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+                        <circle cx="12" cy="10" r="3" />
+                      </svg>
+                      {location}
+                    </span>
+                  )}
+                  {company.size && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-medium text-slate-600">
+                      <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                        <circle cx="9" cy="7" r="4" />
+                        <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+                      </svg>
+                      {company.size}
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
-            <Link
-              href="/companies"
-              className="relative inline-flex items-center gap-1 overflow-hidden rounded-full border border-slate-200/80 bg-white/80 px-3 py-1.5 text-[11px] font-medium text-slate-700 shadow-sm hover:bg-slate-50"
-            >
-              <span className="inline-flex h-3.5 w-3.5 items-center justify-center">
-                <svg
-                  className="h-3.5 w-3.5 text-slate-600"
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M3 6h4v12H3zM10 10h4v8h-4zM17 8h4v10h-4z" />
+            
+            {/* Actions */}
+            <div className="flex items-center gap-2">
+              <Link
+                href="/companies"
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-[12px] font-medium text-slate-700 shadow-sm transition-all hover:bg-slate-50 hover:shadow-md"
+              >
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m15 18-6-6 6-6" />
                 </svg>
-              </span>
-              <span>All companies</span>
-            </Link>
+                All Companies
+              </Link>
+            </div>
           </div>
+        </div>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className="group relative overflow-hidden rounded-xl border border-violet-200/50 bg-gradient-to-br from-violet-50 to-purple-50 p-4 shadow-sm transition-all hover:shadow-md">
+          <div className="absolute -right-4 -top-4 h-16 w-16 rounded-full bg-violet-200/30 blur-2xl transition-all group-hover:bg-violet-300/40" />
+          <p className="text-[11px] font-medium text-violet-600 uppercase tracking-wide">Contacts</p>
+          <p className="mt-1 text-2xl font-bold text-violet-700">{contacts.length}</p>
+        </div>
+        <div className="group relative overflow-hidden rounded-xl border border-emerald-200/50 bg-gradient-to-br from-emerald-50 to-teal-50 p-4 shadow-sm transition-all hover:shadow-md">
+          <div className="absolute -right-4 -top-4 h-16 w-16 rounded-full bg-emerald-200/30 blur-2xl transition-all group-hover:bg-emerald-300/40" />
+          <p className="text-[11px] font-medium text-emerald-600 uppercase tracking-wide">Projects</p>
+          <p className="mt-1 text-2xl font-bold text-emerald-700">{projects.length}</p>
+        </div>
+        <div className="group relative overflow-hidden rounded-xl border border-sky-200/50 bg-gradient-to-br from-sky-50 to-cyan-50 p-4 shadow-sm transition-all hover:shadow-md">
+          <div className="absolute -right-4 -top-4 h-16 w-16 rounded-full bg-sky-200/30 blur-2xl transition-all group-hover:bg-sky-300/40" />
+          <p className="text-[11px] font-medium text-sky-600 uppercase tracking-wide">Active</p>
+          <p className="mt-1 text-2xl font-bold text-sky-700">{activeProjects}</p>
+        </div>
+        <div className="group relative overflow-hidden rounded-xl border border-amber-200/50 bg-gradient-to-br from-amber-50 to-orange-50 p-4 shadow-sm transition-all hover:shadow-md">
+          <div className="absolute -right-4 -top-4 h-16 w-16 rounded-full bg-amber-200/30 blur-2xl transition-all group-hover:bg-amber-300/40" />
+          <p className="text-[11px] font-medium text-amber-600 uppercase tracking-wide">Total Value</p>
+          <p className="mt-1 text-xl font-bold text-amber-700">{formatMoney(totalProjectsValue)}</p>
+        </div>
+      </div>
+
+      {/* Tab Switcher */}
+      <div className="flex items-center gap-3">
+        <div className="inline-flex items-center gap-1 rounded-full border border-slate-200/80 bg-white/90 p-1 shadow-sm backdrop-blur">
+          <button
+            type="button"
+            className={`rounded-full px-4 py-2 text-[12px] font-medium transition-all ${
+              activeTab === "contacts"
+                ? "bg-gradient-to-r from-violet-500 to-purple-500 text-white shadow-lg shadow-violet-500/25"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+            }`}
+            onClick={() => setActiveTab("contacts")}
+          >
+            <span className="flex items-center gap-2">
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+              </svg>
+              Contacts ({contacts.length})
+            </span>
+          </button>
+          <button
+            type="button"
+            className={`rounded-full px-4 py-2 text-[12px] font-medium transition-all ${
+              activeTab === "projects"
+                ? "bg-gradient-to-r from-violet-500 to-purple-500 text-white shadow-lg shadow-violet-500/25"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+            }`}
+            onClick={() => setActiveTab("projects")}
+          >
+            <span className="flex items-center gap-2">
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              </svg>
+              Projects ({projects.length})
+            </span>
+          </button>
         </div>
       </div>
 

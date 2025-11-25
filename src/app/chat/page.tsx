@@ -69,7 +69,7 @@ function formatConversationTitle(conversation: ChatConversation): string {
   return `${raw.slice(0, 60)}…`;
 }
 
-export default function ChatWithAliicePage() {
+export default function ChatWithColtonPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -469,7 +469,7 @@ export default function ChatWithAliicePage() {
         const payload = (await response.json().catch(() => null)) as
           | { error?: string }
           | null;
-        setError(payload?.error ?? "Failed to get a response from Aliice.");
+        setError(payload?.error ?? "Failed to get a response from Colton.");
         setLoading(false);
         return;
       }
@@ -479,7 +479,7 @@ export default function ChatWithAliicePage() {
       };
 
       if (!json.message || !json.message.content) {
-        setError("Aliice did not return a response.");
+        setError("Colton did not return a response.");
         setLoading(false);
         return;
       }
@@ -562,7 +562,7 @@ export default function ChatWithAliicePage() {
 
       setLoading(false);
     } catch {
-      setError("Network error talking to Aliice.");
+      setError("Network error talking to Colton.");
       setLoading(false);
     }
   }
@@ -753,35 +753,72 @@ export default function ChatWithAliicePage() {
   return (
     <div className="h-full space-y-4">
       <CollapseSidebarOnMount />
-      <div>
-        <h1 className="text-xl font-semibold text-slate-900">Chat with Aliice</h1>
-        <p className="text-sm text-slate-500">
-          Your AI assistant for bookings, post-op docs, and patient or insurance
-          communication.
-        </p>
+      
+      {/* Decorative gradient background */}
+      <div className="pointer-events-none fixed top-[120px] right-0 h-[400px] w-[500px] overflow-hidden opacity-50">
+        <div className="absolute top-0 -right-10 h-[300px] w-[400px] rounded-full bg-gradient-to-br from-violet-200/50 to-indigo-200/40 blur-3xl" />
       </div>
+
+      {/* Header */}
+      <div className="relative flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-500 shadow-lg shadow-violet-500/30">
+            <svg className="h-6 w-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              <path d="M8 10h.01" />
+              <path d="M12 10h.01" />
+              <path d="M16 10h.01" />
+            </svg>
+          </div>
+          <div>
+            <h1 className="text-xl font-semibold text-slate-900">Chat with Colton</h1>
+            <p className="text-[13px] text-slate-500">
+              Your AI assistant for bookings, docs, and communication
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div className="flex min-h-[540px] flex-col gap-4 sm:flex-row">
-        <aside className="flex w-full flex-shrink-0 flex-col rounded-xl border border-slate-200/80 bg-white/90 text-[13px] shadow-[0_12px_30px_rgba(15,23,42,0.12)] sm:w-64">
-          <div className="flex items-center justify-between border-b border-slate-100/80 px-3 py-2">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-              Conversations
-            </span>
+        {/* Conversations Sidebar */}
+        <aside className="relative flex w-full flex-shrink-0 flex-col overflow-hidden rounded-2xl border border-violet-200/50 bg-white shadow-xl shadow-violet-100/30 sm:w-72">
+          {/* Gradient bar */}
+          <div className="h-1 w-full bg-gradient-to-r from-violet-500 to-indigo-500" />
+          
+          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+            <div className="flex items-center gap-2">
+              <svg className="h-4 w-4 text-violet-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              <span className="text-[12px] font-semibold text-slate-700">Conversations</span>
+            </div>
             <button
               type="button"
               onClick={handleStartNewConversation}
               disabled={loading || !currentUserId}
-              className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-violet-500 to-indigo-500 px-3 py-1.5 text-[11px] font-medium text-white shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
             >
+              <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
               New
             </button>
           </div>
-          <div className="flex-1 space-y-1 overflow-y-auto px-2 py-2">
+          <div className="flex-1 space-y-1.5 overflow-y-auto p-3">
             {conversationsLoading ? (
-              <p className="px-2 text-[12px] text-slate-400">Loading...</p>
+              <div className="flex items-center justify-center py-8">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-violet-200 border-t-violet-500" />
+              </div>
             ) : conversations.length === 0 ? (
-              <p className="px-2 text-[12px] text-slate-400">
-                No conversations yet.
-              </p>
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-violet-100">
+                  <svg className="h-6 w-6 text-violet-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </svg>
+                </div>
+                <p className="mt-3 text-[12px] font-medium text-slate-600">No conversations yet</p>
+                <p className="mt-1 text-[11px] text-slate-400">Start a new chat above</p>
+              </div>
             ) : (
               conversations.map((conversation) => {
                 const isActive = conversation.id === activeConversationId;
@@ -790,14 +827,16 @@ export default function ChatWithAliicePage() {
                     key={conversation.id}
                     type="button"
                     onClick={() => setActiveConversationId(conversation.id)}
-                    className={
-                      "flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-[12px] " +
-                      (isActive
-                        ? "bg-sky-600 text-white shadow-sm"
-                        : "bg-white/70 text-slate-800 hover:bg-slate-100")
-                    }
+                    className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[12px] transition-all ${
+                      isActive
+                        ? "bg-gradient-to-r from-violet-500 to-indigo-500 text-white shadow-lg shadow-violet-500/25"
+                        : "bg-slate-50 text-slate-700 hover:bg-violet-50 hover:text-violet-700"
+                    }`}
                   >
-                    <span className="line-clamp-2">
+                    <svg className={`h-4 w-4 shrink-0 ${isActive ? "text-white/80" : "text-slate-400"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    </svg>
+                    <span className="line-clamp-2 flex-1">
                       {formatConversationTitle(conversation)}
                     </span>
                   </button>
@@ -806,130 +845,162 @@ export default function ChatWithAliicePage() {
             )}
           </div>
         </aside>
-        <div className="flex min-w-0 flex-1 flex-col rounded-xl border border-slate-200/80 bg-white/90 p-4 text-sm shadow-[0_16px_40px_rgba(15,23,42,0.08)] backdrop-blur">
-          <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex-1">
-              <input
-                type="text"
-                value={editingTitle}
-                onChange={(event) => setEditingTitle(event.target.value)}
-                onBlur={handleTitleSave}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    void handleTitleSave();
-                  }
-                }}
-                placeholder="Name this conversation..."
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-[13px] text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-              />
-            </div>
-            <div className="flex items-center justify-end gap-2 text-[11px]">
-              <button
-                type="button"
-                onClick={handleArchiveActiveConversation}
-                disabled={!activeConversationId || !currentUserId}
-                className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 font-medium text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Archive
-              </button>
-              <button
-                type="button"
-                onClick={handleDeleteActiveConversation}
-                disabled={!activeConversationId || !currentUserId}
-                className="rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 font-medium text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-          <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="relative flex-1 max-w-md text-[11px]">
-              <input
-                type="text"
-                value={patientSearch}
-                onChange={(event) => setPatientSearch(event.target.value)}
-                disabled={!activeConversationId || !currentUserId}
-                placeholder="Search patient by name, email, or phone..."
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
-              />
-              {patientOptionsError ? (
-                <p className="mt-1 text-[10px] text-red-600">{patientOptionsError}</p>
-              ) : null}
-              {patientOptionsLoading ? (
-                <div className="absolute z-10 mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] text-slate-500 shadow-lg">
-                  Loading patients...
-                </div>
-              ) : null}
-              {!patientOptionsLoading && patientSearch.trim().length > 0 ? (
-                <div className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 text-[11px] shadow-lg">
-                  {filteredPatientOptions.length === 0 ? (
-                    <div className="px-3 py-1.5 text-slate-500">
-                      No matching patients.
-                    </div>
-                  ) : (
-                    filteredPatientOptions.map((patient) => (
-                      <button
-                        key={patient.id}
-                        type="button"
-                        onClick={() => handleSelectPatient(patient)}
-                        className="flex w-full flex-col items-start px-3 py-1.5 text-left text-slate-900 hover:bg-sky-50"
-                      >
-                        <span className="font-medium text-slate-900">
-                          {formatPatientForDisplay(patient)}
-                        </span>
-                      </button>
-                    ))
-                  )}
-                </div>
-              ) : null}
-            </div>
-            <div className="flex items-center gap-2 text-[11px]">
-              <span className="text-slate-500">
-                {!activeConversationId || !currentUserId
-                  ? "Start a conversation to link it to a patient."
-                  : selectedPatient
-                  ? `Linked patient: ${formatPatientForDisplay(selectedPatient)}`
-                  : "No patient selected."}
-              </span>
-              {selectedPatient ? (
+
+        {/* Main Chat Area */}
+        <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200/50 bg-white shadow-xl shadow-slate-200/30">
+          {/* Chat header */}
+          <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-4 py-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex-1">
+                <input
+                  type="text"
+                  value={editingTitle}
+                  onChange={(event) => setEditingTitle(event.target.value)}
+                  onBlur={handleTitleSave}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      void handleTitleSave();
+                    }
+                  }}
+                  placeholder="Name this conversation..."
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-[13px] text-black placeholder:text-slate-400 shadow-sm transition-all focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2">
                 <button
                   type="button"
-                  onClick={handleClearPatient}
-                  className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-600 hover:bg-slate-100"
+                  onClick={handleArchiveActiveConversation}
+                  disabled={!activeConversationId || !currentUserId}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-600 shadow-sm transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Clear
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" />
+                  </svg>
+                  Archive
                 </button>
-              ) : null}
+                <button
+                  type="button"
+                  onClick={handleDeleteActiveConversation}
+                  disabled={!activeConversationId || !currentUserId}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-[11px] font-medium text-red-600 shadow-sm transition-all hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                  </svg>
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+          {/* Patient search section */}
+          <div className="border-b border-slate-100 bg-slate-50/50 px-4 py-2.5">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="relative flex-1 max-w-md">
+                <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2">
+                  <svg className="h-3.5 w-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="m21 21-4.3-4.3" />
+                  </svg>
+                </div>
+                <input
+                  type="text"
+                  value={patientSearch}
+                  onChange={(event) => setPatientSearch(event.target.value)}
+                  disabled={!activeConversationId || !currentUserId}
+                  placeholder="Link to patient..."
+                  className="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-9 pr-3 text-[11px] text-black placeholder:text-slate-400 shadow-sm focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                />
+                {patientOptionsError && (
+                  <p className="mt-1 text-[10px] text-red-600">{patientOptionsError}</p>
+                )}
+                {patientOptionsLoading && (
+                  <div className="absolute z-10 mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-500 shadow-xl">
+                    <div className="flex items-center gap-2">
+                      <div className="h-3 w-3 animate-spin rounded-full border-2 border-violet-200 border-t-violet-500" />
+                      Loading patients...
+                    </div>
+                  </div>
+                )}
+                {!patientOptionsLoading && patientSearch.trim().length > 0 && (
+                  <div className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 text-[11px] shadow-xl">
+                    {filteredPatientOptions.length === 0 ? (
+                      <div className="px-3 py-2 text-slate-500">No matching patients.</div>
+                    ) : (
+                      filteredPatientOptions.map((patient) => (
+                        <button
+                          key={patient.id}
+                          type="button"
+                          onClick={() => handleSelectPatient(patient)}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-slate-900 hover:bg-violet-50"
+                        >
+                          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-violet-100 text-[10px] font-semibold text-violet-600">
+                            {(patient.first_name || "?").charAt(0)}
+                          </div>
+                          <span className="font-medium">{formatPatientForDisplay(patient)}</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-2 text-[11px]">
+                {selectedPatient ? (
+                  <div className="flex items-center gap-2 rounded-full bg-violet-100 px-3 py-1">
+                    <span className="text-violet-700 font-medium">{formatPatientForDisplay(selectedPatient)}</span>
+                    <button
+                      type="button"
+                      onClick={handleClearPatient}
+                      className="text-violet-500 hover:text-violet-700"
+                    >
+                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M18 6 6 18M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ) : (
+                  <span className="text-slate-400">
+                    {!activeConversationId || !currentUserId ? "Start a conversation first" : "No patient linked"}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
-          <div className="flex-1 min-h-[220px] max-h-[440px] space-y-2 overflow-y-auto rounded-lg border border-slate-100 bg-slate-50/60 p-3 text-[13px]">
+          {/* Messages area */}
+          <div className="flex-1 min-h-[220px] max-h-[380px] space-y-3 overflow-y-auto p-4">
             {initialMessagesLoading ? (
-              <p className="text-[12px] text-slate-500">Loading conversation...</p>
+              <div className="flex items-center justify-center py-12">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-violet-200 border-t-violet-500" />
+                  <p className="text-[12px] text-slate-500">Loading conversation...</p>
+                </div>
+              </div>
             ) : messages.length === 0 ? (
-              <p className="text-[12px] text-slate-500">
-                Start a conversation with Aliice about bookings, post-op docs, or
-                how to communicate with patients and insurers.
-              </p>
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-100 to-indigo-100">
+                  <svg className="h-8 w-8 text-violet-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    <path d="M8 10h.01M12 10h.01M16 10h.01" />
+                  </svg>
+                </div>
+                <p className="mt-4 text-[14px] font-medium text-slate-700">Start a conversation</p>
+                <p className="mt-1 text-[12px] text-slate-500 max-w-xs">
+                  Ask Colton about bookings, documents, or how to communicate with clients.
+                </p>
+              </div>
             ) : (
               messages.map((message) => (
                 <div
                   key={message.id}
-                  className={
-                    "flex " +
-                    (message.role === "user"
-                      ? "justify-end text-right"
-                      : "justify-start text-left")
-                  }
+                  className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
                 >
                   <div
-                    className={
-                      "inline-block max-w-[80%] rounded-2xl px-3 py-2 text-[12px] " +
-                      (message.role === "user"
-                        ? "bg-sky-600 text-white"
-                        : "bg-slate-100 text-slate-900")
-                    }
+                    className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-[13px] ${
+                      message.role === "user"
+                        ? "bg-gradient-to-r from-violet-500 to-indigo-500 text-white shadow-lg shadow-violet-500/20"
+                        : "bg-slate-100 text-slate-900"
+                    }`}
                   >
                     {message.content}
                   </div>
@@ -937,27 +1008,48 @@ export default function ChatWithAliicePage() {
               ))
             )}
           </div>
+
+          {/* Error display */}
           {(error || conversationsError) && (
-            <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[11px] text-red-700">
+            <div className="mx-4 mb-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-[12px] text-red-700">
               {error || conversationsError}
             </div>
           )}
-          <form onSubmit={handleSubmit} className="mt-3 flex items-end gap-2 pt-1">
-            <textarea
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              rows={2}
-              placeholder="Ask Aliice a question..."
-              className="flex-1 resize-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-            />
-            <button
-              type="submit"
-              disabled={loading || !input.trim() || initialMessagesLoading}
-              className="inline-flex items-center justify-center rounded-full border border-sky-500 bg-sky-600 px-4 py-2 text-[12px] font-semibold text-white shadow-sm hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {loading ? "Sending..." : "Send"}
-            </button>
-          </form>
+
+          {/* Input form */}
+          <div className="border-t border-slate-100 bg-slate-50/50 p-4">
+            <form onSubmit={handleSubmit} className="flex items-end gap-3">
+              <div className="flex-1 relative">
+                <textarea
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                  rows={2}
+                  placeholder="Ask Colton a question..."
+                  className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-[13px] text-black placeholder:text-slate-400 shadow-sm transition-all focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={loading || !input.trim() || initialMessagesLoading}
+                className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-violet-500 to-indigo-500 px-5 py-3 text-[13px] font-medium text-white shadow-lg shadow-violet-500/25 transition-all hover:shadow-xl hover:shadow-violet-500/30 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loading ? (
+                  <>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    Sending
+                  </>
+                ) : (
+                  <>
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="m22 2-7 20-4-9-9-4Z" />
+                      <path d="M22 2 11 13" />
+                    </svg>
+                    Send
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     </div>
