@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import { supabaseClient } from "@/lib/supabaseClient";
+import FilePreviewModal from "@/components/FilePreviewModal";
 
 interface ProjectDocumentsTabProps {
   projectId: string;
@@ -62,6 +63,11 @@ export default function ProjectDocumentsTab({
   const [basePrefix, setBasePrefix] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  
+  // File preview modal state
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [previewModalUrl, setPreviewModalUrl] = useState("");
+  const [previewModalName, setPreviewModalName] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -377,6 +383,18 @@ export default function ProjectDocumentsTab({
     setSelectedFile(item);
   }
 
+  function openFileInModal(item: ListedItem) {
+    if (item.kind !== "file") return;
+    const base = (basePrefix ?? projectId) || "";
+    const fullPath = [base, item.path].filter(Boolean).join("/");
+    const { data } = supabaseClient.storage.from(BUCKET_NAME).getPublicUrl(fullPath);
+    if (data.publicUrl) {
+      setPreviewModalUrl(data.publicUrl);
+      setPreviewModalName(item.name);
+      setPreviewModalOpen(true);
+    }
+  }
+
   const selectedMimeType = (() => {
     if (!selectedFile || selectedFile.kind !== "file") return "";
     const fromMeta = selectedFile.metadata?.mimetype;
@@ -586,9 +604,21 @@ export default function ProjectDocumentsTab({
           <div className="flex items-center justify-between text-[11px] text-slate-500">
             <span>Preview</span>
             {selectedFile && selectedFile.kind === "file" ? (
-              <span className="truncate text-[10px] text-slate-400">
-                {selectedFile.name}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="truncate text-[10px] text-slate-400">
+                  {selectedFile.name}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => openFileInModal(selectedFile)}
+                  className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-violet-500 to-purple-500 px-2 py-1 text-[10px] font-medium text-white shadow-sm transition-all hover:shadow-lg hover:shadow-violet-500/25"
+                >
+                  <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M15 3h6v6M14 10l6.1-6.1M9 21H3v-6M10 14l-6.1 6.1" />
+                  </svg>
+                  Expand
+                </button>
+              </div>
             ) : null}
           </div>
 
@@ -642,6 +672,14 @@ export default function ProjectDocumentsTab({
           </div>
         </div>
       </div>
+
+      {/* File Preview Modal */}
+      <FilePreviewModal
+        isOpen={previewModalOpen}
+        onClose={() => setPreviewModalOpen(false)}
+        fileUrl={previewModalUrl}
+        fileName={previewModalName}
+      />
     </div>
   );
 }

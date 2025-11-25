@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState, useRef, useCallback } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useParams } from "next/navigation";
 import { supabaseClient } from "@/lib/supabaseClient";
 
@@ -25,6 +26,9 @@ type Company = {
   social_linkedin: string | null;
   social_youtube: string | null;
   social_tiktok: string | null;
+  logo_url: string | null;
+  brand_color_1: string | null;
+  brand_color_2: string | null;
 };
 
 type Contact = {
@@ -56,7 +60,19 @@ type Project = {
 };
 
 const COMPANY_SELECT =
-  "id, name, legal_name, website, email, phone, industry, size, street_address, postal_code, town, country, notes, social_facebook, social_instagram, social_twitter, social_linkedin, social_youtube, social_tiktok";
+  "id, name, legal_name, website, email, phone, industry, size, street_address, postal_code, town, country, notes, social_facebook, social_instagram, social_twitter, social_linkedin, social_youtube, social_tiktok, logo_url, brand_color_1, brand_color_2";
+
+// Default brand colors (gradient from sky to violet)
+const DEFAULT_BRAND_COLOR_1 = "#0ea5e9";
+const DEFAULT_BRAND_COLOR_2 = "#8b5cf6";
+
+// Finance stat cards data (placeholder amounts)
+const FINANCE_STATS = [
+  { label: "Quoted", amount: 0, color: "bg-amber-50 text-amber-700 border-amber-200" },
+  { label: "Invoiced", amount: 0, color: "bg-sky-50 text-sky-700 border-sky-200" },
+  { label: "Paid", amount: 0, color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  { label: "Delayed", amount: 0, color: "bg-red-50 text-red-700 border-red-200" },
+];
 
 function formatFullName(first: string | null, last: string | null): string {
   return [first ?? "", last ?? ""]
@@ -331,8 +347,56 @@ export default function CompanyDetailPage() {
 
   const location = [company.town, company.country].filter(Boolean).join(", ");
 
+  // Brand colors for gradient (from company or defaults)
+  const brandColor1 = company.brand_color_1 || DEFAULT_BRAND_COLOR_1;
+  const brandColor2 = company.brand_color_2 || DEFAULT_BRAND_COLOR_2;
+
   return (
     <div className="space-y-6">
+      {/* Calm wave gradient background - positioned on right side below header */}
+      <div className="pointer-events-none fixed top-[200px] right-0 h-[400px] w-[500px] overflow-hidden">
+        {/* First wave - larger, slower */}
+        <div
+          className="absolute top-0 -right-10 h-[280px] w-[400px] rounded-[50%] opacity-60"
+          style={{
+            background: `linear-gradient(160deg, ${brandColor1}50 0%, ${brandColor2}35 50%, transparent 100%)`,
+            filter: "blur(30px)",
+            animation: "wave1 8s ease-in-out infinite",
+          }}
+        />
+        {/* Second wave - medium */}
+        <div
+          className="absolute top-[60px] -right-5 h-[220px] w-[350px] rounded-[60%_40%_50%_50%] opacity-45"
+          style={{
+            background: `linear-gradient(145deg, ${brandColor2}45 0%, ${brandColor1}30 60%, transparent 100%)`,
+            filter: "blur(25px)",
+            animation: "wave2 6s ease-in-out infinite",
+          }}
+        />
+        {/* Third wave - smaller accent */}
+        <div
+          className="absolute top-[100px] right-5 h-[160px] w-[280px] rounded-[45%_55%_50%_50%] opacity-35"
+          style={{
+            background: `linear-gradient(170deg, ${brandColor1}40 0%, ${brandColor2}25 70%, transparent 100%)`,
+            filter: "blur(20px)",
+            animation: "wave3 5s ease-in-out infinite",
+          }}
+        />
+      </div>
+
+      {/* Finance stat cards */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {FINANCE_STATS.map((stat) => (
+          <div
+            key={stat.label}
+            className={`rounded-xl border px-4 py-3 shadow-sm ${stat.color}`}
+          >
+            <p className="text-[11px] font-medium opacity-70">{stat.label}</p>
+            <p className="text-lg font-semibold">{formatMoney(stat.amount)}</p>
+          </div>
+        ))}
+      </div>
+
       <div className="relative">
         <div className="relative z-10 flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -374,7 +438,7 @@ export default function CompanyDetailPage() {
             </div>
             <Link
               href="/companies"
-              className="inline-flex items-center gap-1 rounded-full border border-slate-200/80 bg-white/80 px-3 py-1.5 text-[11px] font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+              className="relative inline-flex items-center gap-1 overflow-hidden rounded-full border border-slate-200/80 bg-white/80 px-3 py-1.5 text-[11px] font-medium text-slate-700 shadow-sm hover:bg-slate-50"
             >
               <span className="inline-flex h-3.5 w-3.5 items-center justify-center">
                 <svg
@@ -393,9 +457,6 @@ export default function CompanyDetailPage() {
               <span>All companies</span>
             </Link>
           </div>
-        </div>
-        <div className="pointer-events-none absolute -top-6 right-0 h-40 w-40 overflow-hidden">
-          <div className="crm-glow h-full w-full" />
         </div>
       </div>
 
@@ -796,6 +857,14 @@ export default function CompanyDetailPage() {
         </div>
 
         <div className="space-y-4">
+          {/* Company Logo Card */}
+          <LogoUploadCard
+            companyId={company.id}
+            logoUrl={company.logo_url}
+            companyName={company.name}
+            onLogoUpdated={(url) => setCompany((prev) => prev ? { ...prev, logo_url: url } : prev)}
+          />
+
           {activeTab === "contacts" ? (
             <ContactsPanel
               companyId={company.id}
@@ -1268,7 +1337,7 @@ function ProjectsPanel({
               id="pipeline"
               name="pipeline"
               type="text"
-              placeholder="e.g. Geneva, Dubai"
+              placeholder="New Strategy"
               className="block w-full rounded-lg border border-slate-200 bg-white/90 px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
             />
           </div>
@@ -1394,6 +1463,186 @@ function ProjectsPanel({
             })}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function LogoUploadCard({
+  companyId,
+  logoUrl,
+  companyName,
+  onLogoUpdated,
+}: {
+  companyId: string;
+  logoUrl: string | null;
+  companyName: string;
+  onLogoUpdated: (url: string | null) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      // Validate file type
+      if (!file.type.startsWith("image/")) {
+        setError("Please upload an image file.");
+        return;
+      }
+
+      // Validate file size (max 2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        setError("Image must be smaller than 2MB.");
+        return;
+      }
+
+      setUploading(true);
+      setError(null);
+
+      try {
+        // Upload to Supabase storage
+        const fileExt = file.name.split(".").pop();
+        const fileName = `${companyId}-${Date.now()}.${fileExt}`;
+        const filePath = `company-logos/${fileName}`;
+
+        const { error: uploadError } = await supabaseClient.storage
+          .from("uploads")
+          .upload(filePath, file, { upsert: true });
+
+        if (uploadError) {
+          setError(uploadError.message);
+          setUploading(false);
+          return;
+        }
+
+        // Get public URL
+        const { data: urlData } = supabaseClient.storage
+          .from("uploads")
+          .getPublicUrl(filePath);
+
+        const publicUrl = urlData?.publicUrl || null;
+
+        // Update company record
+        const { error: updateError } = await supabaseClient
+          .from("companies")
+          .update({ logo_url: publicUrl })
+          .eq("id", companyId);
+
+        if (updateError) {
+          setError(updateError.message);
+          setUploading(false);
+          return;
+        }
+
+        onLogoUpdated(publicUrl);
+        setUploading(false);
+      } catch {
+        setError("Failed to upload logo.");
+        setUploading(false);
+      }
+    },
+    [companyId, onLogoUpdated]
+  );
+
+  const handleRemoveLogo = useCallback(async () => {
+    setUploading(true);
+    setError(null);
+
+    try {
+      const { error: updateError } = await supabaseClient
+        .from("companies")
+        .update({ logo_url: null })
+        .eq("id", companyId);
+
+      if (updateError) {
+        setError(updateError.message);
+        setUploading(false);
+        return;
+      }
+
+      onLogoUpdated(null);
+      setUploading(false);
+    } catch {
+      setError("Failed to remove logo.");
+      setUploading(false);
+    }
+  }, [companyId, onLogoUpdated]);
+
+  return (
+    <div className="rounded-xl border border-slate-200/80 bg-white/90 p-4 text-xs shadow-[0_16px_40px_rgba(15,23,42,0.08)] backdrop-blur">
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-900">Company Logo</h2>
+          <p className="text-[11px] text-slate-500">
+            Upload a logo for this company.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4">
+        {/* Logo preview */}
+        <div className="relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+          {logoUrl ? (
+            <Image
+              src={logoUrl}
+              alt={`${companyName} logo`}
+              fill
+              className="object-contain p-2"
+            />
+          ) : (
+            <svg
+              className="h-8 w-8 text-slate-300"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <circle cx="8.5" cy="8.5" r="1.5" />
+              <path d="m21 15-5-5L5 21" />
+            </svg>
+          )}
+        </div>
+
+        {/* Upload controls */}
+        <div className="flex-1 space-y-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="inline-flex items-center rounded-full border border-sky-200/80 bg-sky-600 px-3 py-1 text-[11px] font-medium text-white shadow-sm hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {uploading ? "Uploading..." : logoUrl ? "Change Logo" : "Upload Logo"}
+            </button>
+            {logoUrl && !uploading ? (
+              <button
+                type="button"
+                onClick={handleRemoveLogo}
+                className="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-3 py-1 text-[11px] font-medium text-red-700 shadow-sm hover:bg-red-100"
+              >
+                Remove
+              </button>
+            ) : null}
+          </div>
+          <p className="text-[10px] text-slate-400">
+            PNG, JPG, or SVG. Max 2MB.
+          </p>
+          {error ? <p className="text-[11px] text-red-600">{error}</p> : null}
+        </div>
       </div>
     </div>
   );

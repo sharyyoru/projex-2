@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { supabaseClient } from "@/lib/supabaseClient";
 import { useProjectActivityFeed } from "./ProjectActivityFeed";
 import ProjectDocumentsTab from "./ProjectDocumentsTab";
+import FilePreviewModal from "@/components/FilePreviewModal";
 
 type Note = {
   id: string;
@@ -112,7 +113,13 @@ export default function ProjectNotesTasksCard({
   projectId: string;
 }) {
   const [activeTab, setActiveTab] =
-    useState<"activity" | "notes" | "tasks" | "files">("activity");
+    useState<"activity" | "notes" | "tasks" | "files" | "links">("activity");
+  
+  // Links state
+  const [links, setLinks] = useState<{ id: string; url: string; title: string; created_at: string }[]>([]);
+  const [newLinkUrl, setNewLinkUrl] = useState("");
+  const [newLinkTitle, setNewLinkTitle] = useState("");
+  const [linkSaving, setLinkSaving] = useState(false);
 
   const [notes, setNotes] = useState<Note[]>([]);
   const [notesLoading, setNotesLoading] = useState(false);
@@ -138,6 +145,10 @@ export default function ProjectNotesTasksCard({
   const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<string[]>([]);
   const [assigneeSearch, setAssigneeSearch] = useState("");
   const [showAssigneePicker, setShowAssigneePicker] = useState(false);
+  
+  // Kanban view state
+  const [taskViewMode, setTaskViewMode] = useState<"list" | "kanban">("list");
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
 
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
@@ -179,6 +190,11 @@ export default function ProjectNotesTasksCard({
 
   const [activityReloadKey, setActivityReloadKey] = useState(0);
   const [isEditingTask, setIsEditingTask] = useState(false);
+  
+  // File preview state
+  const [filePreviewOpen, setFilePreviewOpen] = useState(false);
+  const [filePreviewUrl, setFilePreviewUrl] = useState("");
+  const [filePreviewName, setFilePreviewName] = useState("");
   const [statusDropdownOpenKey, setStatusDropdownOpenKey] = useState<string | null>(
     null,
   );
@@ -736,6 +752,32 @@ export default function ProjectNotesTasksCard({
     });
   }
 
+  function extractFileNameFromBody(body: string | null): string | null {
+    if (!body) return null;
+    // Match: Uploaded file "filename.ext"
+    const singleMatch = body.match(/^Uploaded file "([^"]+)"/);
+    if (singleMatch) return singleMatch[1];
+    // Match: Uploaded N files to the project files: "file1", "file2"
+    const multiMatch = body.match(/files to the project files: "([^"]+)"/);
+    if (multiMatch) return multiMatch[1];
+    return null;
+  }
+
+  function openFileFromActivity(body: string | null) {
+    const fileName = extractFileNameFromBody(body);
+    if (!fileName) return;
+    
+    const { data } = supabaseClient.storage
+      .from("project-documents")
+      .getPublicUrl(`${projectId}/${fileName}`);
+    
+    if (data.publicUrl) {
+      setFilePreviewUrl(data.publicUrl);
+      setFilePreviewName(fileName);
+      setFilePreviewOpen(true);
+    }
+  }
+
   async function handleUpdateTaskDetails() {
     if (!selectedTaskGroup) return;
 
@@ -845,6 +887,35 @@ export default function ProjectNotesTasksCard({
     setTaskUserFilterOpen(false);
   }
 
+  // Kanban drag-and-drop handlers
+  async function handleTaskDrop(taskId: string, newStatus: TaskStatus) {
+    // Optimistic update
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t))
+    );
+    setDraggedTaskId(null);
+
+    try {
+      const { error } = await supabaseClient
+        .from("tasks")
+        .update({ status: newStatus })
+        .eq("id", taskId);
+
+      if (error) {
+        // Revert on error - reload tasks
+        console.error("Failed to update task status:", error);
+      }
+    } catch (e) {
+      console.error("Error updating task status:", e);
+    }
+  }
+
+  const tasksByStatus = {
+    not_started: tasks.filter((t) => t.status === "not_started"),
+    in_progress: tasks.filter((t) => t.status === "in_progress"),
+    completed: tasks.filter((t) => t.status === "completed"),
+  };
+
   return (
     <div className="rounded-xl border border-slate-200/80 bg-white/90 p-4 text-xs shadow-[0_16px_40px_rgba(15,23,42,0.08)] backdrop-blur">
       <div className="mb-3 flex items-center justify-between gap-2">
@@ -857,7 +928,9 @@ export default function ProjectNotesTasksCard({
               ? "Capture internal notes for this project."
               : activeTab === "tasks"
               ? "Plan and track follow-up tasks for this project."
-              : "Store and access files for this project."}
+              : activeTab === "files"
+              ? "Store and access files for this project."
+              : "Save and organize useful links for this project."}
           </p>
         </div>
         <div className="inline-flex items-center gap-1 rounded-full border border-slate-200/80 bg-slate-50/80 p-0.5 text-[11px] text-slate-600">
@@ -865,103 +938,201 @@ export default function ProjectNotesTasksCard({
             type="button"
             onClick={() => setActiveTab("activity")}
             className={
-              "rounded-full px-3 py-0.5 " +
+              "group inline-flex items-center gap-1.5 rounded-full px-3 py-1 transition-all " +
               (activeTab === "activity"
-                ? "bg-slate-900 text-white shadow-sm"
-                : "hover:text-slate-900")
+                ? "bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-lg shadow-violet-500/25"
+                : "hover:bg-slate-100 hover:text-slate-900")
             }
           >
+            <svg 
+              className={`h-3.5 w-3.5 transition-transform ${activeTab === "activity" ? "animate-pulse" : "group-hover:scale-110"}`}
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2" 
+              strokeLinecap="round" 
+              strokeLinejoin="round"
+            >
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+            </svg>
             Activity
           </button>
           <button
             type="button"
             onClick={() => setActiveTab("notes")}
             className={
-              "rounded-full px-3 py-0.5 " +
+              "group inline-flex items-center gap-1.5 rounded-full px-3 py-1 transition-all " +
               (activeTab === "notes"
-                ? "bg-slate-900 text-white shadow-sm"
-                : "hover:text-slate-900")
+                ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/25"
+                : "hover:bg-slate-100 hover:text-slate-900")
             }
           >
+            <svg 
+              className={`h-3.5 w-3.5 transition-transform ${activeTab === "notes" ? "animate-bounce" : "group-hover:rotate-6"}`}
+              style={activeTab === "notes" ? { animationDuration: "2s" } : undefined}
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2" 
+              strokeLinecap="round" 
+              strokeLinejoin="round"
+            >
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </svg>
             Notes
           </button>
           <button
             type="button"
             onClick={() => setActiveTab("tasks")}
             className={
-              "rounded-full px-3 py-0.5 " +
+              "group inline-flex items-center gap-1.5 rounded-full px-3 py-1 transition-all " +
               (activeTab === "tasks"
-                ? "bg-slate-900 text-white shadow-sm"
-                : "hover:text-slate-900")
+                ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/25"
+                : "hover:bg-slate-100 hover:text-slate-900")
             }
           >
+            <svg 
+              className={`h-3.5 w-3.5 transition-transform ${activeTab === "tasks" ? "" : "group-hover:scale-110"}`}
+              style={activeTab === "tasks" ? { animation: "checkPop 0.6s ease-in-out infinite" } : undefined}
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2" 
+              strokeLinecap="round" 
+              strokeLinejoin="round"
+            >
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
             Tasks
           </button>
           <button
             type="button"
             onClick={() => setActiveTab("files")}
             className={
-              "rounded-full px-3 py-0.5 " +
+              "group inline-flex items-center gap-1.5 rounded-full px-3 py-1 transition-all " +
               (activeTab === "files"
-                ? "bg-slate-900 text-white shadow-sm"
-                : "hover:text-slate-900")
+                ? "bg-gradient-to-r from-sky-500 to-blue-500 text-white shadow-lg shadow-sky-500/25"
+                : "hover:bg-slate-100 hover:text-slate-900")
             }
           >
+            <svg 
+              className={`h-3.5 w-3.5 transition-transform ${activeTab === "files" ? "" : "group-hover:-translate-y-0.5"}`}
+              style={activeTab === "files" ? { animation: "float 2s ease-in-out infinite" } : undefined}
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2" 
+              strokeLinecap="round" 
+              strokeLinejoin="round"
+            >
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            </svg>
             Files
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("links")}
+            className={
+              "group inline-flex items-center gap-1.5 rounded-full px-3 py-1 transition-all " +
+              (activeTab === "links"
+                ? "bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-lg shadow-pink-500/25"
+                : "hover:bg-slate-100 hover:text-slate-900")
+            }
+          >
+            <svg 
+              className={`h-3.5 w-3.5 transition-transform ${activeTab === "links" ? "" : "group-hover:rotate-12"}`}
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2" 
+              strokeLinecap="round" 
+              strokeLinejoin="round"
+            >
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+            </svg>
+            Links
           </button>
         </div>
       </div>
 
-      <div className="mb-3 flex flex-wrap items-center gap-2 text-[10px] text-slate-600">
-        <div className="flex items-center gap-1">
-          <span className="text-slate-500">Search</span>
+      {/* Enhanced Filters */}
+      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200/60 bg-gradient-to-r from-slate-50/80 to-white/80 p-3 shadow-sm backdrop-blur">
+        {/* Search */}
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-violet-100 to-purple-100 text-violet-500">
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+          </div>
           <input
             type="text"
             value={filterText}
             onChange={(event) => setFilterText(event.target.value)}
-            placeholder="Search notes, tasks, and files..."
-            className="h-7 w-44 rounded-full border border-slate-200 bg-white px-2 text-[11px] text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+            placeholder="Search notes, tasks, files..."
+            className="h-8 w-48 rounded-lg border border-slate-200 bg-white px-3 text-[12px] text-slate-900 shadow-sm transition-all focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
           />
         </div>
-        <div className="flex items-center gap-1">
-          <span className="text-slate-500">From</span>
+
+        {/* Date Range */}
+        <div className="flex items-center gap-2 rounded-lg bg-white/60 px-2 py-1">
+          <div className="flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-amber-100 to-orange-100 text-amber-500">
+            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" />
+              <path d="M16 2v4M8 2v4M3 10h18" />
+            </svg>
+          </div>
           <input
             type="date"
             value={filterFromDate}
             onChange={(event) => setFilterFromDate(event.target.value)}
-            className="h-7 rounded-full border border-slate-200 bg-white px-2 text-[11px] text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+            className="h-7 rounded-md border border-slate-200 bg-white px-2 text-[11px] text-slate-700 shadow-sm focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-500/20"
           />
-          <span className="text-slate-500">To</span>
+          <span className="text-[10px] text-slate-400">→</span>
           <input
             type="date"
             value={filterToDate}
             onChange={(event) => setFilterToDate(event.target.value)}
-            className="h-7 rounded-full border border-slate-200 bg-white px-2 text-[11px] text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+            className="h-7 rounded-md border border-slate-200 bg-white px-2 text-[11px] text-slate-700 shadow-sm focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-500/20"
           />
         </div>
-        <div className="flex items-center gap-1">
-          <span className="text-slate-500">Order</span>
-          <button
-            type="button"
-            onClick={() =>
-              setFilterSortOrder((previous) =>
-                previous === "desc" ? "asc" : "desc",
-              )
-            }
-            className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-700 shadow-sm hover:bg-slate-50"
-          >
-            {filterSortOrder === "desc" ? "Newest first" : "Oldest first"}
-          </button>
-        </div>
-        <div className="flex items-center gap-1">
+
+        {/* Sort Order */}
+        <button
+          type="button"
+          onClick={() =>
+            setFilterSortOrder((previous) =>
+              previous === "desc" ? "asc" : "desc",
+            )
+          }
+          className="group inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-600 shadow-sm transition-all hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700"
+        >
+          <svg className={`h-3.5 w-3.5 transition-transform ${filterSortOrder === "asc" ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m3 16 4 4 4-4" />
+            <path d="M7 20V4" />
+            <path d="m21 8-4-4-4 4" />
+            <path d="M17 4v16" />
+          </svg>
+          {filterSortOrder === "desc" ? "Newest" : "Oldest"}
+        </button>
+
+        {/* Clear Filters */}
+        {(filterText || filterFromDate || filterToDate) && (
           <button
             type="button"
             onClick={handleClearFilters}
-            className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-500 shadow-sm hover:bg-slate-50"
+            className="inline-flex items-center gap-1 rounded-lg bg-red-50 px-2.5 py-1.5 text-[11px] font-medium text-red-600 transition-all hover:bg-red-100"
           >
-            Clear filters
+            <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
+            Clear
           </button>
-        </div>
+        )}
       </div>
 
       {activeTab === "activity" ? (
@@ -976,83 +1147,153 @@ export default function ProjectNotesTasksCard({
           </div>
 
           {activityLoading ? (
-            <p className="text-[11px] text-slate-500">Loading activity…</p>
+            <div className="flex items-center justify-center py-8">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-200 border-t-violet-500" />
+                <p className="text-[12px] font-medium text-slate-500">Loading activity…</p>
+              </div>
+            </div>
           ) : activityError ? (
-            <p className="text-[11px] text-red-600">{activityError}</p>
+            <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3">
+              <svg className="h-5 w-5 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <path d="m15 9-6 6M9 9l6 6" />
+              </svg>
+              <p className="text-[11px] text-red-600">{activityError}</p>
+            </div>
           ) : !activityHasItemsWithoutDeals ? (
-            <p className="text-[11px] text-slate-500">No activity yet.</p>
+            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-gradient-to-br from-slate-50 to-white py-10">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-100 to-purple-100 text-violet-400">
+                <svg className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                </svg>
+              </div>
+              <p className="mt-3 text-[13px] font-medium text-slate-600">No activity yet</p>
+              <p className="mt-1 text-[11px] text-slate-400">Notes, tasks, and files will appear here</p>
+            </div>
           ) : (
-            <div className="space-y-2">
-              {orderedActivityItems.map((item) => (
-                <div
-                  key={item.id}
-                  className={
-                    "flex items-start justify-between gap-2 rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2 " +
-                    (item.kind === "task"
-                      ? "cursor-pointer hover:border-slate-200 hover:bg-slate-50"
-                      : "")
-                  }
-                  onClick={() => {
-                    if (item.kind === "task" && item.taskId) {
-                      openTaskFromActivity(item.taskId);
-                    }
-                  }}
-                >
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={
-                          "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold " +
-                          (item.kind === "note" || item.kind === "file"
-                            ? "bg-slate-900 text-slate-50"
-                            : item.kind === "task"
-                            ? "bg-emerald-50 text-emerald-700"
-                            : item.kind === "invoice"
-                            ? "bg-sky-50 text-sky-700"
-                            : "bg-amber-50 text-amber-700")
-                        }
-                      >
-                        {item.kind === "note"
-                          ? "Note"
-                          : item.kind === "task"
-                          ? "Task"
-                          : item.kind === "invoice"
-                          ? "Invoice"
-                          : item.kind === "file"
-                          ? "File"
-                          : "Deal"}
-                      </span>
-                      <p className="text-[11px] font-medium text-slate-900">
-                        {item.title}
-                      </p>
+            <div className="relative space-y-0">
+              {/* Timeline line */}
+              <div className="absolute left-5 top-3 bottom-3 w-0.5 bg-gradient-to-b from-violet-300 via-slate-200 to-transparent" />
+              
+              {orderedActivityItems.map((item, index) => {
+                const iconBg = item.kind === "note"
+                  ? "from-amber-400 to-orange-500 shadow-amber-500/30"
+                  : item.kind === "task"
+                  ? "from-emerald-400 to-teal-500 shadow-emerald-500/30"
+                  : item.kind === "invoice"
+                  ? "from-sky-400 to-blue-500 shadow-sky-500/30"
+                  : item.kind === "file"
+                  ? "from-purple-400 to-violet-500 shadow-violet-500/30"
+                  : "from-pink-400 to-rose-500 shadow-pink-500/30";
+
+                const cardBg = item.kind === "note"
+                  ? "from-amber-50/80 to-orange-50/50 border-amber-200/60 hover:border-amber-300"
+                  : item.kind === "task"
+                  ? "from-emerald-50/80 to-teal-50/50 border-emerald-200/60 hover:border-emerald-300"
+                  : item.kind === "invoice"
+                  ? "from-sky-50/80 to-blue-50/50 border-sky-200/60 hover:border-sky-300"
+                  : item.kind === "file"
+                  ? "from-purple-50/80 to-violet-50/50 border-purple-200/60 hover:border-purple-300"
+                  : "from-pink-50/80 to-rose-50/50 border-pink-200/60 hover:border-pink-300";
+
+                return (
+                  <div
+                    key={item.id}
+                    className={`group relative flex gap-3 pb-3 ${index === orderedActivityItems.length - 1 ? "pb-0" : ""}`}
+                  >
+                    {/* Timeline icon */}
+                    <div className={`relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${iconBg} text-white shadow-lg transition-all duration-200 group-hover:scale-110 group-hover:shadow-xl`}>
+                      {item.kind === "note" ? (
+                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M12 20h9" />
+                          <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                        </svg>
+                      ) : item.kind === "task" ? (
+                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                          <polyline points="22 4 12 14.01 9 11.01" />
+                        </svg>
+                      ) : item.kind === "invoice" ? (
+                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="2" y="5" width="20" height="14" rx="2" />
+                          <path d="M2 10h20" />
+                        </svg>
+                      ) : item.kind === "file" ? (
+                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                        </svg>
+                      ) : (
+                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                        </svg>
+                      )}
                     </div>
-                    {item.body ? (
-                      <p className="text-[11px] text-slate-700">{item.body}</p>
-                    ) : null}
-                    <p className="flex items-center gap-1 text-[10px] text-slate-500">
-                      {item.kind === "task" && item.taskStatus && item.taskId ? (
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            openTaskFromActivity(item.taskId!);
-                          }}
-                          className={
-                            "inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-medium " +
-                            taskStatusPillClasses(item.taskStatus)
-                          }
-                        >
-                          {formatTaskStatusLabel(item.taskStatus)}
-                        </button>
-                      ) : null}
-                      <span>{item.meta}</span>
-                    </p>
+
+                    {/* Activity card */}
+                    <div
+                      className={`flex-1 rounded-xl border bg-gradient-to-r ${cardBg} p-3 shadow-sm transition-all duration-200 hover:shadow-md ${item.kind === "task" || item.kind === "file" ? "cursor-pointer" : ""}`}
+                      onClick={() => {
+                        if (item.kind === "task" && item.taskId) {
+                          openTaskFromActivity(item.taskId);
+                        } else if (item.kind === "file") {
+                          openFileFromActivity(item.body);
+                        }
+                      }}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                              item.kind === "note" ? "bg-amber-500/10 text-amber-700" :
+                              item.kind === "task" ? "bg-emerald-500/10 text-emerald-700" :
+                              item.kind === "invoice" ? "bg-sky-500/10 text-sky-700" :
+                              item.kind === "file" ? "bg-purple-500/10 text-purple-700" :
+                              "bg-pink-500/10 text-pink-700"
+                            }`}>
+                              {item.kind}
+                            </span>
+                            <h4 className="text-[12px] font-semibold text-slate-900 truncate">
+                              {item.title}
+                            </h4>
+                          </div>
+                          {item.body ? (
+                            <p className="text-[11px] text-slate-600 line-clamp-2">{item.body}</p>
+                          ) : null}
+                          <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                            {item.kind === "task" && item.taskStatus && item.taskId ? (
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  openTaskFromActivity(item.taskId!);
+                                }}
+                                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-semibold transition-all hover:scale-105 ${taskStatusPillClasses(item.taskStatus)}`}
+                              >
+                                <span className={`h-1.5 w-1.5 rounded-full ${
+                                  item.taskStatus === "completed" ? "bg-emerald-500" :
+                                  item.taskStatus === "in_progress" ? "bg-amber-500 animate-pulse" :
+                                  "bg-red-400"
+                                }`} />
+                                {formatTaskStatusLabel(item.taskStatus)}
+                              </button>
+                            ) : null}
+                            <span className="text-[10px] text-slate-500">{item.meta}</span>
+                          </div>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="text-[10px] font-medium text-slate-500">
+                            {item.at ? new Date(item.at).toLocaleDateString() : "—"}
+                          </p>
+                          <p className="text-[9px] text-slate-400">
+                            {item.at ? new Date(item.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <p className="shrink-0 text-[10px] text-slate-400">
-                    {item.at ? new Date(item.at).toLocaleString() : "—"}
-                  </p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -1082,27 +1323,70 @@ export default function ProjectNotesTasksCard({
           </form>
 
           <div className="border-t border-slate-200 pt-3">
-            <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               Recent notes
             </h3>
             {notesLoading ? (
-              <p className="text-[11px] text-slate-500">Loading notes...</p>
+              <div className="flex items-center justify-center py-8">
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-amber-200 border-t-amber-500" />
+                  <p className="text-[12px] font-medium text-slate-500">Loading notes…</p>
+                </div>
+              </div>
             ) : notesError ? (
-              <p className="text-[11px] text-red-600">{notesError}</p>
+              <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3">
+                <svg className="h-5 w-5 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="m15 9-6 6M9 9l6 6" />
+                </svg>
+                <p className="text-[11px] text-red-600">{notesError}</p>
+              </div>
             ) : orderedNotes.length === 0 ? (
-              <p className="text-[11px] text-slate-500">No notes yet.</p>
+              <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-amber-200 bg-gradient-to-br from-amber-50/50 to-orange-50/30 py-8">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-amber-100 to-orange-100 text-amber-400">
+                  <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 20h9" />
+                    <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                  </svg>
+                </div>
+                <p className="mt-2 text-[12px] font-medium text-slate-600">No notes yet</p>
+                <p className="mt-0.5 text-[11px] text-slate-400">Add a note above to get started</p>
+              </div>
             ) : (
-              <div className="space-y-2">
-                {orderedNotes.map((note) => (
+              <div className="relative space-y-0">
+                {/* Timeline line */}
+                <div className="absolute left-5 top-3 bottom-3 w-0.5 bg-gradient-to-b from-amber-300 via-orange-200 to-transparent" />
+                
+                {orderedNotes.map((note, index) => (
                   <div
                     key={note.id}
-                    className="rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2"
+                    className={`group relative flex gap-3 pb-3 ${index === orderedNotes.length - 1 ? "pb-0" : ""}`}
                   >
-                    <p className="text-[11px] text-slate-800">{note.body}</p>
-                    <p className="mt-1 text-[10px] text-slate-500">
-                      {(note.author_name || "Unknown").toString()} • {" "}
-                      {formatDate(note.created_at)}
-                    </p>
+                    {/* Timeline icon */}
+                    <div className="relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-lg shadow-amber-500/30 transition-all duration-200 group-hover:scale-110 group-hover:shadow-xl">
+                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 20h9" />
+                        <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                      </svg>
+                    </div>
+
+                    {/* Note card */}
+                    <div className="flex-1 rounded-xl border border-amber-200/60 bg-gradient-to-r from-amber-50/80 to-orange-50/50 p-3 shadow-sm transition-all duration-200 hover:border-amber-300 hover:shadow-md">
+                      <p className="text-[11px] leading-relaxed text-slate-700">{note.body}</p>
+                      <div className="mt-2 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 text-[9px] font-bold text-amber-600">
+                            {(note.author_name || "U")[0].toUpperCase()}
+                          </div>
+                          <span className="text-[10px] font-medium text-slate-600">
+                            {(note.author_name || "Unknown").toString()}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-slate-400">
+                          {formatDate(note.created_at)}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1117,6 +1401,123 @@ export default function ProjectNotesTasksCard({
               setActivityReloadKey((previous) => previous + 1)
             }
           />
+        </div>
+      ) : activeTab === "links" ? (
+        <div className="space-y-4">
+          {/* Add Link Form */}
+          <div className="rounded-xl border border-pink-200/60 bg-gradient-to-r from-pink-50/50 to-rose-50/30 p-4">
+            <h3 className="mb-3 text-[12px] font-semibold text-slate-800">Add a new link</h3>
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-[10px] font-medium text-slate-600 mb-1">URL</label>
+                <input
+                  type="url"
+                  value={newLinkUrl}
+                  onChange={(e) => setNewLinkUrl(e.target.value)}
+                  placeholder="https://example.com"
+                  className="w-full h-9 rounded-lg border border-slate-200 bg-white px-3 text-[11px] text-slate-900 shadow-sm focus:border-pink-400 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
+                />
+              </div>
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-[10px] font-medium text-slate-600 mb-1">Title (optional)</label>
+                <input
+                  type="text"
+                  value={newLinkTitle}
+                  onChange={(e) => setNewLinkTitle(e.target.value)}
+                  placeholder="Link title or description"
+                  className="w-full h-9 rounded-lg border border-slate-200 bg-white px-3 text-[11px] text-slate-900 shadow-sm focus:border-pink-400 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
+                />
+              </div>
+              <button
+                type="button"
+                disabled={!newLinkUrl.trim() || linkSaving}
+                onClick={() => {
+                  const url = newLinkUrl.trim();
+                  if (!url) return;
+                  const title = newLinkTitle.trim() || url;
+                  setLinkSaving(true);
+                  const newLink = {
+                    id: `link-${Date.now()}`,
+                    url,
+                    title,
+                    created_at: new Date().toISOString(),
+                  };
+                  setLinks((prev) => [newLink, ...prev]);
+                  setNewLinkUrl("");
+                  setNewLinkTitle("");
+                  setLinkSaving(false);
+                }}
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-gradient-to-r from-pink-500 to-rose-500 px-4 text-[11px] font-medium text-white shadow-sm transition-all hover:shadow-lg hover:shadow-pink-500/25 disabled:opacity-50"
+              >
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+                Add Link
+              </button>
+            </div>
+          </div>
+
+          {/* Links List */}
+          <div className="border-t border-slate-200 pt-3">
+            <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Saved Links
+            </h3>
+            {links.length === 0 ? (
+              <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-pink-200 bg-gradient-to-br from-pink-50/50 to-rose-50/30 py-8">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-pink-100 to-rose-100 text-pink-400">
+                  <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                  </svg>
+                </div>
+                <p className="mt-2 text-[12px] font-medium text-slate-600">No links yet</p>
+                <p className="mt-0.5 text-[11px] text-slate-400">Add a link above to get started</p>
+              </div>
+            ) : (
+              <div className="relative space-y-0">
+                {/* Timeline line */}
+                <div className="absolute left-5 top-3 bottom-3 w-0.5 bg-gradient-to-b from-pink-300 via-rose-200 to-transparent" />
+                
+                {links.map((link, index) => (
+                  <div
+                    key={link.id}
+                    className={`group relative flex gap-3 pb-3 ${index === links.length - 1 ? "pb-0" : ""}`}
+                  >
+                    {/* Timeline icon */}
+                    <div className="relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-pink-400 to-rose-500 text-white shadow-lg shadow-pink-500/30 transition-all duration-200 group-hover:scale-110 group-hover:shadow-xl">
+                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                      </svg>
+                    </div>
+
+                    {/* Link card */}
+                    <a
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 rounded-xl border border-pink-200/60 bg-gradient-to-r from-pink-50/80 to-rose-50/50 p-3 shadow-sm transition-all duration-200 hover:border-pink-300 hover:shadow-md"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <h4 className="text-[12px] font-semibold text-slate-900 truncate">{link.title}</h4>
+                          <p className="mt-0.5 text-[10px] text-pink-600 truncate">{link.url}</p>
+                        </div>
+                        <div className="shrink-0 flex items-center gap-2">
+                          <span className="text-[10px] text-slate-400">{formatDate(link.created_at)}</span>
+                          <svg className="h-4 w-4 text-pink-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                            <polyline points="15 3 21 3 21 9" />
+                            <line x1="10" y1="14" x2="21" y2="3" />
+                          </svg>
+                        </div>
+                      </div>
+                    </a>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       ) : (
         <div className="space-y-4">
@@ -1135,9 +1536,43 @@ export default function ProjectNotesTasksCard({
 
           <div className="border-t border-slate-200 pt-3">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Open tasks
-              </h3>
+              <div className="flex items-center gap-3">
+                <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Open tasks
+                </h3>
+                {/* View toggle */}
+                <div className="flex rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setTaskViewMode("list")}
+                    className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium transition-all ${
+                      taskViewMode === "list"
+                        ? "bg-white text-slate-900 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+                      <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+                    </svg>
+                    List
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTaskViewMode("kanban")}
+                    className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium transition-all ${
+                      taskViewMode === "kanban"
+                        ? "bg-white text-slate-900 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="5" height="18" rx="1"/><rect x="10" y="3" width="5" height="12" rx="1"/><rect x="17" y="3" width="5" height="8" rx="1"/>
+                    </svg>
+                    Board
+                  </button>
+                </div>
+              </div>
               <div className="relative text-[10px] text-slate-600">
                 <button
                   type="button"
@@ -1206,11 +1641,106 @@ export default function ProjectNotesTasksCard({
               </div>
             </div>
             {tasksLoading ? (
-              <p className="text-[11px] text-slate-500">Loading tasks...</p>
+              <div className="flex items-center justify-center py-8">
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-200 border-t-emerald-500" />
+                  <p className="text-[12px] font-medium text-slate-500">Loading tasks…</p>
+                </div>
+              </div>
             ) : tasksError ? (
-              <p className="text-[11px] text-red-600">{tasksError}</p>
+              <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3">
+                <svg className="h-5 w-5 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="m15 9-6 6M9 9l6 6" />
+                </svg>
+                <p className="text-[11px] text-red-600">{tasksError}</p>
+              </div>
             ) : tasks.length === 0 ? (
-              <p className="text-[11px] text-slate-500">No tasks yet.</p>
+              <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-emerald-200 bg-gradient-to-br from-emerald-50/50 to-teal-50/30 py-8">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 text-emerald-400">
+                  <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                    <polyline points="22 4 12 14.01 9 11.01" />
+                  </svg>
+                </div>
+                <p className="mt-2 text-[12px] font-medium text-slate-600">No tasks yet</p>
+                <p className="mt-0.5 text-[11px] text-slate-400">Create a new task to get started</p>
+              </div>
+            ) : taskViewMode === "kanban" ? (
+              /* Kanban Board View */
+              <div className="grid grid-cols-3 gap-3">
+                {(["not_started", "in_progress", "completed"] as const).map((status) => {
+                  const columnTasks = tasksByStatus[status];
+                  const columnConfig = {
+                    not_started: { label: "Not Started", color: "red", bgGradient: "from-red-50 to-rose-50", borderColor: "border-red-200", headerBg: "bg-red-100", textColor: "text-red-700" },
+                    in_progress: { label: "In Progress", color: "amber", bgGradient: "from-amber-50 to-orange-50", borderColor: "border-amber-200", headerBg: "bg-amber-100", textColor: "text-amber-700" },
+                    completed: { label: "Completed", color: "emerald", bgGradient: "from-emerald-50 to-teal-50", borderColor: "border-emerald-200", headerBg: "bg-emerald-100", textColor: "text-emerald-700" },
+                  }[status];
+                  
+                  return (
+                    <div
+                      key={status}
+                      className={`flex flex-col rounded-xl border ${columnConfig.borderColor} bg-gradient-to-b ${columnConfig.bgGradient} min-h-[300px]`}
+                      onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add("ring-2", "ring-sky-400"); }}
+                      onDragLeave={(e) => { e.currentTarget.classList.remove("ring-2", "ring-sky-400"); }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.currentTarget.classList.remove("ring-2", "ring-sky-400");
+                        if (draggedTaskId) handleTaskDrop(draggedTaskId, status);
+                      }}
+                    >
+                      {/* Column Header */}
+                      <div className={`flex items-center justify-between rounded-t-xl ${columnConfig.headerBg} px-3 py-2`}>
+                        <div className="flex items-center gap-2">
+                          <span className={`h-2 w-2 rounded-full ${status === "not_started" ? "bg-red-500" : status === "in_progress" ? "bg-amber-500 animate-pulse" : "bg-emerald-500"}`} />
+                          <span className={`text-[11px] font-semibold ${columnConfig.textColor}`}>{columnConfig.label}</span>
+                        </div>
+                        <span className={`rounded-full ${columnConfig.headerBg} px-2 py-0.5 text-[10px] font-bold ${columnConfig.textColor}`}>
+                          {columnTasks.length}
+                        </span>
+                      </div>
+                      
+                      {/* Tasks */}
+                      <div className="flex-1 space-y-2 p-2 overflow-y-auto">
+                        {columnTasks.map((task) => (
+                          <div
+                            key={task.id}
+                            draggable
+                            onDragStart={() => setDraggedTaskId(task.id)}
+                            onDragEnd={() => setDraggedTaskId(null)}
+                            className={`group cursor-grab rounded-lg border border-white/80 bg-white p-2.5 shadow-sm transition-all hover:shadow-md active:cursor-grabbing active:shadow-lg ${draggedTaskId === task.id ? "opacity-50 scale-95" : ""}`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <h4 className="text-[11px] font-semibold text-slate-900 line-clamp-2">{task.name}</h4>
+                              <span className={`shrink-0 inline-flex items-center rounded px-1.5 py-0.5 text-[8px] font-bold uppercase ${
+                                task.priority === "high" ? "bg-red-100 text-red-700" :
+                                task.priority === "medium" ? "bg-amber-100 text-amber-700" :
+                                "bg-slate-100 text-slate-600"
+                              }`}>
+                                {task.priority}
+                              </span>
+                            </div>
+                            {task.content && (
+                              <p className="mt-1 text-[10px] text-slate-500 line-clamp-2">{task.content}</p>
+                            )}
+                            <div className="mt-2 flex items-center justify-between text-[9px] text-slate-400">
+                              <span>{task.assigned_user_name || "Unassigned"}</span>
+                              {task.activity_date && (
+                                <span>{formatDate(task.activity_date)}</span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                        {columnTasks.length === 0 && (
+                          <div className="flex flex-col items-center justify-center py-8 text-center">
+                            <p className="text-[10px] text-slate-400">Drop tasks here</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             ) : (
               (() => {
                 type GroupedTask = {
@@ -1321,8 +1851,11 @@ export default function ProjectNotesTasksCard({
                 const visibleGroups = filteredGroups;
 
                 return (
-                  <div className="space-y-2">
-                    {visibleGroups.map((group) => {
+                  <div className="relative space-y-0">
+                    {/* Timeline line */}
+                    <div className="absolute left-5 top-3 bottom-3 w-0.5 bg-gradient-to-b from-emerald-300 via-teal-200 to-transparent" />
+                    
+                    {visibleGroups.map((group, index) => {
                       const allCompleted = group.statuses.every(
                         (status) => status === "completed",
                       );
@@ -1341,140 +1874,162 @@ export default function ProjectNotesTasksCard({
                           ? "Unassigned"
                           : group.assignedNames.join(", ");
 
+                      const priorityColor = group.priority === "high" 
+                        ? "from-red-400 to-rose-500 shadow-red-500/30"
+                        : group.priority === "medium"
+                        ? "from-amber-400 to-orange-500 shadow-amber-500/30"
+                        : "from-slate-400 to-slate-500 shadow-slate-500/30";
+
+                      const statusIcon = displayStatus === "completed"
+                        ? "from-emerald-400 to-teal-500 shadow-emerald-500/30"
+                        : displayStatus === "in_progress"
+                        ? "from-amber-400 to-orange-500 shadow-amber-500/30"
+                        : "from-red-400 to-rose-500 shadow-red-500/30";
+
                       return (
                         <div
                           key={group.key}
-                          className="flex cursor-pointer items-start justify-between gap-2 rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2 hover:border-slate-200 hover:bg-slate-50"
-                          onClick={() => {
-                            setIsEditingTask(false);
-                            setSelectedTaskGroup({
-                              ...group,
-                              primaryTaskId: group.taskIds[0] ?? null,
-                            });
-                          }}
+                          className={`group relative flex gap-3 pb-3 ${index === visibleGroups.length - 1 ? "pb-0" : ""}`}
                         >
-                          <div>
-                            <p className="text-[11px] font-medium text-slate-900">
-                              {group.name}
-                            </p>
-                            {group.content ? (
-                              <p className="mt-0.5 text-[10px] text-slate-600">
-                                {group.content}
-                              </p>
-                            ) : null}
-                            <p className="mt-0.5 text-[10px] text-slate-500">
-                              Due {formatDate(group.activity_date ?? group.created_at)} •{" "}
-                              Priority {group.priority}
-                            </p>
-                            <p className="mt-0.5 text-[10px] text-slate-400">
-                              Created {formatDate(group.created_at)}
-                            </p>
-                            <p className="mt-0.5 text-[10px] text-slate-400">
-                              Created by {group.created_by_name || "Unknown"}
-                            </p>
-                            <p className="mt-0.5 text-[10px] text-slate-400">
-                              Assigned to {assignedLabel}
-                            </p>
-                            {group.checklistItems.length > 0 ? (
-                              <div className="mt-1 space-y-0.5">
-                                {group.checklistItems.map((item) => (
-                                  <button
-                                    key={item.id}
-                                    type="button"
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      void handleToggleChecklistItem(item);
-                                    }}
-                                    className="flex w-full items-center gap-2 text-left text-[10px] text-slate-600 hover:text-slate-900"
-                                  >
-                                    <span
-                                      className={
-                                        "inline-flex h-3.5 w-3.5 items-center justify-center rounded border " +
-                                        (item.is_completed
-                                          ? "border-emerald-500 bg-emerald-500 text-white"
-                                          : "border-slate-300 bg-white text-transparent")
-                                      }
-                                    >
-                                      ✓
-                                    </span>
-                                    <span
-                                      className={
-                                        item.is_completed
-                                          ? "line-through opacity-60"
-                                          : ""
-                                      }
-                                    >
-                                      {item.label}
-                                    </span>
-                                  </button>
-                                ))}
-                              </div>
-                            ) : null}
+                          {/* Timeline icon */}
+                          <div className={`relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${statusIcon} text-white shadow-lg transition-all duration-200 group-hover:scale-110 group-hover:shadow-xl`}>
+                            {displayStatus === "completed" ? (
+                              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                            ) : displayStatus === "in_progress" ? (
+                              <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                              </svg>
+                            ) : (
+                              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <circle cx="12" cy="12" r="10" />
+                              </svg>
+                            )}
                           </div>
-                          <div className="flex flex-col items-end gap-1">
-                            <div className="relative">
-                              <button
-                                type="button"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  setStatusDropdownOpenKey((previous) =>
-                                    previous === group.key ? null : group.key,
-                                  );
-                                }}
-                                className={
-                                  "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium " +
-                                  taskStatusPillClasses(displayStatus)
-                                }
-                              >
-                                <span>{formatTaskStatusLabel(displayStatus)}</span>
-                                <span className="text-[9px]">▾</span>
-                              </button>
-                              {statusDropdownOpenKey === group.key ? (
-                                <div className="absolute right-0 z-10 mt-1 w-32 rounded-md border border-slate-200 bg-white py-1 text-[10px] shadow-lg">
-                                  <button
-                                    type="button"
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      setStatusDropdownOpenKey(null);
-                                      void handleChangeTaskStatus(
-                                        group.taskIds,
-                                        "not_started",
-                                      );
-                                    }}
-                                    className="flex w-full items-center justify-between px-2 py-1 text-left text-slate-700 hover:bg-red-50"
-                                  >
-                                    <span>Not started</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      setStatusDropdownOpenKey(null);
-                                      void handleChangeTaskStatus(
-                                        group.taskIds,
-                                        "in_progress",
-                                      );
-                                    }}
-                                    className="flex w-full items-center justify-between px-2 py-1 text-left text-slate-700 hover:bg-amber-50"
-                                  >
-                                    <span>In progress</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      setStatusDropdownOpenKey(null);
-                                      void handleChangeTaskStatus(
-                                        group.taskIds,
-                                        "completed",
-                                      );
-                                    }}
-                                    className="flex w-full items-center justify-between px-2 py-1 text-left text-slate-700 hover:bg-emerald-50"
-                                  >
-                                    <span>Completed</span>
-                                  </button>
+
+                          {/* Task card */}
+                          <div
+                            className={`flex-1 cursor-pointer rounded-xl border p-3 shadow-sm transition-all duration-200 hover:shadow-md ${
+                              displayStatus === "completed"
+                                ? "border-emerald-200/60 bg-gradient-to-r from-emerald-50/80 to-teal-50/50 hover:border-emerald-300"
+                                : displayStatus === "in_progress"
+                                ? "border-amber-200/60 bg-gradient-to-r from-amber-50/80 to-orange-50/50 hover:border-amber-300"
+                                : "border-red-200/60 bg-gradient-to-r from-red-50/80 to-rose-50/50 hover:border-red-300"
+                            }`}
+                            onClick={() => {
+                              setIsEditingTask(false);
+                              setSelectedTaskGroup({
+                                ...group,
+                                primaryTaskId: group.taskIds[0] ?? null,
+                              });
+                            }}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <h4 className="text-[12px] font-semibold text-slate-900">{group.name}</h4>
+                                  <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase ${
+                                    group.priority === "high" ? "bg-red-100 text-red-700" :
+                                    group.priority === "medium" ? "bg-amber-100 text-amber-700" :
+                                    "bg-slate-100 text-slate-600"
+                                  }`}>
+                                    {group.priority}
+                                  </span>
                                 </div>
-                              ) : null}
+                                {group.content ? (
+                                  <p className="mt-1 text-[11px] text-slate-600 line-clamp-2">{group.content}</p>
+                                ) : null}
+                                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-500">
+                                  <span className="flex items-center gap-1">
+                                    <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <rect x="3" y="4" width="18" height="18" rx="2" />
+                                      <path d="M16 2v4M8 2v4M3 10h18" />
+                                    </svg>
+                                    Due {formatDate(group.activity_date ?? group.created_at)}
+                                  </span>
+                                  <span className="flex items-center gap-1">
+                                    <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                                      <circle cx="12" cy="7" r="4" />
+                                    </svg>
+                                    {assignedLabel}
+                                  </span>
+                                </div>
+                                {group.checklistItems.length > 0 ? (
+                                  <div className="mt-2 flex items-center gap-2">
+                                    <div className="flex h-5 items-center gap-1 rounded-full bg-white/80 px-2 text-[10px] font-medium text-slate-600">
+                                      <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                                        <polyline points="22 4 12 14.01 9 11.01" />
+                                      </svg>
+                                      {group.checklistItems.filter(i => i.is_completed).length}/{group.checklistItems.length} done
+                                    </div>
+                                  </div>
+                                ) : null}
+                              </div>
+                              <div className="relative shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    setStatusDropdownOpenKey((previous) =>
+                                      previous === group.key ? null : group.key,
+                                    );
+                                  }}
+                                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold transition-all hover:scale-105 ${taskStatusPillClasses(displayStatus)}`}
+                                >
+                                  <span className={`h-1.5 w-1.5 rounded-full ${
+                                    displayStatus === "completed" ? "bg-emerald-500" :
+                                    displayStatus === "in_progress" ? "bg-amber-500 animate-pulse" :
+                                    "bg-red-400"
+                                  }`} />
+                                  {formatTaskStatusLabel(displayStatus)}
+                                  <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="6 9 12 15 18 9" />
+                                  </svg>
+                                </button>
+                                {statusDropdownOpenKey === group.key ? (
+                                  <div className="absolute right-0 z-10 mt-1 w-36 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 text-[10px] shadow-xl">
+                                    <button
+                                      type="button"
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        setStatusDropdownOpenKey(null);
+                                        void handleChangeTaskStatus(group.taskIds, "not_started");
+                                      }}
+                                      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-red-50"
+                                    >
+                                      <span className="h-2 w-2 rounded-full bg-red-400" />
+                                      Not started
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        setStatusDropdownOpenKey(null);
+                                        void handleChangeTaskStatus(group.taskIds, "in_progress");
+                                      }}
+                                      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-amber-50"
+                                    >
+                                      <span className="h-2 w-2 rounded-full bg-amber-500" />
+                                      In progress
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        setStatusDropdownOpenKey(null);
+                                        void handleChangeTaskStatus(group.taskIds, "completed");
+                                      }}
+                                      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-emerald-50"
+                                    >
+                                      <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                                      Completed
+                                    </button>
+                                  </div>
+                                ) : null}
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -1928,6 +2483,14 @@ export default function ProjectNotesTasksCard({
           </div>
         </div>
       ) : null}
+
+      {/* File Preview Modal */}
+      <FilePreviewModal
+        isOpen={filePreviewOpen}
+        onClose={() => setFilePreviewOpen(false)}
+        fileUrl={filePreviewUrl}
+        fileName={filePreviewName}
+      />
     </div>
   );
 }

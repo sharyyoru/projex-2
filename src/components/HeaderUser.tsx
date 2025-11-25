@@ -7,6 +7,7 @@ import { supabaseClient } from "@/lib/supabaseClient";
 
 interface CurrentUserInfo {
   fullName: string;
+  displayName: string;
   initials: string;
   role: string;
   avatarUrl: string | null;
@@ -38,8 +39,13 @@ export default function HeaderUser() {
       const role = ((meta["role"] as string) || "Staff").toString();
       const avatarUrl = (meta["avatar_url"] as string) || null;
 
-      const fullName = [firstName, lastName].filter(Boolean).join(" ") ||
+      const fullName =
+        [firstName, lastName].filter(Boolean).join(" ") ||
         (user.email ?? "User");
+
+      const displayName =
+        firstName ||
+        (fullName.split(" ")[0] || fullName);
 
       const initialsSource = fullName || user.email || "?";
       const parts = initialsSource.split(" ");
@@ -48,6 +54,7 @@ export default function HeaderUser() {
 
       setUserInfo({
         fullName,
+        displayName,
         initials: initials || "U",
         role,
         avatarUrl,
@@ -70,8 +77,8 @@ export default function HeaderUser() {
 
   if (loading || !userInfo) {
     return (
-      <div className="ml-1 flex items-center gap-2 rounded-full bg-white/80 px-2 py-1 text-[11px] text-slate-400 shadow-sm">
-        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200 text-[11px] font-medium text-slate-600">
+      <div className="ml-1 flex items-center gap-2 rounded-full bg-white/80 px-2.5 py-1 text-[11px] text-slate-400 shadow-sm">
+        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 text-[10px] font-medium text-slate-600">
           --
         </div>
         <div className="hidden flex-col sm:flex">
@@ -86,9 +93,9 @@ export default function HeaderUser() {
       <button
         type="button"
         onClick={() => router.push("/profile")}
-        className="ml-1 inline-flex items-center gap-2 rounded-full bg-white/80 px-2 py-1 text-[11px] shadow-sm hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/70 header-icon-button"
+        className="group ml-1 inline-flex h-10 items-center gap-2.5 rounded-xl bg-gradient-to-br from-white via-white to-slate-50 px-3 shadow-sm ring-1 ring-slate-200/50 transition-all hover:shadow-md hover:ring-violet-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/70"
       >
-        <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full bg-sky-500 text-[11px] font-medium text-white">
+        <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-lg bg-gradient-to-br from-violet-500 to-purple-500 text-[11px] font-bold text-white shadow-sm shadow-violet-500/30 transition-transform group-hover:scale-105">
           {userInfo.avatarUrl ? (
             <Image
               src={userInfo.avatarUrl}
@@ -101,26 +108,23 @@ export default function HeaderUser() {
             <span>{userInfo.initials}</span>
           )}
         </div>
-        <div className="hidden flex-col text-[11px] text-slate-700 sm:flex">
-          <span className="font-medium truncate max-w-[120px]">
-            {userInfo.fullName}
+        <div className="hidden text-[12px] font-semibold text-slate-700 sm:block">
+          <span className="truncate max-w-[140px]">
+            {userInfo.displayName}
           </span>
-          <span className="text-slate-400 capitalize">{userInfo.role}</span>
         </div>
       </button>
       <button
         type="button"
         onClick={() => setConfirmOpen(true)}
-        className="relative inline-flex h-8 w-8 items-center justify-center text-slate-500"
+        className="group inline-flex h-10 items-center gap-1.5 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 px-3 text-[12px] font-medium text-slate-600 shadow-sm transition-all hover:from-red-500 hover:to-rose-500 hover:text-white hover:shadow-lg hover:shadow-red-500/25"
       >
-        <span className="sr-only">Log out</span>
-        <Image
-          src="/logos/power-button.png"
-          alt="Log out"
-          width={20}
-          height={20}
-          className="relative h-[18px] w-[18px]"
-        />
+        <svg className="h-4 w-4 transition-transform group-hover:scale-110" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+          <polyline points="16 17 21 12 16 7" />
+          <line x1="21" x2="9" y1="12" y2="12" />
+        </svg>
+        <span className="hidden sm:inline">Logout</span>
       </button>
 
       {confirmOpen ? (

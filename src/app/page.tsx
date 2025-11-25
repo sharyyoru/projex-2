@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabaseClient } from "@/lib/supabaseClient";
 import { useMessagesUnread } from "@/components/MessagesUnreadContext";
+import DubaiInfoPill from "@/components/DubaiInfoPill";
 
 type PlatformUser = {
   id: string;
@@ -66,10 +67,8 @@ export default function Home() {
           if (user) {
             const meta = (user.user_metadata || {}) as Record<string, unknown>;
             const first = (meta["first_name"] as string) || "";
-            const last = (meta["last_name"] as string) || "";
-            const full = [first, last].filter(Boolean).join(" ").trim();
-            const name = full || user.email || null;
-            setCurrentUserName(name);
+            const full = first || user.email?.split("@")[0] || null;
+            setCurrentUserName(full);
           } else {
             setCurrentUserName(null);
           }
@@ -402,9 +401,7 @@ export default function Home() {
     <div className="space-y-8">
       <header className="flex items-center justify-between gap-4">
         <div>
-          <p className="mb-1 inline-flex items-center rounded-full bg-sky-50 px-3 py-0.5 text-[11px] font-medium text-sky-700 shadow-sm">
-            Today at your clinic
-          </p>
+          <DubaiInfoPill />
           <h1 className="text-2xl font-semibold text-slate-900">
             {currentUserName ? `Hi ${currentUserName}` : "Hi there"}
           </h1>
@@ -441,7 +438,10 @@ export default function Home() {
                 <path d="M16 3v4M8 3v4M3 11h18" />
               </svg>
             </span>
-            <span>Schedule appointment</span>
+            <span className="inline-flex items-center gap-1">
+              <span className="font-extrabold text-[13px] leading-none">+</span>
+              <span>Meeting</span>
+            </span>
           </Link>
         </div>
       </header>

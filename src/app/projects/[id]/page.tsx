@@ -5,6 +5,8 @@ import ProjectModeToggle from "./ProjectModeToggle";
 import ProjectNotesTasksCard from "./ProjectNotesTasksCard";
 import ProjectAdminCockpit from "./ProjectAdminCockpit";
 import ProjectActivityFeed from "./ProjectActivityFeed";
+import ProjectContextCard from "./ProjectContextCard";
+import ProjectDetailsCard from "./ProjectDetailsCard";
 
 interface ProjectPageProps {
   params: Promise<{ id: string }>;
@@ -35,11 +37,13 @@ type ProjectRow = {
   start_date: string | null;
   due_date: string | null;
   created_at: string | null;
+  is_archived: boolean;
 };
 
 type CompanySummary = {
   id: string;
   name: string | null;
+  logo_url: string | null;
 };
 
 type ContactSummary = {
@@ -80,7 +84,7 @@ async function getProjectWithRelations(id: string): Promise<{
     const { data: project, error } = await supabaseClient
       .from("projects")
       .select(
-        "id, company_id, primary_contact_id, name, description, status, processed_outcome, pipeline, value, start_date, due_date, created_at",
+        "id, company_id, primary_contact_id, name, description, status, processed_outcome, pipeline, value, start_date, due_date, created_at, is_archived",
       )
       .eq("id", id)
       .single();
@@ -96,7 +100,7 @@ async function getProjectWithRelations(id: string): Promise<{
     if (companyId) {
       const { data: companyData } = await supabaseClient
         .from("companies")
-        .select("id, name")
+        .select("id, name, logo_url")
         .eq("id", companyId)
         .maybeSingle();
 
@@ -274,73 +278,15 @@ export default async function ProjectPage({
       {mode === "operations" ? (
         <>
           <div className="grid items-stretch gap-6 md:grid-cols-2">
-            <div className="rounded-xl border border-slate-200/80 bg-white/90 p-4 text-sm shadow-[0_16px_40px_rgba(15,23,42,0.08)]">
-              <h2 className="text-sm font-semibold text-slate-900">Project details</h2>
-              <dl className="mt-3 grid grid-cols-1 gap-2 text-[11px] text-slate-600 sm:grid-cols-2">
-                <div>
-                  <dt className="font-medium text-slate-500">Status</dt>
-                  <dd className="text-slate-900">{statusDisplay ?? "—"}</dd>
-                </div>
-                <div>
-                  <dt className="font-medium text-slate-500">Pipeline</dt>
-                  <dd className="text-slate-900">{project.pipeline ?? "—"}</dd>
-                </div>
-                <div>
-                  <dt className="font-medium text-slate-500">Value (approx.)</dt>
-                  <dd className="text-slate-900">{formatMoney(project.value)}</dd>
-                </div>
-                <div>
-                  <dt className="font-medium text-slate-500">Start date</dt>
-                  <dd className="text-slate-900">{formatDate(project.start_date)}</dd>
-                </div>
-                <div>
-                  <dt className="font-medium text-slate-500">Target date</dt>
-                  <dd className="text-slate-900">{formatDate(project.due_date)}</dd>
-                </div>
-                <div>
-                  <dt className="font-medium text-slate-500">Created at</dt>
-                  <dd className="text-slate-900">{formatDate(project.created_at)}</dd>
-                </div>
-              </dl>
-              <div className="mt-4">
-                <dt className="text-[11px] font-medium text-slate-500">Description</dt>
-                <dd className="mt-1 text-[11px] text-slate-700">
-                  {project.description && project.description.trim().length > 0
-                    ? project.description
-                    : "No description yet."}
-                </dd>
-              </div>
-            </div>
+            {/* Enhanced Project Details Card - Editable */}
+            <ProjectDetailsCard project={project} />
 
-            <div className="rounded-xl border border-slate-200/80 bg-white/90 p-4 text-sm shadow-[0_16px_40px_rgba(15,23,42,0.08)]">
-              <h2 className="text-sm font-semibold text-slate-900">Context</h2>
-              <div className="mt-3 space-y-3 text-[11px] text-slate-600">
-                {company ? (
-                  <div>
-                    <p className="text-[11px] font-medium text-slate-500">Company</p>
-                    <p className="text-slate-900">{company.name ?? "Unnamed"}</p>
-                  </div>
-                ) : null}
-                {primaryContact ? (
-                  <div>
-                    <p className="text-[11px] font-medium text-slate-500">Primary contact</p>
-                    <p className="text-slate-900">
-                      {formatFullName(primaryContact.first_name, primaryContact.last_name)}
-                    </p>
-                    <p className="text-slate-500">
-                      {[primaryContact.job_title, primaryContact.email]
-                        .filter(Boolean)
-                        .join(" • ") || "—"}
-                    </p>
-                  </div>
-                ) : null}
-                {!company && !primaryContact ? (
-                  <p className="text-slate-500">
-                    This project is not linked to a company or contact yet.
-                  </p>
-                ) : null}
-              </div>
-            </div>
+            {/* Enhanced Context Card */}
+            <ProjectContextCard
+              projectId={project.id}
+              company={company}
+              primaryContact={primaryContact}
+            />
           </div>
 
           <ProjectNotesTasksCard projectId={project.id} />

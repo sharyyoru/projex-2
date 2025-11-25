@@ -298,3 +298,50 @@ textarea::placeholder {
     background: #ffffff !important;
   }
 }
+
+/* Calm wave animations for company brand gradient */
+@keyframes wave1 {
+  0%, 100% {
+    transform: translateX(0) translateY(0) scale(1);
+  }
+  50% {
+    transform: translateX(-15px) translateY(10px) scale(1.03);
+  }
+}
+
+@keyframes wave2 {
+  0%, 100% {
+    transform: translateX(0) translateY(0) scale(1);
+  }
+  50% {
+    transform: translateX(10px) translateY(-8px) scale(0.98);
+  }
+}
+
+@keyframes wave3 {
+  0%, 100% {
+    transform: translateX(0) translateY(0) scale(1);
+  }
+  50% {
+    transform: translateX(-8px) translateY(5px) scale(1.02);
+  }
+}
+
+/* Tab icon animations */
+@keyframes checkPop {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.15);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}

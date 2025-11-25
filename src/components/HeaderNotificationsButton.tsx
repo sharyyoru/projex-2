@@ -15,24 +15,23 @@ export default function HeaderNotificationsButton() {
     <button
       type="button"
       onClick={() => router.push("/notifications")}
-      className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200/80 bg-white/80 text-slate-500 shadow-sm hover:bg-slate-50 header-icon-button"
+      className="group relative inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-100 to-orange-100 text-amber-600 shadow-sm transition-all hover:from-amber-500 hover:to-orange-500 hover:text-white hover:shadow-lg hover:shadow-amber-500/25"
     >
       <span className="sr-only">Task notifications</span>
       <svg
-        className="h-4 w-4"
+        className="h-5 w-5 transition-transform group-hover:scale-110"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
-        strokeWidth="1.8"
+        strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
       >
-        <path d="M18 16v-5a6 6 0 1 0-12 0v5" />
-        <path d="M5 16h14" />
-        <path d="M10 20h4" />
+        <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+        <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
       </svg>
       {hasOpen ? (
-        <span className="absolute -top-0.5 -right-0.5 inline-flex min-h-[14px] min-w-[14px] items-center justify-center rounded-full bg-emerald-500 px-1 text-[9px] font-semibold text-white shadow-sm">
+        <span className="absolute -top-1 -right-1 inline-flex min-h-[18px] min-w-[18px] items-center justify-center rounded-full bg-gradient-to-r from-rose-500 to-pink-500 px-1 text-[10px] font-bold text-white shadow-lg shadow-rose-500/30 ring-2 ring-white">
           {displayCount}
         </span>
       ) : null}

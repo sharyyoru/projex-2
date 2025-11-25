@@ -14,22 +14,25 @@ export default function HeaderMessagesButton() {
     <button
       type="button"
       onClick={() => router.push("/messages")}
-      className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200/80 bg-white/80 text-slate-500 shadow-sm hover:bg-slate-50 header-icon-button"
+      className="group relative inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-sky-100 to-cyan-100 text-sky-600 shadow-sm transition-all hover:from-sky-500 hover:to-cyan-500 hover:text-white hover:shadow-lg hover:shadow-sky-500/25"
     >
       <span className="sr-only">Messages</span>
       <svg
-        className="h-4 w-4"
+        className="h-5 w-5 transition-transform group-hover:scale-110"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
-        strokeWidth="1.8"
+        strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
       >
-        <path d="M4 6h16v9H7l-3 3z" />
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        <path d="M8 10h.01" />
+        <path d="M12 10h.01" />
+        <path d="M16 10h.01" />
       </svg>
       {hasUnread ? (
-        <span className="absolute -top-0.5 -right-0.5 inline-flex min-h-[14px] min-w-[14px] items-center justify-center rounded-full bg-sky-500 px-1 text-[9px] font-semibold text-white shadow-sm">
+        <span className="absolute -top-1 -right-1 inline-flex min-h-[18px] min-w-[18px] items-center justify-center rounded-full bg-gradient-to-r from-sky-500 to-blue-500 px-1 text-[10px] font-bold text-white shadow-lg shadow-sky-500/30 ring-2 ring-white">
           {displayCount}
         </span>
       ) : null}
