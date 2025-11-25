@@ -190,9 +190,9 @@ export default async function ProjectPage({
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-3 text-xs">
               {statusDisplay ? (
-                <span className="inline-flex items-center rounded-full bg-gradient-to-r from-slate-100 to-slate-200 border border-slate-300/60 px-2 py-0.5 text-[11px] font-medium text-slate-700 shadow-sm">
-                  <span className="opacity-70">Status</span>
-                  <span className="ml-1 font-semibold text-slate-800">{statusDisplay}</span>
+                <span className="inline-flex items-center rounded-full bg-slate-900 px-2 py-0.5 text-[11px] font-medium text-slate-50">
+                  <span className="opacity-80">Status</span>
+                  <span className="ml-1 font-semibold">{statusDisplay}</span>
                 </span>
               ) : null}
               {project.pipeline ? (
