@@ -11,6 +11,7 @@ import HeaderNotificationsButton from "@/components/HeaderNotificationsButton";
 import HeaderSearch from "@/components/HeaderSearch";
 import { MessagesUnreadProvider } from "@/components/MessagesUnreadContext";
 import { TasksNotificationsProvider } from "@/components/TasksNotificationsContext";
+import SupportChat from "@/components/SupportChat";
 
 const manrope = Manrope({
   variable: "--font-manrope",
@@ -108,6 +109,19 @@ export default function RootLayout({
                   <span>Projects</span>
                 </Link>
 
+                {/* Social Media */}
+                <Link
+                  href="/social-media"
+                  className="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium text-slate-600 transition-all hover:bg-gradient-to-r hover:from-pink-50 hover:to-fuchsia-50 hover:text-slate-900 hover:shadow-sm"
+                >
+                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-pink-100 to-fuchsia-100 text-pink-600 shadow-sm transition-all group-hover:from-pink-500 group-hover:to-fuchsia-500 group-hover:text-white group-hover:shadow-lg group-hover:shadow-pink-500/25">
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
+                    </svg>
+                  </span>
+                  <span>Social Media</span>
+                </Link>
+
                 {/* Calendar */}
                 <Link
                   href="/appointments"
@@ -192,20 +206,6 @@ export default function RootLayout({
                   <span>User Management</span>
                 </Link>
 
-                {/* Workflows */}
-                <Link
-                  href="/workflows"
-                  className="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium text-slate-600 transition-all hover:bg-gradient-to-r hover:from-cyan-50 hover:to-teal-50 hover:text-slate-900 hover:shadow-sm"
-                >
-                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-100 to-teal-100 text-cyan-600 shadow-sm transition-all group-hover:from-cyan-500 group-hover:to-teal-500 group-hover:text-white group-hover:shadow-lg group-hover:shadow-cyan-500/25">
-                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="3" />
-                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-                    </svg>
-                  </span>
-                  <span>Workflows</span>
-                </Link>
-
                 {/* Chat with Colton */}
                 <Link
                   href="/chat"
@@ -281,6 +281,7 @@ export default function RootLayout({
             </main>
           </div>
           </ShellFrame>
+          <SupportChat />
           </TasksNotificationsProvider>
           </MessagesUnreadProvider>
         </div>

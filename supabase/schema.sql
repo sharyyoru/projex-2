@@ -982,3 +982,145 @@ create table if not exists project_workflows (
 );
 
 create unique index if not exists project_workflows_project_id_idx on project_workflows(project_id);
+
+-- ============================================
+-- SOCIAL MEDIA MODULE
+-- ============================================
+
+-- Social Media Projects (separate from regular projects)
+create table if not exists social_projects (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references companies(id) on delete cascade,
+  name text not null,
+  description text,
+  brand_color text,
+  logo_url text,
+  status text check (status in ('active', 'paused', 'completed', 'archived')) default 'active',
+  platforms jsonb default '[]'::jsonb, -- array of platform names: instagram, linkedin, tiktok, x
+  created_by_user_id uuid references users(id),
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create index if not exists social_projects_company_id_idx on social_projects(company_id);
+
+-- Social Posts (short-form content)
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'social_post_status') then
+    create type social_post_status as enum ('draft', 'pending', 'approved', 'published');
+  end if;
+end$$;
+
+create table if not exists social_posts (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references social_projects(id) on delete cascade,
+  platforms jsonb default '[]'::jsonb, -- selected platforms for this post
+  caption text,
+  media_urls jsonb default '[]'::jsonb, -- array of {url, type: 'image'|'video', thumbnail_url}
+  scheduled_date timestamptz,
+  status text check (status in ('draft', 'pending', 'approved', 'published')) default 'draft',
+  published_urls jsonb default '{}'::jsonb, -- { instagram: 'https://...', linkedin: 'https://...' }
+  hashtags text[] default '{}',
+  created_by_user_id uuid references users(id),
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create index if not exists social_posts_project_id_idx on social_posts(project_id);
+create index if not exists social_posts_scheduled_date_idx on social_posts(scheduled_date);
+create index if not exists social_posts_status_idx on social_posts(status);
+
+-- Social Articles (long-form / blog content)
+create table if not exists social_articles (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references social_projects(id) on delete cascade,
+  title text not null,
+  slug text,
+  body_html text,
+  body_markdown text,
+  featured_image_url text,
+  status text check (status in ('draft', 'pending', 'approved', 'published')) default 'draft',
+  
+  -- SEO fields
+  target_keyword text,
+  meta_title text,
+  meta_description text,
+  
+  -- Content pillars / categories
+  content_pillar text, -- 'thought_leadership', 'product_update', 'case_study', 'how_to', 'industry_news'
+  
+  -- Links
+  internal_links jsonb default '[]'::jsonb,
+  external_links jsonb default '[]'::jsonb,
+  
+  scheduled_date timestamptz,
+  published_url text,
+  
+  created_by_user_id uuid references users(id),
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create index if not exists social_articles_project_id_idx on social_articles(project_id);
+create index if not exists social_articles_status_idx on social_articles(status);
+
+-- Social Reports (monthly analytics)
+create table if not exists social_reports (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references social_projects(id) on delete cascade,
+  report_month date not null, -- first day of the month (e.g., '2025-11-01')
+  
+  -- KPI data
+  kpi_data jsonb default '{}'::jsonb, -- { reach: {actual, goal}, engagement: {actual, goal}, ... }
+  
+  -- Platform-specific metrics
+  platform_metrics jsonb default '{}'::jsonb, -- { instagram: {...}, linkedin: {...} }
+  
+  -- Month-over-month calculations stored
+  mom_comparison jsonb default '{}'::jsonb,
+  
+  -- Public link for client access
+  public_link_token text unique,
+  public_link_expires_at timestamptz,
+  is_published boolean default false,
+  
+  notes text,
+  
+  created_by_user_id uuid references users(id),
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create index if not exists social_reports_project_id_idx on social_reports(project_id);
+create index if not exists social_reports_month_idx on social_reports(report_month);
+create unique index if not exists social_reports_public_token_idx on social_reports(public_link_token) where public_link_token is not null;
+
+-- Client feedback on posts/articles (for external access)
+create table if not exists social_content_feedback (
+  id uuid primary key default gen_random_uuid(),
+  post_id uuid references social_posts(id) on delete cascade,
+  article_id uuid references social_articles(id) on delete cascade,
+  action text check (action in ('approved', 'changes_requested')) not null,
+  client_name text not null,
+  comment text,
+  created_at timestamptz default now(),
+  
+  constraint feedback_has_content check (post_id is not null or article_id is not null)
+);
+
+create index if not exists social_content_feedback_post_idx on social_content_feedback(post_id);
+create index if not exists social_content_feedback_article_idx on social_content_feedback(article_id);
+
+-- Public access links for content review
+create table if not exists social_public_links (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references social_projects(id) on delete cascade,
+  token text unique not null default gen_random_uuid()::text,
+  link_type text check (link_type in ('content_review', 'report')) not null,
+  expires_at timestamptz,
+  created_by_user_id uuid references users(id),
+  created_at timestamptz default now()
+);
+
+create unique index if not exists social_public_links_token_idx on social_public_links(token);
