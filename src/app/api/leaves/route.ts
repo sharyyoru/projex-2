@@ -6,6 +6,41 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
+// Helper: Verify user session from Authorization header
+async function verifySession(request: NextRequest) {
+  const authHeader = request.headers.get("authorization");
+  const token = authHeader?.replace("Bearer ", "") || request.cookies.get("sb-access-token")?.value;
+  
+  if (!token) {
+    // Fallback: get session from Supabase client cookie
+    const cookieHeader = request.headers.get("cookie") || "";
+    const match = cookieHeader.match(/sb-[^-]+-auth-token=([^;]+)/);
+    if (match) {
+      try {
+        const parsed = JSON.parse(decodeURIComponent(match[1]));
+        if (parsed?.[0]?.access_token) {
+          const { data } = await supabaseAdmin.auth.getUser(parsed[0].access_token);
+          return data.user;
+        }
+      } catch {}
+    }
+    return null;
+  }
+  
+  const { data } = await supabaseAdmin.auth.getUser(token);
+  return data.user;
+}
+
+// Helper: Check if user is admin/hr
+async function isAdminOrHR(userId: string) {
+  const { data } = await supabaseAdmin
+    .from("users")
+    .select("role")
+    .eq("id", userId)
+    .single();
+  return data?.role === "admin" || data?.role === "hr";
+}
+
 // GET - Fetch leave requests
 export async function GET(request: NextRequest) {
   try {
@@ -115,7 +150,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PATCH - Update leave status (approve/reject)
+// PATCH - Update leave status (approve/reject) - ADMIN ONLY
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
@@ -125,6 +160,15 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
+      );
+    }
+
+    // Security: Verify the reviewer is admin/hr
+    const isAdmin = await isAdminOrHR(reviewedBy);
+    if (!isAdmin) {
+      return NextResponse.json(
+        { error: "Unauthorized. Only admin/hr can approve or reject leave requests." },
+        { status: 403 }
       );
     }
 
@@ -173,27 +217,25 @@ export async function PATCH(request: NextRequest) {
 
     // If approved, update user's leave balance
     if (status === "approved") {
-      const updateField = leaveData.leave_type === "annual" ? "annual_leave_used" : "sick_leave_used";
-      
-      const { error: balanceError } = await supabaseAdmin.rpc("increment_leave_used", {
-        p_user_id: leaveData.user_id,
-        p_field: updateField,
-        p_days: leaveData.days_count,
-      });
+      // Fetch current user balance first
+      const { data: currentUser } = await supabaseAdmin
+        .from("users")
+        .select("annual_leave_used, sick_leave_used")
+        .eq("id", leaveData.user_id)
+        .single();
 
-      // If RPC doesn't exist, do manual update
-      if (balanceError) {
-        if (leaveData.leave_type === "annual") {
-          await supabaseAdmin
-            .from("users")
-            .update({ annual_leave_used: (leaveData.annual_leave_used || 0) + leaveData.days_count })
-            .eq("id", leaveData.user_id);
-        } else if (leaveData.leave_type === "sick") {
-          await supabaseAdmin
-            .from("users")
-            .update({ sick_leave_used: (leaveData.sick_leave_used || 0) + leaveData.days_count })
-            .eq("id", leaveData.user_id);
-        }
+      if (leaveData.leave_type === "annual") {
+        const currentUsed = currentUser?.annual_leave_used || 0;
+        await supabaseAdmin
+          .from("users")
+          .update({ annual_leave_used: currentUsed + leaveData.days_count })
+          .eq("id", leaveData.user_id);
+      } else if (leaveData.leave_type === "sick") {
+        const currentUsed = currentUser?.sick_leave_used || 0;
+        await supabaseAdmin
+          .from("users")
+          .update({ sick_leave_used: currentUsed + leaveData.days_count })
+          .eq("id", leaveData.user_id);
       }
     }
 
