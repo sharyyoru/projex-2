@@ -6,6 +6,7 @@ import ProjectNotesTasksCard from "./ProjectNotesTasksCard";
 import ProjectContextCard from "./ProjectContextCard";
 import ProjectDetailsCard from "./ProjectDetailsCard";
 import InvoiceManagement from "./InvoiceManagement";
+import ProjectWorkflows from "./ProjectWorkflows";
 
 interface ProjectPageProps {
   params: Promise<{ id: string }>;
@@ -14,7 +15,7 @@ interface ProjectPageProps {
 
 type Mode = "operations" | "admin";
 
-type AdminTab = "cockpit" | "invoice";
+type AdminTab = "cockpit" | "invoice" | "workflows";
 
 type ProjectRow = {
   id: string;
@@ -159,13 +160,14 @@ export default async function ProjectPage({
   })();
 
   const adminTab: AdminTab =
-    rawAdminTab === "cockpit" || rawAdminTab === "invoice"
+    rawAdminTab === "cockpit" || rawAdminTab === "invoice" || rawAdminTab === "workflows"
       ? (rawAdminTab as AdminTab)
       : "cockpit";
 
   const adminTabs: { id: AdminTab; label: string }[] = [
     { id: "cockpit", label: "Cockpit" },
-    { id: "invoice", label: "Invoice" },
+    { id: "invoice", label: "Quotes & Invoices" },
+    { id: "workflows", label: "Workflows" },
   ];
 
   const statusDisplay = (() => {
@@ -340,6 +342,10 @@ export default async function ProjectPage({
                   projectId={project.id} 
                   projectName={project.name}
                 />
+              ) : null}
+
+              {adminTab === "workflows" ? (
+                <ProjectWorkflows projectId={project.id} />
               ) : null}
             </div>
           </div>

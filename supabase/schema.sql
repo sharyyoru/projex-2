@@ -971,3 +971,14 @@ create table if not exists invoice_items (
 );
 
 create index if not exists invoice_items_invoice_id_idx on invoice_items(invoice_id);
+
+-- Project workflows (stores workflow progress as JSON)
+create table if not exists project_workflows (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references projects(id) on delete cascade,
+  workflow_data jsonb not null default '[]',
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create unique index if not exists project_workflows_project_id_idx on project_workflows(project_id);
