@@ -193,9 +193,9 @@ export default function TaskDetailModal({ taskId, onClose, onStatusChange }: Tas
   const project = task.project as { id: string; name: string } | null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 sm:px-4 py-0 sm:py-6">
       <button type="button" className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200/50 bg-white shadow-2xl">
+      <div className="relative z-10 w-full sm:max-w-xl max-h-[95vh] sm:max-h-[85vh] overflow-hidden rounded-t-2xl sm:rounded-2xl border-0 sm:border border-slate-200/50 bg-white shadow-2xl safe-area-inset-bottom">
         {/* Header with gradient */}
         <div className="relative overflow-hidden bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 px-6 py-5">
           <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-white/10 blur-2xl" />

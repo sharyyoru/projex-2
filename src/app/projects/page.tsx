@@ -164,25 +164,25 @@ export default function ProjectsPage() {
         <div className="pointer-events-none absolute -top-10 right-0 h-[300px] w-[400px] overflow-hidden opacity-50">
           <div className="absolute top-0 right-0 h-[250px] w-[350px] rounded-full bg-gradient-to-br from-emerald-200/60 to-teal-200/40 blur-3xl" />
         </div>
-        <div className="relative flex flex-wrap items-center justify-between gap-4">
+        <div className="relative flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-4">
           <div>
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 shadow-lg shadow-emerald-500/30">
-                <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 shadow-lg shadow-emerald-500/30">
+                <svg className="h-4 w-4 sm:h-5 sm:w-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                   <path d="M12 11v6" />
                   <path d="M9 14h6" />
                 </svg>
               </div>
               <div>
-                <h1 className="text-xl font-semibold text-slate-900">Projects</h1>
-                <p className="text-[13px] text-slate-500">
+                <h1 className="text-lg sm:text-xl font-semibold text-slate-900">Projects</h1>
+                <p className="text-[12px] sm:text-[13px] text-slate-500">
                   {showArchived ? `${archivedCount} archived projects` : `${activeCount} active projects`}
                 </p>
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
             <button
               type="button"
               onClick={() => setShowArchived(!showArchived)}
@@ -221,33 +221,33 @@ export default function ProjectsPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <div className="rounded-xl border border-emerald-200/50 bg-gradient-to-br from-emerald-50 to-teal-50 p-4 shadow-sm">
-          <p className="text-[11px] font-medium text-emerald-600 uppercase tracking-wide">Total Projects</p>
-          <p className="mt-1 text-2xl font-bold text-emerald-700">{filteredProjects.length}</p>
+      <div className="grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-4">
+        <div className="rounded-xl border border-emerald-200/50 bg-gradient-to-br from-emerald-50 to-teal-50 p-3 sm:p-4 shadow-sm">
+          <p className="text-[10px] sm:text-[11px] font-medium text-emerald-600 uppercase tracking-wide">Total Projects</p>
+          <p className="mt-0.5 sm:mt-1 text-xl sm:text-2xl font-bold text-emerald-700">{filteredProjects.length}</p>
         </div>
-        <div className="rounded-xl border border-sky-200/50 bg-gradient-to-br from-sky-50 to-cyan-50 p-4 shadow-sm">
-          <p className="text-[11px] font-medium text-sky-600 uppercase tracking-wide">Total Value</p>
-          <p className="mt-1 text-2xl font-bold text-sky-700">{formatMoney(totalValue)}</p>
+        <div className="rounded-xl border border-sky-200/50 bg-gradient-to-br from-sky-50 to-cyan-50 p-3 sm:p-4 shadow-sm">
+          <p className="text-[10px] sm:text-[11px] font-medium text-sky-600 uppercase tracking-wide">Total Value</p>
+          <p className="mt-0.5 sm:mt-1 text-xl sm:text-2xl font-bold text-sky-700 truncate">{formatMoney(totalValue)}</p>
         </div>
-        <div className="rounded-xl border border-violet-200/50 bg-gradient-to-br from-violet-50 to-purple-50 p-4 shadow-sm">
-          <p className="text-[11px] font-medium text-violet-600 uppercase tracking-wide">In Progress</p>
-          <p className="mt-1 text-2xl font-bold text-violet-700">
+        <div className="rounded-xl border border-violet-200/50 bg-gradient-to-br from-violet-50 to-purple-50 p-3 sm:p-4 shadow-sm">
+          <p className="text-[10px] sm:text-[11px] font-medium text-violet-600 uppercase tracking-wide">In Progress</p>
+          <p className="mt-0.5 sm:mt-1 text-xl sm:text-2xl font-bold text-violet-700">
             {filteredProjects.filter((p) => p.status === "Project Started").length}
           </p>
         </div>
-        <div className="rounded-xl border border-amber-200/50 bg-gradient-to-br from-amber-50 to-orange-50 p-4 shadow-sm">
-          <p className="text-[11px] font-medium text-amber-600 uppercase tracking-wide">Delivered</p>
-          <p className="mt-1 text-2xl font-bold text-amber-700">
+        <div className="rounded-xl border border-amber-200/50 bg-gradient-to-br from-amber-50 to-orange-50 p-3 sm:p-4 shadow-sm">
+          <p className="text-[10px] sm:text-[11px] font-medium text-amber-600 uppercase tracking-wide">Delivered</p>
+          <p className="mt-0.5 sm:mt-1 text-xl sm:text-2xl font-bold text-amber-700">
             {filteredProjects.filter((p) => p.status === "Project Delivered").length}
           </p>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200/80 bg-white/80 p-3 shadow-sm backdrop-blur">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-slate-100 to-slate-200 text-slate-500">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 rounded-xl border border-slate-200/80 bg-white/80 p-3 shadow-sm backdrop-blur">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <div className="hidden sm:flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-slate-100 to-slate-200 text-slate-500">
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="11" cy="11" r="8" />
               <path d="m21 21-4.3-4.3" />
@@ -258,15 +258,15 @@ export default function ProjectsPage() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search projects, companies..."
-            className="h-9 w-56 rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+            className="h-10 sm:h-9 w-full sm:w-56 rounded-lg border border-slate-200 bg-white px-3 text-[14px] sm:text-[13px] text-slate-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
           />
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-[12px] font-medium text-slate-500">Status</span>
+          <span className="text-[12px] font-medium text-slate-500 hidden sm:inline">Status</span>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-700 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+            className="h-10 sm:h-9 flex-1 sm:flex-none rounded-lg border border-slate-200 bg-white px-3 text-[14px] sm:text-[13px] text-slate-700 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
           >
             <option value="">All Statuses</option>
             {uniqueStatuses.map((status) => (
@@ -534,8 +534,8 @@ function NewProjectModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-      <div className="relative w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-2xl bg-white shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
+      <div className="relative w-full sm:max-w-2xl max-h-[95vh] sm:max-h-[90vh] overflow-hidden rounded-t-2xl sm:rounded-2xl bg-white shadow-2xl safe-area-inset-bottom">
         {/* Decorative gradients */}
         <div className="pointer-events-none absolute -right-20 -top-20 h-40 w-40 rounded-full bg-gradient-to-br from-emerald-200/40 to-teal-200/30 blur-3xl" />
         <div className="pointer-events-none absolute -left-10 -bottom-10 h-32 w-32 rounded-full bg-gradient-to-br from-cyan-200/30 to-sky-200/20 blur-2xl" />

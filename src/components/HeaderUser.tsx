@@ -89,13 +89,13 @@ export default function HeaderUser() {
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1.5 sm:gap-2">
       <button
         type="button"
         onClick={() => router.push("/profile")}
-        className="group ml-1 inline-flex h-10 items-center gap-2.5 rounded-xl bg-gradient-to-br from-white via-white to-slate-50 px-3 shadow-sm ring-1 ring-slate-200/50 transition-all hover:shadow-md hover:ring-violet-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/70"
+        className="group ml-0.5 sm:ml-1 inline-flex h-9 sm:h-10 items-center gap-1.5 sm:gap-2.5 rounded-xl bg-gradient-to-br from-white via-white to-slate-50 px-2 sm:px-3 shadow-sm ring-1 ring-slate-200/50 transition-all hover:shadow-md hover:ring-violet-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/70 active:scale-95"
       >
-        <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-lg bg-gradient-to-br from-violet-500 to-purple-500 text-[11px] font-bold text-white shadow-sm shadow-violet-500/30 transition-transform group-hover:scale-105">
+        <div className="flex h-6 w-6 sm:h-7 sm:w-7 items-center justify-center overflow-hidden rounded-lg bg-gradient-to-br from-violet-500 to-purple-500 text-[10px] sm:text-[11px] font-bold text-white shadow-sm shadow-violet-500/30 transition-transform group-hover:scale-105">
           {userInfo.avatarUrl ? (
             <Image
               src={userInfo.avatarUrl}
@@ -108,7 +108,7 @@ export default function HeaderUser() {
             <span>{userInfo.initials}</span>
           )}
         </div>
-        <div className="hidden text-[12px] font-semibold text-slate-700 sm:block">
+        <div className="hidden text-[12px] font-semibold text-slate-700 md:block">
           <span className="truncate max-w-[140px]">
             {userInfo.displayName}
           </span>
@@ -117,7 +117,7 @@ export default function HeaderUser() {
       <button
         type="button"
         onClick={() => setConfirmOpen(true)}
-        className="group inline-flex h-10 items-center gap-1.5 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 px-3 text-[12px] font-medium text-slate-600 shadow-sm transition-all hover:from-red-500 hover:to-rose-500 hover:text-white hover:shadow-lg hover:shadow-red-500/25"
+        className="group inline-flex h-9 sm:h-10 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 px-2.5 sm:px-3 text-[12px] font-medium text-slate-600 shadow-sm transition-all hover:from-red-500 hover:to-rose-500 hover:text-white hover:shadow-lg hover:shadow-red-500/25 active:scale-95"
       >
         <svg className="h-4 w-4 transition-transform group-hover:scale-110" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />

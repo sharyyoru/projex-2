@@ -116,20 +116,20 @@ export default function Home() {
 
   return (
     <div className="space-y-8">
-      <header className="flex items-center justify-between gap-4">
-        <div>
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="min-w-0">
           <DubaiInfoPill />
-          <h1 className="text-2xl font-semibold text-slate-900">
+          <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 truncate">
             {currentUserName ? `Hi ${currentUserName}` : "Hi there"}
           </h1>
-          <p className="text-sm text-slate-500">
+          <p className="text-xs sm:text-sm text-slate-500">
             Let&apos;s get you on a productive routine today!
           </p>
         </div>
-        <div className="flex flex-wrap gap-2 text-xs sm:text-sm">
+        <div className="flex flex-wrap gap-2 text-xs sm:text-sm shrink-0">
           <Link
             href="/projects"
-            className="inline-flex items-center gap-2 rounded-full border border-sky-200/70 bg-white/70 px-4 py-1.5 font-medium text-sky-700 shadow-[0_10px_25px_rgba(15,23,42,0.16)] backdrop-blur hover:bg-white hover:text-sky-800 btn-pill-primary"
+            className="inline-flex items-center gap-1.5 sm:gap-2 rounded-full border border-sky-200/70 bg-white/70 px-3 sm:px-4 py-2 sm:py-1.5 font-medium text-sky-700 shadow-[0_10px_25px_rgba(15,23,42,0.16)] backdrop-blur hover:bg-white hover:text-sky-800 btn-pill-primary"
           >
             <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-sky-500 text-[12px] font-semibold text-white shadow-sm">
               +
@@ -138,7 +138,7 @@ export default function Home() {
           </Link>
           <Link
             href="/appointments"
-            className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/60 px-4 py-1.5 font-medium text-slate-700 shadow-[0_10px_25px_rgba(15,23,42,0.10)] backdrop-blur hover:bg-white hover:text-slate-900 btn-pill-secondary"
+            className="inline-flex items-center gap-1.5 sm:gap-2 rounded-full border border-slate-200/80 bg-white/60 px-3 sm:px-4 py-2 sm:py-1.5 font-medium text-slate-700 shadow-[0_10px_25px_rgba(15,23,42,0.10)] backdrop-blur hover:bg-white hover:text-slate-900 btn-pill-secondary"
           >
             <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-900/80 text-[11px] text-white shadow-sm">
               <svg

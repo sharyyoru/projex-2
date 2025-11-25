@@ -129,7 +129,8 @@ export default function SupportChat() {
       {/* Chat Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-lg shadow-violet-500/30 transition-all hover:scale-105 hover:shadow-xl hover:shadow-violet-500/40"
+        className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-full bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-lg shadow-violet-500/30 transition-all hover:scale-105 hover:shadow-xl hover:shadow-violet-500/40 active:scale-95"
+        style={{ marginBottom: "env(safe-area-inset-bottom)" }}
       >
         {isOpen ? (
           <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -150,11 +151,24 @@ export default function SupportChat() {
 
       {/* Chat Window */}
       {isOpen && (
-        <div className="fixed bottom-24 right-6 z-50 flex h-[500px] w-[380px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <div 
+          className="fixed inset-0 sm:inset-auto sm:bottom-24 sm:right-6 z-50 flex h-full sm:h-[500px] w-full sm:w-[380px] flex-col overflow-hidden sm:rounded-2xl border-0 sm:border border-slate-200 bg-white shadow-2xl"
+          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        >
           {/* Header */}
-          <div className="flex items-center justify-between bg-gradient-to-r from-violet-600 to-purple-600 px-4 py-3 text-white">
+          <div className="flex items-center justify-between bg-gradient-to-r from-violet-600 to-purple-600 px-4 py-3 text-white" style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}>
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20">
+              {/* Close button for mobile */}
+              <button
+                onClick={() => setIsOpen(false)}
+                className="sm:hidden flex h-9 w-9 items-center justify-center rounded-full bg-white/20 transition-colors hover:bg-white/30 active:scale-95"
+                aria-label="Close chat"
+              >
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m15 18-6-6 6-6" />
+                </svg>
+              </button>
+              <div className="hidden sm:flex h-10 w-10 items-center justify-center rounded-full bg-white/20">
                 <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                 </svg>

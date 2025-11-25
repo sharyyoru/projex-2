@@ -96,27 +96,27 @@ a[href]:active {
 }
 
 .header-icon-button {
-  background: radial-gradient(circle at 30% 0%, rgba(248, 250, 252, 0.95), rgba(148, 163, 184, 0.7));
-  border: 1px solid rgba(148, 163, 184, 0.75);
+  background: radial-gradient(circle at 30% 0%, rgba(255, 255, 255, 0.98), rgba(241, 245, 249, 0.95));
+  border: 1px solid rgba(203, 213, 225, 0.8);
   box-shadow:
-    0 0 0 1px rgba(15, 23, 42, 0.3),
-    0 14px 28px rgba(15, 23, 42, 0.45);
-  backdrop-filter: blur(18px);
+    0 0 0 1px rgba(148, 163, 184, 0.2),
+    0 4px 12px rgba(148, 163, 184, 0.15);
+  backdrop-filter: blur(12px);
 }
 
 .header-icon-button:hover {
-  background: radial-gradient(circle at 30% 0%, rgba(248, 250, 252, 1), rgba(56, 189, 248, 0.9));
-  border-color: rgba(59, 130, 246, 0.9);
+  background: radial-gradient(circle at 30% 0%, rgba(255, 255, 255, 1), rgba(241, 245, 249, 1));
+  border-color: rgba(148, 163, 184, 0.9);
   box-shadow:
-    0 0 0 1px rgba(15, 23, 42, 0.35),
-    0 20px 45px rgba(15, 23, 42, 0.55);
+    0 0 0 1px rgba(148, 163, 184, 0.3),
+    0 8px 20px rgba(148, 163, 184, 0.2);
 }
 
 .header-icon-button:active {
-  transform: translateY(0) scale(0.96);
+  transform: translateY(0) scale(0.97);
   box-shadow:
-    0 0 0 1px rgba(15, 23, 42, 0.35),
-    0 10px 24px rgba(15, 23, 42, 0.5);
+    0 0 0 1px rgba(148, 163, 184, 0.3),
+    0 2px 8px rgba(148, 163, 184, 0.15);
 }
 
 .btn-primary,
@@ -136,17 +136,17 @@ a[href]:active {
 
 .btn-secondary,
 .btn-pill-secondary {
-  background: radial-gradient(circle at top left, rgba(15, 23, 42, 0.95), rgba(15, 23, 42, 0.9));
-  color: #e5e7eb;
+  background: radial-gradient(circle at top left, rgba(241, 245, 249, 0.98), rgba(226, 232, 240, 0.95));
+  color: #475569;
   box-shadow:
-    0 0 0 1px rgba(156, 163, 175, 0.7),
-    0 16px 36px rgba(15, 23, 42, 0.9);
-  backdrop-filter: blur(18px);
+    0 0 0 1px rgba(203, 213, 225, 0.6),
+    0 4px 12px rgba(148, 163, 184, 0.15);
+  backdrop-filter: blur(12px);
 }
 
 .btn-secondary:hover,
 .btn-pill-secondary:hover {
-  background: radial-gradient(circle at top left, rgba(15, 23, 42, 1), rgba(17, 24, 39, 1));
+  background: radial-gradient(circle at top left, rgba(248, 250, 252, 1), rgba(241, 245, 249, 1));
 }
 
 .btn-tertiary {
@@ -343,5 +343,212 @@ textarea::placeholder {
   }
   50% {
     transform: translateY(-2px);
+  }
+}
+
+/* ============================================
+   MOBILE RESPONSIVENESS STYLES
+   ============================================ */
+
+/* Safe area padding for iOS devices with notches/Dynamic Island */
+.safe-area-padding {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.safe-area-inset-left {
+  padding-left: env(safe-area-inset-left);
+}
+
+.safe-area-inset-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Mobile sidebar slide-in animation */
+@keyframes slide-in-left {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-out-left {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-out-left {
+  animation: slide-out-left 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out forwards;
+}
+
+/* Touch-friendly tap targets (minimum 44x44px for iOS) */
+@media (max-width: 640px) {
+  button,
+  a[href],
+  label[for],
+  input[type="checkbox"],
+  input[type="radio"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Ensure form inputs are properly sized */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="number"],
+  textarea,
+  select {
+    font-size: 16px !important; /* Prevents iOS zoom on focus */
+    min-height: 44px;
+  }
+
+  /* Adjust text sizes for mobile readability */
+  .text-xs {
+    font-size: 0.75rem;
+    line-height: 1.25;
+  }
+
+  .text-sm {
+    font-size: 0.875rem;
+    line-height: 1.35;
+  }
+
+  /* Reduce button hover effects on touch devices */
+  button:hover,
+  a[href]:hover {
+    transform: none;
+  }
+
+  button:active,
+  a[href]:active {
+    transform: scale(0.97);
+    box-shadow: none;
+  }
+}
+
+/* Tablet adjustments */
+@media (min-width: 641px) and (max-width: 1024px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="number"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* Improved scrolling on mobile */
+@media (max-width: 640px) {
+  .kanban-scroll,
+  .calendar-scroll {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+
+  /* Hide scrollbars on mobile for cleaner look */
+  .kanban-scroll::-webkit-scrollbar,
+  .calendar-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  .kanban-scroll,
+  .calendar-scroll {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Prevent text selection on interactive elements (mobile) */
+@media (pointer: coarse) {
+  button,
+  a[href],
+  label {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .animate-slide-in-left,
+  .animate-slide-out-left,
+  .animate-fade-in {
+    animation: none;
+  }
+}
+
+/* Mobile-optimized card shadows */
+@media (max-width: 640px) {
+  .shadow-\[0_16px_40px_rgba\(15\,23\,42\,0\.08\)\],
+  .shadow-\[0_18px_40px_rgba\(15\,23\,42\,0\.25\)\] {
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  }
+}
+
+/* Landscape mode adjustments for mobile */
+@media (max-height: 500px) and (orientation: landscape) {
+  .min-h-\[80vh\] {
+    min-height: auto;
+  }
+
+  .py-2 {
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+  }
+}
+
+/* Dark mode support for mobile */
+@media (prefers-color-scheme: dark) {
+  @media (max-width: 640px) {
+    .bg-white\/80,
+    .bg-white\/90,
+    .bg-white\/95 {
+      background-color: rgba(30, 41, 59, 0.95);
+    }
   }
 }
