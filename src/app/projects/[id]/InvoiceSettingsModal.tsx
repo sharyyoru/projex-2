@@ -77,24 +77,24 @@ export default function InvoiceSettingsModal({ settings, onClose, onSaved }: Pro
             <div className="space-y-4">
               <div>
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1">Company Name</label>
-                <input type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] focus:border-violet-400 focus:outline-none" />
+                <input type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-900 focus:border-violet-400 focus:outline-none" />
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1">Logo URL</label>
-                <input type="text" value={companyLogoUrl} onChange={(e) => setCompanyLogoUrl(e.target.value)} placeholder="https://..." className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] focus:border-violet-400 focus:outline-none" />
+                <input type="text" value={companyLogoUrl} onChange={(e) => setCompanyLogoUrl(e.target.value)} placeholder="https://..." className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-900 focus:border-violet-400 focus:outline-none" />
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1">Address</label>
-                <textarea value={companyAddress} onChange={(e) => setCompanyAddress(e.target.value)} rows={2} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] focus:border-violet-400 focus:outline-none" />
+                <textarea value={companyAddress} onChange={(e) => setCompanyAddress(e.target.value)} rows={2} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-900 focus:border-violet-400 focus:outline-none" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-700 mb-1">Phone</label>
-                  <input type="text" value={companyPhone} onChange={(e) => setCompanyPhone(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] focus:border-violet-400 focus:outline-none" />
+                  <input type="text" value={companyPhone} onChange={(e) => setCompanyPhone(e.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-900 focus:border-violet-400 focus:outline-none" />
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-700 mb-1">Email</label>
-                  <input type="email" value={companyEmail} onChange={(e) => setCompanyEmail(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] focus:border-violet-400 focus:outline-none" />
+                  <input type="email" value={companyEmail} onChange={(e) => setCompanyEmail(e.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-900 focus:border-violet-400 focus:outline-none" />
                 </div>
               </div>
             </div>
@@ -105,16 +105,16 @@ export default function InvoiceSettingsModal({ settings, onClose, onSaved }: Pro
             <div className="space-y-4">
               <div>
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1">Bank Name</label>
-                <input type="text" value={bankName} onChange={(e) => setBankName(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] focus:border-violet-400 focus:outline-none" />
+                <input type="text" value={bankName} onChange={(e) => setBankName(e.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-900 focus:border-violet-400 focus:outline-none" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-700 mb-1">Account Number</label>
-                  <input type="text" value={bankAccountNumber} onChange={(e) => setBankAccountNumber(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] focus:border-violet-400 focus:outline-none" />
+                  <input type="text" value={bankAccountNumber} onChange={(e) => setBankAccountNumber(e.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-900 focus:border-violet-400 focus:outline-none" />
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-700 mb-1">IBAN</label>
-                  <input type="text" value={bankIban} onChange={(e) => setBankIban(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] focus:border-violet-400 focus:outline-none" />
+                  <input type="text" value={bankIban} onChange={(e) => setBankIban(e.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-900 focus:border-violet-400 focus:outline-none" />
                 </div>
               </div>
             </div>
@@ -125,15 +125,15 @@ export default function InvoiceSettingsModal({ settings, onClose, onSaved }: Pro
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1">Invoice Prefix</label>
-                <input type="text" value={invoicePrefix} onChange={(e) => setInvoicePrefix(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] focus:border-violet-400 focus:outline-none" />
+                <input type="text" value={invoicePrefix} onChange={(e) => setInvoicePrefix(e.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-900 focus:border-violet-400 focus:outline-none" />
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1">Quote Prefix</label>
-                <input type="text" value={quotePrefix} onChange={(e) => setQuotePrefix(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] focus:border-violet-400 focus:outline-none" />
+                <input type="text" value={quotePrefix} onChange={(e) => setQuotePrefix(e.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-900 focus:border-violet-400 focus:outline-none" />
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1">Currency</label>
-                <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] focus:border-violet-400 focus:outline-none">
+                <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-900 focus:border-violet-400 focus:outline-none">
                   <option value="AED">AED</option>
                   <option value="USD">USD</option>
                   <option value="EUR">EUR</option>
@@ -142,7 +142,7 @@ export default function InvoiceSettingsModal({ settings, onClose, onSaved }: Pro
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1">Tax Rate (%)</label>
-                <input type="number" value={taxRate} onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] focus:border-violet-400 focus:outline-none" />
+                <input type="number" value={taxRate} onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-900 focus:border-violet-400 focus:outline-none" />
               </div>
             </div>
           </div>
