@@ -218,7 +218,7 @@ export default function RootLayout({
               <RequireAuth>
                 <div className="flex h-full flex-col">
                   <ShellHeader>
-                    <header className="flex items-center justify-between gap-4 bg-gradient-to-b from-slate-50/90 to-slate-50/40 px-4 py-3 sm:px-6 lg:px-8 app-shell-header">
+                    <header className="relative z-[9999] flex items-center justify-between gap-4 bg-gradient-to-b from-slate-50/90 to-slate-50/40 px-4 py-3 sm:px-6 lg:px-8 app-shell-header">
                       <div className="flex items-center gap-4 shrink-0">
                         <label
                           htmlFor="sidebar-toggle"
@@ -265,7 +265,7 @@ export default function RootLayout({
                       </div>
                     </header>
                   </ShellHeader>
-                  <div className="flex-1 px-4 py-4 sm:px-6 lg:px-8">{children}</div>
+                  <div className="relative z-0 flex-1 px-4 py-4 sm:px-6 lg:px-8">{children}</div>
                 </div>
               </RequireAuth>
             </main>
