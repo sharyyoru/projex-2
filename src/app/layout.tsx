@@ -221,6 +221,22 @@ export default function RootLayout({
                   </span>
                   <span>Chat with Colton</span>
                 </Link>
+
+                {/* Danote - Visual Collaboration Board */}
+                <Link
+                  href="/danote"
+                  className="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium text-slate-600 transition-all hover:bg-gradient-to-r hover:from-cyan-50 hover:to-teal-50 hover:text-slate-900 hover:shadow-sm"
+                >
+                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-100 to-teal-100 text-cyan-600 shadow-sm transition-all group-hover:from-cyan-500 group-hover:to-teal-500 group-hover:text-white group-hover:shadow-lg group-hover:shadow-cyan-500/25">
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="7" height="7" rx="1" />
+                      <rect x="14" y="3" width="7" height="7" rx="1" />
+                      <rect x="3" y="14" width="7" height="7" rx="1" />
+                      <rect x="14" y="14" width="7" height="7" rx="1" />
+                    </svg>
+                  </span>
+                  <span>Danote</span>
+                </Link>
               </nav>
             </aside>
             </ShellSidebar>

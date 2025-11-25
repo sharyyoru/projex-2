@@ -7,6 +7,7 @@ import ProjectContextCard from "./ProjectContextCard";
 import ProjectDetailsCard from "./ProjectDetailsCard";
 import InvoiceManagement from "./InvoiceManagement";
 import ProjectWorkflows from "./ProjectWorkflows";
+import ProjectDanoteButton from "./ProjectDanoteButton";
 
 interface ProjectPageProps {
   params: Promise<{ id: string }>;
@@ -207,6 +208,7 @@ export default async function ProjectPage({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <ProjectDanoteButton projectId={project.id} projectName={project.name} />
             {company ? (
               <Link
                 href={`/companies/${company.id}`}

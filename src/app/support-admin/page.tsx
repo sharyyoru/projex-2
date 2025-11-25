@@ -59,7 +59,8 @@ export default function SupportAdminPage() {
 
   async function checkAuth() {
     const { data: { user } } = await supabaseClient.auth.getUser();
-    if (user?.email === "wilson@mutant.ae") {
+    const authorizedEmails = ["wilson@mutant.ae", "john@mutant.ae"];
+    if (user?.email && authorizedEmails.includes(user.email)) {
       setCurrentUserEmail(user.email);
       setIsAuthorized(true);
       loadTickets();
