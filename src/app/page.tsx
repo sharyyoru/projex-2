@@ -31,7 +31,6 @@ function renderTextWithMentions(text: string) {
 export default function Home() {
   const [appointments, setAppointments] = useState<any[]>([]);
   const [tasks, setTasks] = useState<any[]>([]);
-  const [mentions, setMentions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserName, setCurrentUserName] = useState<string | null>(null);
 
@@ -117,20 +116,8 @@ export default function Home() {
               .limit(3)
           : Promise.resolve({ data: [], error: null } as any);
 
-        const mentionsPromise = user
-          ? supabaseClient
-              .from("patient_note_mentions")
-              .select(
-                "id, created_at, read_at, patient_id, note:patient_notes(id, body, author_name, created_at), patient:patients(id, first_name, last_name)",
-              )
-              .eq("mentioned_user_id", user.id)
-              .is("read_at", null)
-              .order("created_at", { ascending: false })
-              .limit(3)
-          : Promise.resolve({ data: [], error: null } as any);
-
-        const [appointmentsResult, tasksResult, mentionsResult] =
-          await Promise.all([appointmentsPromise, tasksPromise, mentionsPromise]);
+        const [appointmentsResult, tasksResult] =
+          await Promise.all([appointmentsPromise, tasksPromise]);
 
         if (cancelled) return;
 
@@ -143,17 +130,10 @@ export default function Home() {
         setTasks(
           !tasksResult.error && tasksResult.data ? (tasksResult.data as any[]) : [],
         );
-
-        setMentions(
-          !mentionsResult.error && mentionsResult.data
-            ? (mentionsResult.data as any[])
-            : [],
-        );
       } catch {
         if (cancelled) return;
         setAppointments([]);
         setTasks([]);
-        setMentions([]);
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -167,47 +147,6 @@ export default function Home() {
       cancelled = true;
     };
   }, []);
-
-  useEffect(() => {
-    if (unreadCount === null) return;
-
-    let cancelled = false;
-
-    async function reloadMentions() {
-      try {
-        const { data: authData } = await supabaseClient.auth.getUser();
-        const user = authData?.user ?? null;
-        if (!user) {
-          if (!cancelled) setMentions([]);
-          return;
-        }
-
-        const { data, error } = await supabaseClient
-          .from("patient_note_mentions")
-          .select(
-            "id, created_at, read_at, patient_id, note:patient_notes(id, body, author_name, created_at), patient:patients(id, first_name, last_name)",
-          )
-          .eq("mentioned_user_id", user.id)
-          .is("read_at", null)
-          .order("created_at", { ascending: false })
-          .limit(3);
-
-        if (cancelled) return;
-
-        setMentions(!error && data ? (data as any[]) : []);
-      } catch {
-        if (!cancelled) {
-          setMentions([]);
-        }
-      }
-    }
-
-    void reloadMentions();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [unreadCount]);
 
   const trimmedMentionQuery = activeMentionQuery.trim();
   const mentionOptions =
@@ -411,7 +350,7 @@ export default function Home() {
         </div>
         <div className="flex flex-wrap gap-2 text-xs sm:text-sm">
           <Link
-            href="/companies"
+            href="/projects"
             className="inline-flex items-center gap-2 rounded-full border border-sky-200/70 bg-white/70 px-4 py-1.5 font-medium text-sky-700 shadow-[0_10px_25px_rgba(15,23,42,0.16)] backdrop-blur hover:bg-white hover:text-sky-800 btn-pill-primary"
           >
             <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-sky-500 text-[12px] font-semibold text-white shadow-sm">
@@ -451,10 +390,10 @@ export default function Home() {
           <div className="mb-3 flex items-center justify-between gap-2">
             <div>
               <h2 className="text-sm font-semibold text-slate-900">
-                Today&apos;s appointments
+                Today&apos;s meetings
               </h2>
               <p className="text-xs text-slate-500">
-                Quick view of your upcoming consultations and surgeries.
+                Quick view of your upcoming meetings and calls.
               </p>
             </div>
             <Link
@@ -466,11 +405,11 @@ export default function Home() {
           </div>
           {loading ? (
             <p className="text-xs text-slate-500">
-              Loading today&apos;s appointments...
+              Loading today&apos;s meetings...
             </p>
           ) : appointments.length === 0 ? (
             <p className="text-xs text-slate-500">
-              No appointments scheduled for today.
+              No meetings scheduled for today.
             </p>
           ) : (
             <div className="divide-y divide-slate-100 text-sm">
@@ -616,67 +555,6 @@ export default function Home() {
           )}
         </div>
 
-        <div className="rounded-xl border border-slate-200/80 bg-white/90 p-4 shadow-[0_16px_40px_rgba(15,23,42,0.08)] backdrop-blur">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <div>
-              <h2 className="text-sm font-semibold text-slate-900">Mentions</h2>
-              <p className="text-xs text-slate-500">
-                Notes and comments where you were tagged.
-              </p>
-            </div>
-            <Link
-              href="/messages"
-              className="inline-flex items-center rounded-full border border-slate-200/80 bg-white/80 px-3 py-1 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50"
-            >
-              View inbox
-            </Link>
-          </div>
-          {loading ? (
-            <p className="text-xs text-slate-500">Loading mentions...</p>
-          ) : mentions.length === 0 ? (
-            <p className="text-xs text-slate-500">No new mentions.</p>
-          ) : (
-            <div className="space-y-2 text-sm">
-              {mentions.map((mention) => {
-                const createdLabel = mention.created_at
-                  ? (() => {
-                      const d = new Date(mention.created_at as string);
-                      return Number.isNaN(d.getTime()) ? null : d.toLocaleString();
-                    })()
-                  : null;
-                const patient = mention.patient;
-                const patientName = patient
-                  ? `${patient.first_name} ${patient.last_name}`.trim()
-                  : "Unknown patient";
-                const note = mention.note;
-
-                return (
-                  <Link
-                    key={mention.id as string}
-                    href="/messages"
-                    className="flex items-start justify-between rounded-lg bg-slate-50/80 px-3 py-2 hover:bg-slate-100"
-                  >
-                    <div className="pr-4">
-                      <p className="text-xs font-medium text-slate-500">
-                        {createdLabel ?? ""} {createdLabel ? "· " : ""}
-                        {patientName}
-                      </p>
-                      <p className="mt-0.5 text-slate-800">
-                        {note?.author_name ? (
-                          <span className="font-medium">
-                            {note.author_name}:{" "}
-                          </span>
-                        ) : null}
-                        <span>{note?.body ?? "(Note unavailable)"}</span>
-                      </p>
-                    </div>
-                    <span className="mt-1 inline-flex h-2 w-2 rounded-full bg-sky-500" />
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-        </div>
       </section>
 
       {taskModalOpen && selectedTask ? (

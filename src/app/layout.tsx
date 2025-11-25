@@ -136,18 +136,6 @@ export default function RootLayout({
                   <span>Calendar</span>
                 </Link>
 
-                {/* Deals & Pipeline */}
-                <Link
-                  href="/deals"
-                  className="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium text-slate-600 transition-all hover:bg-gradient-to-r hover:from-rose-50 hover:to-pink-50 hover:text-slate-900 hover:shadow-sm"
-                >
-                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-rose-100 to-pink-100 text-rose-600 shadow-sm transition-all group-hover:from-rose-500 group-hover:to-pink-500 group-hover:text-white group-hover:shadow-lg group-hover:shadow-rose-500/25">
-                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M3 6h4v12H3zM10 10h4v8h-4zM17 8h4v10h-4z" />
-                    </svg>
-                  </span>
-                  <span>Deals &amp; Pipeline</span>
-                </Link>
                 {/* Financials */}
                 <Link
                   href="/financials"
@@ -160,20 +148,6 @@ export default function RootLayout({
                     </svg>
                   </span>
                   <span>Financials</span>
-                </Link>
-
-                {/* Services */}
-                <Link
-                  href="/services"
-                  className="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium text-slate-600 transition-all hover:bg-gradient-to-r hover:from-fuchsia-50 hover:to-pink-50 hover:text-slate-900 hover:shadow-sm"
-                >
-                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-fuchsia-100 to-pink-100 text-fuchsia-600 shadow-sm transition-all group-hover:from-fuchsia-500 group-hover:to-pink-500 group-hover:text-white group-hover:shadow-lg group-hover:shadow-fuchsia-500/25">
-                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="3" y="4" width="18" height="16" rx="2" />
-                      <path d="M7 9h10M7 13h6M7 17h3" />
-                    </svg>
-                  </span>
-                  <span>Services</span>
                 </Link>
 
                 {/* Tasks */}

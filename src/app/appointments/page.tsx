@@ -60,29 +60,24 @@ type ServiceOption = {
   name: string;
 };
 
-const BOOKING_STATUS_OPTIONS = [
-  "Video Conference",
-  "Telephone",
-  "Urgent",
-  "In Person",
-  "Physical Consultation",
-  "Paid",
-  "Invoice Sent",
-  "CB",
-  "Waiting Room",
-  "At The Doctors",
-  "To Do",
-  "Done",
-  "Attention",
-  "Canceled",
-  "Didn't Come",
-  "Late",
-  "To Pay",
-  "Missing",
-  "Cash",
+const MEETING_TYPE_OPTIONS = [
+  { value: "online", label: "Online" },
+  { value: "physical", label: "Physical" },
 ];
 
-const CLINIC_LOCATION_OPTIONS = ["Geneva"];
+function generateMeetCode(): string {
+  const chars = "abcdefghijklmnopqrstuvwxyz";
+  const segments = [3, 4, 3];
+  return segments.map(len => 
+    Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join("")
+  ).join("-");
+}
+
+function generateGoogleMeetLink(): string {
+  return `https://meet.google.com/${generateMeetCode()}`;
+}
+
+// Location is now open entry - no predefined options
 
 type CalendarAppointment = {
   id: string;
@@ -365,14 +360,11 @@ export default function CalendarPage() {
   const [appointments, setAppointments] = useState<CalendarAppointment[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [patientSearch, setPatientSearch] = useState("");
   const [providers, setProviders] = useState<ProviderOption[]>([]);
   const [providersLoading, setProvidersLoading] = useState(false);
   const [providersError, setProvidersError] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [doctorCalendars, setDoctorCalendars] = useState<DoctorCalendar[]>([]);
-  const [isCreatingCalendar, setIsCreatingCalendar] = useState(false);
-  const [newCalendarProviderId, setNewCalendarProviderId] = useState("");
   const [view, setView] = useState<CalendarView>("month");
   const [viewMenuOpen, setViewMenuOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -398,15 +390,6 @@ export default function CalendarPage() {
   const [patientOptionsError, setPatientOptionsError] = useState<string | null>(
     null,
   );
-  const [newPatientModalOpen, setNewPatientModalOpen] = useState(false);
-  const [newPatientFirstName, setNewPatientFirstName] = useState("");
-  const [newPatientLastName, setNewPatientLastName] = useState("");
-  const [newPatientEmail, setNewPatientEmail] = useState("");
-  const [newPatientPhone, setNewPatientPhone] = useState("");
-  const [newPatientGender, setNewPatientGender] = useState("");
-  const [newPatientSource, setNewPatientSource] = useState("manual");
-  const [savingNewPatient, setSavingNewPatient] = useState(false);
-  const [newPatientError, setNewPatientError] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const [serviceOptions, setServiceOptions] = useState<ServiceOption[]>([]);
   const [serviceOptionsLoading, setServiceOptionsLoading] = useState(false);
@@ -428,6 +411,8 @@ export default function CalendarPage() {
   const [editLocation, setEditLocation] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [draftMeetLink, setDraftMeetLink] = useState("");
+  const [editMeetLink, setEditMeetLink] = useState("");
 
   const monthStart = useMemo(() => {
     return new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1);
@@ -653,22 +638,21 @@ export default function CalendarPage() {
   useEffect(() => {
     let isMounted = true;
 
-    async function loadPatientsForCreate() {
+    async function loadContactsForCreate() {
       try {
         setPatientOptionsLoading(true);
         setPatientOptionsError(null);
 
         const { data, error } = await supabaseClient
-          .from("patients")
-          .select("id, first_name, last_name, email, phone")
-          .order("created_at", { ascending: false })
+          .from("meeting_contacts")
+          .select("id, first_name, last_name, email, phone, contact_type")
           .limit(500);
 
         if (!isMounted) return;
 
         if (error || !data) {
           setPatientOptions([]);
-          setPatientOptionsError(error?.message ?? "Failed to load patients.");
+          setPatientOptionsError(error?.message ?? "Failed to load contacts.");
         } else {
           setPatientOptions(data as AppointmentPatientSuggestion[]);
         }
@@ -677,12 +661,12 @@ export default function CalendarPage() {
       } catch {
         if (!isMounted) return;
         setPatientOptions([]);
-        setPatientOptionsError("Failed to load patients.");
+        setPatientOptionsError("Failed to load contacts.");
         setPatientOptionsLoading(false);
       }
     }
 
-    void loadPatientsForCreate();
+    void loadContactsForCreate();
 
     return () => {
       isMounted = false;
@@ -705,7 +689,6 @@ export default function CalendarPage() {
   const appointmentsByDay = useMemo(() => {
     const map: Record<string, CalendarAppointment[]> = {};
 
-    const search = patientSearch.trim().toLowerCase();
     const selectedDoctorNames = doctorCalendars
       .filter((calendar) => calendar.selected)
       .map((calendar) => calendar.name.trim().toLowerCase())
@@ -725,20 +708,12 @@ export default function CalendarPage() {
       const key = appt.start_time ? appt.start_time.slice(0, 10) : null;
       if (!key) return;
 
-      if (search) {
-        const p = appt.patient;
-        const name = `${p?.first_name ?? ""} ${p?.last_name ?? ""}`
-          .trim()
-          .toLowerCase();
-        if (!name.includes(search)) return;
-      }
-
       if (!map[key]) map[key] = [];
       map[key].push(appt);
     });
 
     return map;
-  }, [appointments, patientSearch, doctorCalendars]);
+  }, [appointments, doctorCalendars]);
 
   const gridDates = useMemo(() => {
     const dates: Date[] = [];
@@ -918,40 +893,6 @@ export default function CalendarPage() {
     );
   }
 
-  function handleConfirmNewCalendar() {
-    if (!newCalendarProviderId) {
-      setIsCreatingCalendar(false);
-      return;
-    }
-
-    const provider = providers.find((item) => item.id === newCalendarProviderId);
-    if (!provider) {
-      setIsCreatingCalendar(false);
-      return;
-    }
-
-    setDoctorCalendars((prev) => {
-      const exists = prev.some((calendar) => calendar.providerId === provider.id);
-      if (exists) return prev;
-
-      const rawName = provider.name ?? "Unnamed doctor";
-      const trimmedName = rawName.trim() || "Unnamed doctor";
-
-      const nextCalendar: DoctorCalendar = {
-        id: provider.id,
-        providerId: provider.id,
-        name: trimmedName,
-        color: getCalendarColorForIndex(prev.length),
-        selected: true,
-      };
-
-      return [...prev, nextCalendar];
-    });
-
-    setIsCreatingCalendar(false);
-    setNewCalendarProviderId("");
-  }
-
   function formatTimeLabel(totalMinutes: number): string {
     if (totalMinutes === DAY_VIEW_END_MINUTES - DAY_VIEW_SLOT_MINUTES) {
       return "5:00 PM";
@@ -993,105 +934,13 @@ export default function CalendarPage() {
     });
   }, [createPatientSearch, patientOptions]);
 
-  async function handleCreateNewPatient() {
-    const firstName = newPatientFirstName.trim();
-    const lastName = newPatientLastName.trim();
-    const emailRaw = newPatientEmail.trim();
-    const phoneRaw = newPatientPhone.trim();
-
-    if (!firstName || !lastName || !emailRaw || !phoneRaw) {
-      setNewPatientError(
-        "First name, last name, email, and phone are required.",
-      );
-      return;
-    }
-
-    const countryCode = "+41";
-    const phone = `${countryCode} ${phoneRaw.replace(/^0+/, "").replace(/\s+/g, " ")}`.trim();
-    const normalizedEmail = emailRaw.toLowerCase();
-
-    try {
-      setSavingNewPatient(true);
-      setNewPatientError(null);
-
-      const { data: existing, error: existingError } = await supabaseClient
-        .from("patients")
-        .select("id")
-        .ilike("email", normalizedEmail)
-        .limit(1)
-        .maybeSingle();
-
-      if (!existingError && existing) {
-        setNewPatientError("A patient with this email already exists.");
-        setSavingNewPatient(false);
-        return;
-      }
-
-      const { data, error } = await supabaseClient
-        .from("patients")
-        .insert({
-          first_name: firstName,
-          last_name: lastName,
-          email: normalizedEmail,
-          phone,
-          gender: newPatientGender || null,
-          source: (newPatientSource || "manual").toLowerCase(),
-        })
-        .select("id, first_name, last_name, email, phone")
-        .single();
-
-      if (error || !data) {
-        setNewPatientError(error?.message ?? "Failed to create patient.");
-        setSavingNewPatient(false);
-        return;
-      }
-
-      const fullName =
-        `${(data.first_name ?? "").toString()} ${(data.last_name ?? "").toString()}`
-          .trim() || "Unnamed patient";
-
-      const suggestion: AppointmentPatientSuggestion = {
-        id: data.id as string,
-        first_name: data.first_name as string | null,
-        last_name: data.last_name as string | null,
-        email: data.email as string | null,
-        phone: data.phone as string | null,
-      };
-
-      setPatientOptions((prev) => {
-        const exists = prev.some((p) => p.id === suggestion.id);
-        if (exists) return prev;
-        return [suggestion, ...prev];
-      });
-
-      setCreatePatientId(suggestion.id);
-      setCreatePatientName(fullName);
-      setCreatePatientSearch(fullName);
-      setDraftTitle(`Consultation for ${fullName}`);
-      setConsultationDuration(45);
-      setNewPatientModalOpen(false);
-
-      setNewPatientFirstName("");
-      setNewPatientLastName("");
-      setNewPatientEmail("");
-      setNewPatientPhone("");
-      setNewPatientGender("");
-      setNewPatientSource("manual");
-      setNewPatientError(null);
-      setSavingNewPatient(false);
-    } catch {
-      setNewPatientError("Failed to create patient.");
-      setSavingNewPatient(false);
-    }
-  }
-
   async function handleSaveAppointment() {
     if (savingCreate) return;
 
     setCreateError(null);
 
     if (!createPatientId) {
-      setCreateError("Please select a patient.");
+      setCreateError("Please select a contact.");
       return;
     }
 
@@ -1392,8 +1241,9 @@ export default function CalendarPage() {
               setCreatePatientName("");
               setConsultationDuration(15);
               setSelectedServiceId("");
-              setBookingStatus("");
-              setDraftLocation(CLINIC_LOCATION_OPTIONS[0] ?? "");
+              setBookingStatus("physical");
+              setDraftLocation("");
+              setDraftMeetLink("");
               setDraftDescription("");
               const defaultCalendar =
                 doctorCalendars.find((calendar) => calendar.selected) ||
@@ -1501,17 +1351,6 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        {/* Search patient */}
-        <div className="mb-4">
-          <input
-            type="text"
-            value={patientSearch}
-            onChange={(event) => setPatientSearch(event.target.value)}
-            placeholder="Search patient"
-            className="w-full rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-          />
-        </div>
-
         {/* Doctor calendars */}
         <div className="space-y-2">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
@@ -1544,71 +1383,6 @@ export default function CalendarPage() {
                   </span>
                 </label>
               ))
-            )}
-          </div>
-          <div className="pt-1">
-            {isCreatingCalendar ? (
-              <div className="space-y-1">
-                <select
-                  value={newCalendarProviderId}
-                  onChange={(event) => setNewCalendarProviderId(event.target.value)}
-                  className="w-full rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                >
-                  <option value="">Select doctor</option>
-                  {providers
-                    .filter((provider) =>
-                      !doctorCalendars.some(
-                        (calendar) => calendar.providerId === provider.id,
-                      ),
-                    )
-                    .map((provider) => {
-                      const rawName = provider.name ?? "Unnamed doctor";
-                      const trimmedName = rawName.trim() || "Unnamed doctor";
-                      return (
-                        <option key={provider.id} value={provider.id}>
-                          {trimmedName}
-                        </option>
-                      );
-                    })}
-                </select>
-                <div className="flex gap-1">
-                  <button
-                    type="button"
-                    onClick={handleConfirmNewCalendar}
-                    className="inline-flex flex-1 items-center justify-center rounded-full bg-sky-600 px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
-                    disabled={!newCalendarProviderId}
-                  >
-                    Add
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsCreatingCalendar(false);
-                      setNewCalendarProviderId("");
-                    }}
-                    className="inline-flex flex-1 items-center justify-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-700 shadow-sm hover:bg-slate-50"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  const providerIdsWithCalendars = new Set(
-                    doctorCalendars.map((calendar) => calendar.providerId),
-                  );
-                  const nextProvider = providers.find(
-                    (provider) => !providerIdsWithCalendars.has(provider.id),
-                  );
-                  setNewCalendarProviderId(nextProvider?.id ?? "");
-                  setIsCreatingCalendar(true);
-                }}
-                className="inline-flex items-center rounded-full border border-dashed border-sky-300 bg-sky-50 px-3 py-1.5 text-[11px] font-medium text-sky-700 hover:bg-sky-100"
-              >
-                + New calendar
-              </button>
             )}
           </div>
         </div>
@@ -1932,8 +1706,9 @@ export default function CalendarPage() {
                                 setCreatePatientName("");
                                 setConsultationDuration(15);
                                 setSelectedServiceId("");
-                                setBookingStatus("");
-                                setDraftLocation(CLINIC_LOCATION_OPTIONS[0] ?? "");
+                                setBookingStatus("physical");
+                                setDraftLocation("");
+                                setDraftMeetLink("");
                                 setDraftDescription("");
                                 const defaultCalendar =
                                   doctorCalendars.find((calendar) => calendar.selected) ||
@@ -2034,7 +1809,7 @@ export default function CalendarPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
             <div className="w-full max-w-md rounded-2xl border border-slate-200/80 bg-white/95 p-4 text-xs shadow-[0_24px_60px_rgba(15,23,42,0.75)]">
               <div className="flex items-start justify-between gap-2">
-                <h2 className="text-sm font-semibold text-slate-900">Edit appointment</h2>
+                <h2 className="text-sm font-semibold text-slate-900">Edit Meeting</h2>
                 <button
                   type="button"
                   onClick={() => {
@@ -2061,14 +1836,14 @@ export default function CalendarPage() {
               </div>
               <div className="mt-3 space-y-3">
                 <div className="space-y-1">
-                  <p className="text-[11px] font-medium text-slate-600">Patient</p>
+                  <p className="text-[11px] font-medium text-slate-600">Client</p>
                   <p className="text-[11px] text-slate-800">
                     {(() => {
                       const p = editingAppointment.patient;
                       const name = p
                         ? `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() ||
-                          "Unknown patient"
-                        : "Unknown patient";
+                          "Unknown client"
+                        : "Unknown client";
                       return name;
                     })()}
                   </p>
@@ -2129,27 +1904,18 @@ export default function CalendarPage() {
                 </div>
                 <div className="space-y-1">
                   <p className="text-[11px] font-medium text-slate-600">Location</p>
-                  <select
+                  <input
+                    type="text"
                     value={editLocation}
                     onChange={(event) => setEditLocation(event.target.value)}
+                    placeholder="Enter location"
                     className="w-full rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                  >
-                    <option value="">
-                      {CLINIC_LOCATION_OPTIONS.length === 0
-                        ? "No locations available"
-                        : "Select location"}
-                    </option>
-                    {CLINIC_LOCATION_OPTIONS.map((location) => (
-                      <option key={location} value={location}>
-                        {location}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </div>
                 <div className="space-y-1">
-                  <p className="text-[11px] font-medium text-slate-600">Channel</p>
+                  <p className="text-[11px] font-medium text-slate-600">Meeting Type</p>
                   <p className="text-[11px] text-slate-800">
-                    {editBookingStatus || "—"}
+                    {editBookingStatus || "Physical"}
                   </p>
                 </div>
               </div>
@@ -2184,7 +1950,7 @@ export default function CalendarPage() {
           <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
             <div className="w-full max-w-md rounded-2xl border border-slate-200/80 bg-white/95 p-4 text-xs shadow-[0_24px_60px_rgba(15,23,42,0.65)]">
               <div className="flex items-start justify-between gap-2">
-                <h2 className="text-sm font-semibold text-slate-900">Add appointment</h2>
+                <h2 className="text-sm font-semibold text-slate-900">Add Meeting</h2>
                 <button
                   type="button"
                   onClick={() => {
@@ -2210,37 +1976,7 @@ export default function CalendarPage() {
               </div>
               <div className="mt-3 space-y-3">
                 <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <p className="text-[11px] font-medium text-slate-600">Patient</p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setNewPatientFirstName("");
-                        setNewPatientLastName("");
-                        setNewPatientEmail("");
-                        setNewPatientPhone("");
-                        setNewPatientGender("");
-                        setNewPatientSource("manual");
-                        setNewPatientError(null);
-                        setSavingNewPatient(false);
-                        setNewPatientModalOpen(true);
-                      }}
-                      className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-emerald-300 bg-emerald-50 text-emerald-600 shadow-sm hover:bg-emerald-100"
-                    >
-                      <svg
-                        className="h-3 w-3"
-                        viewBox="0 0 20 20"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M10 4v12" />
-                        <path d="M4 10h12" />
-                      </svg>
-                    </button>
-                  </div>
+                  <p className="text-[11px] font-medium text-slate-600">Contact</p>
                   <div className="relative">
                     <input
                       type="text"
@@ -2253,23 +1989,23 @@ export default function CalendarPage() {
                         setConsultationDuration(15);
                       }}
                       onFocus={() => setShowCreatePatientSuggestions(true)}
-                      placeholder="Select patient"
+                      placeholder="Select contact"
                       className="w-full rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
                     />
                     {showCreatePatientSuggestions ? (
                       <div className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 text-xs shadow-lg">
                         {patientOptionsLoading ? (
                           <div className="px-3 py-1.5 text-[11px] text-slate-500">
-                            Loading patients...
+                            Loading contacts...
                           </div>
                         ) : filteredCreatePatientSuggestions.length === 0 ? (
                           <div className="px-3 py-1.5 text-[11px] text-slate-500">
-                            No patients found
+                            No contacts found
                           </div>
                         ) : (
                           filteredCreatePatientSuggestions.map((p) => {
                             const name = `${p.first_name ?? ""} ${p.last_name ?? ""}`
-                              .trim() || "Unnamed patient";
+                              .trim() || "Unnamed contact";
                             const details =
                               p.email || p.phone || "No contact details";
                             return (
@@ -2315,7 +2051,7 @@ export default function CalendarPage() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <p className="text-[11px] font-medium text-slate-600">Doctor calendar</p>
+                  <p className="text-[11px] font-medium text-slate-600">User</p>
                   <select
                     value={createDoctorCalendarId}
                     onChange={(event) => setCreateDoctorCalendarId(event.target.value)}
@@ -2323,8 +2059,8 @@ export default function CalendarPage() {
                   >
                     <option value="">
                       {doctorCalendars.length === 0
-                        ? "No doctor calendars available"
-                        : "Select doctor"}
+                        ? "No users available"
+                        : "Select user"}
                     </option>
                     {doctorCalendars.map((calendar) => (
                       <option key={calendar.id} value={calendar.id}>
@@ -2367,62 +2103,62 @@ export default function CalendarPage() {
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-[11px] font-medium text-slate-600">Service</p>
-                  <select
-                    value={selectedServiceId}
-                    onChange={(event) => setSelectedServiceId(event.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                  >
-                    <option value="">
-                      {serviceOptionsLoading
-                        ? "Loading services..."
-                        : serviceOptions.length === 0
-                          ? "No services available"
-                          : "Select a service"}
-                    </option>
-                    {serviceOptions.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.name}
-                      </option>
-                    ))}
-                  </select>
-                  {serviceOptionsError ? (
-                    <p className="text-[10px] text-red-600">{serviceOptionsError}</p>
-                  ) : null}
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[11px] font-medium text-slate-600">Status</p>
+                  <p className="text-[11px] font-medium text-slate-600">Meeting Type</p>
                   <select
                     value={bookingStatus}
                     onChange={(event) => setBookingStatus(event.target.value)}
                     className="w-full rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
                   >
-                    <option value="">Select Status</option>
-                    {BOOKING_STATUS_OPTIONS.map((status) => (
-                      <option key={status} value={status}>
-                        {status}
+                    {MEETING_TYPE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
                       </option>
                     ))}
                   </select>
                 </div>
+                {bookingStatus === "online" && (
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] font-medium text-slate-600">Google Meet Link</p>
+                      <button
+                        type="button"
+                        onClick={() => setDraftMeetLink(generateGoogleMeetLink())}
+                        className="text-[10px] font-medium text-sky-600 hover:text-sky-700"
+                      >
+                        Generate Link
+                      </button>
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={draftMeetLink}
+                        onChange={(event) => setDraftMeetLink(event.target.value)}
+                        placeholder="https://meet.google.com/xxx-xxxx-xxx"
+                        className="flex-1 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                      />
+                      {draftMeetLink && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(draftMeetLink);
+                          }}
+                          className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] font-medium text-slate-600 shadow-sm hover:bg-slate-50"
+                        >
+                          Copy
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
                 <div className="space-y-1">
                   <p className="text-[11px] font-medium text-slate-600">Location</p>
-                  <select
+                  <input
+                    type="text"
                     value={draftLocation}
                     onChange={(event) => setDraftLocation(event.target.value)}
+                    placeholder={bookingStatus === "online" ? "Optional for online meetings" : "Enter location"}
                     className="w-full rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                  >
-                    <option value="">
-                      {CLINIC_LOCATION_OPTIONS.length === 0
-                        ? "No locations available"
-                        : "Select location"}
-                    </option>
-                    {CLINIC_LOCATION_OPTIONS.map((location) => (
-                      <option key={location} value={location}>
-                        {location}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </div>
                 <div className="space-y-1">
                   <p className="text-[11px] font-medium text-slate-600">Consultation duration</p>
@@ -2451,154 +2187,12 @@ export default function CalendarPage() {
               {createError ? (
                 <p className="mt-2 text-[11px] text-red-600">{createError}</p>
               ) : null}
-              <div className="mt-4 flex items-center justify-between gap-2">
-                <button
-                  type="button"
-                  className="text-[11px] font-medium text-sky-600 hover:underline hover:underline-offset-2"
-                >
-                  More options
-                </button>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (savingCreate) return;
-                      setCreateModalOpen(false);
-                    }}
-                    className="inline-flex items-center rounded-full border border-slate-200/80 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-700 shadow-sm hover:bg-slate-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleSaveAppointment()}
-                    disabled={savingCreate}
-                    className="inline-flex items-center rounded-full border border-sky-500/80 bg-sky-600 px-3 py-1.5 text-[11px] font-medium text-white shadow-sm hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    Save
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : null}
-        {newPatientModalOpen ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
-            <div className="w-full max-w-md rounded-2xl border border-slate-200/80 bg-white/95 p-4 text-xs shadow-[0_24px_60px_rgba(15,23,42,0.75)]">
-              <div className="flex items-start justify-between gap-2">
-                <h2 className="text-sm font-semibold text-slate-900">New patient</h2>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (savingNewPatient) return;
-                    setNewPatientModalOpen(false);
-                  }}
-                  className="ml-2 inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-200/80 bg-white text-slate-500 shadow-sm hover:bg-slate-50"
-                >
-                  <span className="sr-only">Close</span>
-                  <svg
-                    className="h-3 w-3"
-                    viewBox="0 0 20 20"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M5 5l10 10" />
-                    <path d="M15 5L5 15" />
-                  </svg>
-                </button>
-              </div>
-              <div className="mt-3 space-y-3">
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <p className="text-[11px] font-medium text-slate-600">First name</p>
-                    <input
-                      type="text"
-                      value={newPatientFirstName}
-                      onChange={(event) => setNewPatientFirstName(event.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-[11px] font-medium text-slate-600">Last name</p>
-                    <input
-                      type="text"
-                      value={newPatientLastName}
-                      onChange={(event) => setNewPatientLastName(event.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[11px] font-medium text-slate-600">Email</p>
-                  <input
-                    type="email"
-                    value={newPatientEmail}
-                    onChange={(event) => setNewPatientEmail(event.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[11px] font-medium text-slate-600">Phone</p>
-                  <div className="flex gap-2">
-                    <select
-                      defaultValue="+41"
-                      className="w-24 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                    >
-                      <option value="+41">🇨🇭 +41</option>
-                      <option value="+971">🇦🇪 +971</option>
-                      <option value="+44">🇬🇧 +44</option>
-                      <option value="+1">🇺🇸 +1</option>
-                    </select>
-                    <input
-                      type="tel"
-                      value={newPatientPhone}
-                      onChange={(event) => setNewPatientPhone(event.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                      placeholder="79 123 45 67"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <p className="text-[11px] font-medium text-slate-600">Gender</p>
-                    <select
-                      value={newPatientGender}
-                      onChange={(event) => setNewPatientGender(event.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                    >
-                      <option value="">Select</option>
-                      <option value="male">Male</option>
-                      <option value="female">Female</option>
-                      <option value="other">Other</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-[11px] font-medium text-slate-600">Source</p>
-                    <select
-                      value={newPatientSource}
-                      onChange={(event) => setNewPatientSource(event.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                    >
-                      <option value="manual">Manual</option>
-                      <option value="event">Event</option>
-                      <option value="meta">Meta</option>
-                      <option value="google">Google</option>
-                    </select>
-                  </div>
-                </div>
-                {newPatientError ? (
-                  <p className="text-[11px] text-red-600">{newPatientError}</p>
-                ) : null}
-              </div>
               <div className="mt-4 flex items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => {
-                    if (savingNewPatient) return;
-                    setNewPatientModalOpen(false);
+                    if (savingCreate) return;
+                    setCreateModalOpen(false);
                   }}
                   className="inline-flex items-center rounded-full border border-slate-200/80 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-700 shadow-sm hover:bg-slate-50"
                 >
@@ -2606,11 +2200,11 @@ export default function CalendarPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => void handleCreateNewPatient()}
-                  disabled={savingNewPatient}
-                  className="inline-flex items-center rounded-full border border-emerald-500/80 bg-emerald-500 px-3 py-1.5 text-[11px] font-medium text-white shadow-sm hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={() => void handleSaveAppointment()}
+                  disabled={savingCreate}
+                  className="inline-flex items-center rounded-full border border-sky-500/80 bg-sky-600 px-3 py-1.5 text-[11px] font-medium text-white shadow-sm hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {savingNewPatient ? "Saving..." : "Save patient"}
+                  Save
                 </button>
               </div>
             </div>

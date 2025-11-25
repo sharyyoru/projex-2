@@ -45,7 +45,7 @@ export default function HeaderSearch() {
           type="text"
           value={value}
           onChange={(event) => setValue(event.target.value)}
-          placeholder="Search patients, deals, tasks, services..."
+          placeholder="Search companies, contacts, projects, quotes, invoices..."
           className="w-full border-0 bg-transparent text-[11px] text-slate-800 placeholder:text-slate-400 focus:outline-none"
         />
         <button
