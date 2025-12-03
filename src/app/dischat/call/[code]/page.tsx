@@ -41,6 +41,9 @@ export default function GuestCallPage({ params }: { params: Promise<{ code: stri
     uid: number;
   } | null>(null);
 
+  // Store invite data
+  const [inviteData, setInviteData] = useState<{ channel_id: string; server_id?: string } | null>(null);
+
   // Validate invite on load
   useEffect(() => {
     const validateInvite = async () => {
@@ -58,6 +61,8 @@ export default function GuestCallPage({ params }: { params: Promise<{ code: stri
           setError("This invite has expired");
         } else if (invite.max_uses && invite.uses >= invite.max_uses) {
           setError("This invite has reached its maximum uses");
+        } else {
+          setInviteData({ channel_id: invite.channel_id, server_id: invite.server_id });
         }
       } catch {
         setError("Failed to validate invite");
@@ -75,6 +80,11 @@ export default function GuestCallPage({ params }: { params: Promise<{ code: stri
       return;
     }
 
+    if (!inviteData) {
+      setError("Invalid invite data");
+      return;
+    }
+
     setConnecting(true);
     setError(null);
 
@@ -84,7 +94,8 @@ export default function GuestCallPage({ params }: { params: Promise<{ code: stri
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          channel_id: code.split("_")[1], // Extract channel ID from code
+          channel_id: inviteData.channel_id,
+          server_id: inviteData.server_id,
           is_guest: true,
           guest_code: code,
         }),

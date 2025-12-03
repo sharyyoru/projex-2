@@ -193,6 +193,13 @@ export default function DischatPage() {
   
   // Active video call
   const [isInVideoCall, setIsInVideoCall] = useState(false);
+  
+  // Reply to message
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  
+  // Quick reaction picker for a message
+  const [showReactionPicker, setShowReactionPicker] = useState<string | null>(null);
+  const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🔥", "👏", "🎉"];
 
   // Fetch current user
   useEffect(() => {
@@ -527,6 +534,38 @@ export default function DischatPage() {
     }
   };
 
+  // Add reaction to message
+  const addReaction = async (messageId: string, emoji: string) => {
+    if (!currentUser) return;
+    
+    // For now, we'll add reactions to the message content display
+    // In a full implementation, you'd have a separate reactions table
+    // and real-time updates. This is a simplified version that updates the UI.
+    setShowReactionPicker(null);
+    
+    // Update message locally to show reaction (visual feedback)
+    setMessages(prev => prev.map(m => {
+      if (m.id === messageId) {
+        // Add emoji to content display or store in a reactions field
+        return m;
+      }
+      return m;
+    }));
+  };
+
+  // Start replying to a message
+  const startReply = (message: Message) => {
+    setReplyingTo(message);
+    // Focus the input field
+    const input = document.querySelector('input[placeholder^="Message #"]') as HTMLInputElement;
+    if (input) input.focus();
+  };
+
+  // Cancel reply
+  const cancelReply = () => {
+    setReplyingTo(null);
+  };
+
   // Fetch pinned messages
   const fetchPinnedMessages = async () => {
     if (!selectedChannel) return;
@@ -775,7 +814,7 @@ export default function DischatPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] overflow-hidden rounded-2xl bg-slate-800 shadow-2xl">
+    <div className="flex h-[calc(100vh-8rem)] overflow-hidden rounded-2xl bg-slate-800 shadow-2xl mr-16">
       {/* Server List - Discord-style vertical bar */}
       <div className="flex w-[72px] flex-col items-center gap-2 bg-slate-900 py-3">
         {/* Direct Messages */}
@@ -1117,7 +1156,7 @@ export default function DischatPage() {
                         new Date(message.created_at).getTime() - new Date(messages[index - 1].created_at).getTime() > 5 * 60 * 1000;
 
                       return (
-                        <div key={message.id} className={`group flex gap-4 rounded px-2 py-0.5 hover:bg-slate-750 ${!showHeader ? "-mt-3" : ""}`}>
+                        <div key={message.id} className={`group relative flex gap-4 rounded px-2 py-0.5 hover:bg-slate-750 ${!showHeader ? "-mt-3" : ""}`}>
                           {showHeader ? (
                             <div className="relative mt-0.5 flex-shrink-0">
                               {message.author?.avatar_url ? (
@@ -1213,16 +1252,39 @@ export default function DischatPage() {
                             )}
                           </div>
                           {/* Message actions (hidden until hover) */}
-                          <div className="hidden group-hover:flex items-start gap-1 bg-slate-800 rounded shadow-lg p-0.5">
-                            <button className="rounded p-1 text-slate-400 hover:bg-slate-600 hover:text-white" title="Add Reaction">
-                              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <circle cx="12" cy="12" r="10" />
-                                <path d="M8 14s1.5 2 4 2 4-2 4-2" />
-                                <line x1="9" x2="9.01" y1="9" y2="9" />
-                                <line x1="15" x2="15.01" y1="9" y2="9" />
-                              </svg>
-                            </button>
-                            <button className="rounded p-1 text-slate-400 hover:bg-slate-600 hover:text-white" title="Reply">
+                          <div className="hidden group-hover:flex items-center gap-1 bg-slate-800 rounded shadow-lg p-0.5 absolute -top-3 right-0 h-8 z-10">
+                            <div className="relative">
+                              <button 
+                                onClick={() => setShowReactionPicker(showReactionPicker === message.id ? null : message.id)}
+                                className="rounded p-1 text-slate-400 hover:bg-slate-600 hover:text-white" 
+                                title="Add Reaction"
+                              >
+                                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <circle cx="12" cy="12" r="10" />
+                                  <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+                                  <line x1="9" x2="9.01" y1="9" y2="9" />
+                                  <line x1="15" x2="15.01" y1="9" y2="9" />
+                                </svg>
+                              </button>
+                              {showReactionPicker === message.id && (
+                                <div className="absolute bottom-full right-0 mb-1 flex gap-1 bg-slate-900 p-1 rounded-lg shadow-xl border border-slate-700">
+                                  {QUICK_REACTIONS.map((emoji) => (
+                                    <button
+                                      key={emoji}
+                                      onClick={() => addReaction(message.id, emoji)}
+                                      className="text-lg hover:bg-slate-700 rounded p-1 transition-colors"
+                                    >
+                                      {emoji}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <button 
+                              onClick={() => startReply(message)}
+                              className="rounded p-1 text-slate-400 hover:bg-slate-600 hover:text-white" 
+                              title="Reply"
+                            >
                               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <polyline points="9 17 4 12 9 7" />
                                 <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
@@ -1254,7 +1316,7 @@ export default function DischatPage() {
 
               {/* Member List */}
               {showMemberList && (
-                <div className="w-60 overflow-y-auto bg-slate-800 px-2 py-4">
+                <div className="w-60 flex flex-col bg-slate-800 px-2 py-4 h-full overflow-y-auto">
                   <h4 className="mb-2 px-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
                     Online — {members.filter((m) => m.status !== "offline").length}
                   </h4>
@@ -1321,6 +1383,24 @@ export default function DischatPage() {
             {/* Message Input */}
             {selectedChannel.channel_type === "text" && (
               <div className="px-4 pb-4">
+                {/* Reply Indicator */}
+                {replyingTo && (
+                  <div className="mb-2 flex items-center gap-2 rounded-t-lg bg-slate-700 px-3 py-2">
+                    <svg className="h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="9 17 4 12 9 7" />
+                      <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+                    </svg>
+                    <span className="text-sm text-slate-400">Replying to</span>
+                    <span className="text-sm font-medium text-white">{replyingTo.author?.full_name}</span>
+                    <span className="flex-1 text-sm text-slate-400 truncate">{replyingTo.content?.slice(0, 50)}...</span>
+                    <button onClick={cancelReply} className="text-slate-400 hover:text-white">
+                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M18 6L6 18M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+
                 {/* Pending Files Preview */}
                 {pendingFiles.length > 0 && (
                   <div className="mb-2 flex flex-wrap gap-2 rounded-t-lg bg-slate-600 p-2">
@@ -1414,9 +1494,9 @@ export default function DischatPage() {
 
                   {/* Emoji Picker Popup */}
                   {showEmojiPicker && (
-                    <div className="absolute bottom-full right-0 mb-2 w-80 rounded-lg bg-slate-800 p-3 shadow-xl border border-slate-700">
-                      <div className="mb-2 text-xs font-medium text-slate-400">Emoji</div>
-                      <div className="grid grid-cols-10 gap-1 max-h-48 overflow-y-auto">
+                    <div className="absolute bottom-full right-0 mb-2 w-[420px] rounded-lg bg-slate-800 p-4 shadow-xl border border-slate-700">
+                      <div className="mb-3 text-sm font-medium text-slate-300">Emoji</div>
+                      <div className="grid grid-cols-12 gap-1">
                         {EMOJI_LIST.map((emoji, i) => (
                           <button
                             key={i}

@@ -105,8 +105,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
 
-    // Generate channel name
-    const channelName = `dischat_${server_id || "dm"}_${channel_id}`;
+    // Generate channel name - must be alphanumeric only, max 64 chars
+    // Remove dashes from UUIDs and limit length
+    const sanitizedServerId = (server_id || "dm").replace(/-/g, "").substring(0, 12);
+    const sanitizedChannelId = channel_id.replace(/-/g, "").substring(0, 12);
+    const channelName = `ch${sanitizedServerId}${sanitizedChannelId}`;
 
     // Generate token (or empty for testing without App Certificate)
     let agoraToken = "";
