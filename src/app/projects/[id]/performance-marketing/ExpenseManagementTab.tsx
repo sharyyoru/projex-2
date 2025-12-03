@@ -18,6 +18,7 @@ export default function ExpenseManagementTab({
   const [showModal, setShowModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [form, setForm] = useState({
+    campaign_objective: "" as "brand_awareness" | "sales" | "",
     date_start: new Date().toISOString().split("T")[0],
     date_end: new Date().toISOString().split("T")[0],
     channel: "google_ads" as MarketingChannel,
@@ -26,6 +27,7 @@ export default function ExpenseManagementTab({
     currency: "AED",
     manual_clicks: "",
     manual_impressions: "",
+    manual_reach: "",
     notes: "",
     country: "United Arab Emirates",
     region: "",
@@ -38,19 +40,21 @@ export default function ExpenseManagementTab({
   const [importing, setImporting] = useState(false);
 
   async function handleSubmit() {
-    if (!form.campaign_name || !form.spend_amount) return;
+    if (!form.campaign_objective || !form.campaign_name || !form.spend_amount) return;
     setSaving(true);
     const { data: { user } } = await supabaseClient.auth.getUser();
-    await supabaseClient.from("marketing_expense_logs").insert({
+    const { error } = await supabaseClient.from("marketing_expense_logs").insert({
       project_id: projectId,
+      campaign_objective: form.campaign_objective,
       date_start: form.date_start,
       date_end: form.date_end,
       channel: form.channel,
       campaign_name: form.campaign_name,
       spend_amount: parseFloat(form.spend_amount),
       currency: form.currency,
-      manual_clicks: form.manual_clicks ? parseInt(form.manual_clicks) : null,
+      manual_clicks: form.campaign_objective === "sales" && form.manual_clicks ? parseInt(form.manual_clicks) : null,
       manual_impressions: form.manual_impressions ? parseInt(form.manual_impressions) : null,
+      manual_reach: form.campaign_objective === "brand_awareness" && form.manual_reach ? parseInt(form.manual_reach) : null,
       notes: form.notes || null,
       import_source: "manual",
       created_by_user_id: user?.id,
@@ -58,7 +62,13 @@ export default function ExpenseManagementTab({
       region: form.region || null,
       city: form.city || null,
     });
-    setForm({ date_start: new Date().toISOString().split("T")[0], date_end: new Date().toISOString().split("T")[0], channel: "google_ads", campaign_name: "", spend_amount: "", currency: "AED", manual_clicks: "", manual_impressions: "", notes: "", country: "United Arab Emirates", region: "", city: "" });
+    if (error) {
+      console.error("Error saving expense:", error);
+      alert("Error saving: " + error.message);
+      setSaving(false);
+      return;
+    }
+    setForm({ campaign_objective: "", date_start: new Date().toISOString().split("T")[0], date_end: new Date().toISOString().split("T")[0], channel: "google_ads", campaign_name: "", spend_amount: "", currency: "AED", manual_clicks: "", manual_impressions: "", manual_reach: "", notes: "", country: "United Arab Emirates", region: "", city: "" });
     setSaving(false);
     setShowModal(false);
     onRefresh();
@@ -164,6 +174,7 @@ export default function ExpenseManagementTab({
             <thead>
               <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <th className="px-4 py-3">Date Range</th>
+                <th className="px-4 py-3">Objective</th>
                 <th className="px-4 py-3">Channel</th>
                 <th className="px-4 py-3">Campaign</th>
                 <th className="px-4 py-3 text-right">Spend</th>
@@ -178,6 +189,7 @@ export default function ExpenseManagementTab({
               {expenses.map((expense) => (
                 <tr key={expense.id} className="border-b border-slate-100 hover:bg-slate-50">
                   <td className="px-4 py-3 text-sm text-slate-700">{new Date(expense.date_start).toLocaleDateString()} - {new Date(expense.date_end).toLocaleDateString()}</td>
+                  <td className="px-4 py-3"><span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${(expense as any).campaign_objective === "brand_awareness" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>{(expense as any).campaign_objective === "brand_awareness" ? "Awareness" : "Sales"}</span></td>
                   <td className="px-4 py-3"><span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">{getChannelLabel(expense.channel)}</span></td>
                   <td className="px-4 py-3 text-sm text-slate-900 font-medium">{expense.campaign_name}</td>
                   <td className="px-4 py-3 text-sm text-slate-900 font-semibold text-right">{formatMoney(expense.spend_amount)}</td>
@@ -198,33 +210,58 @@ export default function ExpenseManagementTab({
           <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
             <h2 className="mb-4 text-lg font-semibold text-slate-900">Add Expense Entry</h2>
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div><label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-700">Start Date *</label><input type="date" value={form.date_start} onChange={(e) => setForm({ ...form, date_start: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm" /></div>
-                <div><label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-700">End Date *</label><input type="date" value={form.date_end} onChange={(e) => setForm({ ...form, date_end: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm" /></div>
+              {/* Campaign Objective Selection */}
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-700">Campaign Objective *</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button type="button" onClick={() => setForm({ ...form, campaign_objective: "brand_awareness" })} className={`p-4 rounded-xl border-2 text-left transition-all ${form.campaign_objective === "brand_awareness" ? "border-purple-500 bg-purple-50" : "border-slate-200 hover:border-slate-300"}`}>
+                    <div className="flex items-center gap-2 mb-1"><span className="text-lg">📢</span><span className="font-semibold text-slate-900">Brand Awareness</span></div>
+                    <p className="text-xs text-slate-500">Focus on reach & impressions. No direct conversions tracked.</p>
+                  </button>
+                  <button type="button" onClick={() => setForm({ ...form, campaign_objective: "sales" })} className={`p-4 rounded-xl border-2 text-left transition-all ${form.campaign_objective === "sales" ? "border-blue-500 bg-blue-50" : "border-slate-200 hover:border-slate-300"}`}>
+                    <div className="flex items-center gap-2 mb-1"><span className="text-lg">💰</span><span className="font-semibold text-slate-900">Sales / Conversions</span></div>
+                    <p className="text-xs text-slate-500">Focus on leads, clicks & revenue. Track ROI directly.</p>
+                  </button>
+                </div>
               </div>
-              <div><label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-700">Channel *</label><select value={form.channel} onChange={(e) => setForm({ ...form, channel: e.target.value as MarketingChannel })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm">{CHANNELS.map((ch) => (<option key={ch.value} value={ch.value}>{ch.label}</option>))}</select></div>
-              <div><label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-700">Campaign Name *</label><input type="text" value={form.campaign_name} onChange={(e) => setForm({ ...form, campaign_name: e.target.value })} placeholder="e.g., Summer Sale 2024" className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm" list="campaign-suggestions" /><datalist id="campaign-suggestions">{campaigns.map((c) => (<option key={c.id} value={c.name} />))}</datalist></div>
+              {form.campaign_objective && (
+              <>
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-700">Amount Spent *</label><input type="number" value={form.spend_amount} onChange={(e) => setForm({ ...form, spend_amount: e.target.value })} placeholder="0.00" className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm" /></div>
-                <div><label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-700">Currency</label><select value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm"><option value="AED">AED</option><option value="USD">USD</option><option value="EUR">EUR</option></select></div>
+                <div><label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-700">Start Date *</label><input type="date" value={form.date_start} onChange={(e) => setForm({ ...form, date_start: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-900" /></div>
+                <div><label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-700">End Date *</label><input type="date" value={form.date_end} onChange={(e) => setForm({ ...form, date_end: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-900" /></div>
               </div>
+              <div><label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-700">Channel *</label><select value={form.channel} onChange={(e) => setForm({ ...form, channel: e.target.value as MarketingChannel })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-900">{CHANNELS.map((ch) => (<option key={ch.value} value={ch.value}>{ch.label}</option>))}</select></div>
+              <div><label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-700">Campaign Name *</label><input type="text" value={form.campaign_name} onChange={(e) => setForm({ ...form, campaign_name: e.target.value })} placeholder="e.g., Summer Sale 2024" className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-900" list="campaign-suggestions" /><datalist id="campaign-suggestions">{campaigns.map((c) => (<option key={c.id} value={c.name} />))}</datalist></div>
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-700">Total Clicks</label><input type="number" value={form.manual_clicks} onChange={(e) => setForm({ ...form, manual_clicks: e.target.value })} placeholder="0" className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm" /></div>
-                <div><label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-700">Total Impressions</label><input type="number" value={form.manual_impressions} onChange={(e) => setForm({ ...form, manual_impressions: e.target.value })} placeholder="0" className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm" /></div>
+                <div><label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-700">Amount Spent *</label><input type="number" value={form.spend_amount} onChange={(e) => setForm({ ...form, spend_amount: e.target.value })} placeholder="0.00" className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-900" /></div>
+                <div><label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-700">Currency</label><select value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-900"><option value="AED">AED</option><option value="USD">USD</option><option value="EUR">EUR</option></select></div>
               </div>
+              {form.campaign_objective === "brand_awareness" ? (
+                <div className="grid grid-cols-2 gap-4">
+                  <div><label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-700">Total Impressions</label><input type="number" value={form.manual_impressions} onChange={(e) => setForm({ ...form, manual_impressions: e.target.value })} placeholder="0" className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-900" /></div>
+                  <div><label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-700">Total Reach</label><input type="number" value={form.manual_reach} onChange={(e) => setForm({ ...form, manual_reach: e.target.value })} placeholder="0" className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-900" /></div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-4">
+                  <div><label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-700">Total Clicks</label><input type="number" value={form.manual_clicks} onChange={(e) => setForm({ ...form, manual_clicks: e.target.value })} placeholder="0" className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-900" /></div>
+                  <div><label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-700">Total Impressions</label><input type="number" value={form.manual_impressions} onChange={(e) => setForm({ ...form, manual_impressions: e.target.value })} placeholder="0" className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-900" /></div>
+                </div>
+              )}
               <div className="border-t border-slate-200 pt-4">
                 <h4 className="text-xs font-semibold text-slate-600 mb-3">Geographic Location</h4>
                 <div className="grid grid-cols-3 gap-3">
-                  <div><label className="mb-1 block text-xs text-slate-500">Country</label><select value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value, region: e.target.value === "United Arab Emirates" ? form.region : "" })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs">{COMMON_COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
-                  <div><label className="mb-1 block text-xs text-slate-500">Region/Emirate</label>{form.country === "United Arab Emirates" ? <select value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs"><option value="">All Emirates</option>{UAE_EMIRATES.map(e => <option key={e} value={e}>{e}</option>)}</select> : <input type="text" value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} placeholder="Region/State" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs" />}</div>
-                  <div><label className="mb-1 block text-xs text-slate-500">City</label><input type="text" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="City" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs" /></div>
+                  <div><label className="mb-1 block text-xs text-slate-500">Country</label><select value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value, region: e.target.value === "United Arab Emirates" ? form.region : "" })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-900">{COMMON_COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                  <div><label className="mb-1 block text-xs text-slate-500">Region/Emirate</label>{form.country === "United Arab Emirates" ? <select value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-900"><option value="">All Emirates</option>{UAE_EMIRATES.map(e => <option key={e} value={e}>{e}</option>)}</select> : <input type="text" value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} placeholder="Region/State" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-900" />}</div>
+                  <div><label className="mb-1 block text-xs text-slate-500">City</label><input type="text" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="City" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-900" /></div>
                 </div>
               </div>
-              <div><label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-700">Notes</label><textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Optional notes..." rows={2} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm resize-none" /></div>
+              <div><label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-700">Notes</label><textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Optional notes..." rows={2} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-900 resize-none" /></div>
+              </>
+              )}
             </div>
             <div className="mt-6 flex justify-end gap-3">
               <button onClick={() => setShowModal(false)} className="rounded-full px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">Cancel</button>
-              <button onClick={handleSubmit} disabled={saving || !form.campaign_name || !form.spend_amount} className="rounded-full bg-emerald-500 px-5 py-2 text-sm font-medium text-white shadow-lg disabled:opacity-50">{saving ? "Saving..." : "Save Entry"}</button>
+              <button onClick={handleSubmit} disabled={saving || !form.campaign_objective || !form.campaign_name || !form.spend_amount} className="rounded-full bg-emerald-500 px-5 py-2 text-sm font-medium text-white shadow-lg disabled:opacity-50">{saving ? "Saving..." : "Save Entry"}</button>
             </div>
           </div>
         </div>

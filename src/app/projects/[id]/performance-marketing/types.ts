@@ -19,10 +19,13 @@ export type Campaign = {
   created_at: string;
 };
 
+export type CampaignObjective = "brand_awareness" | "sales";
+
 export type ExpenseLog = {
   id: string;
   project_id: string;
   campaign_id: string | null;
+  campaign_objective: CampaignObjective;
   date_start: string;
   date_end: string;
   channel: MarketingChannel;
@@ -31,6 +34,7 @@ export type ExpenseLog = {
   currency: string;
   manual_clicks: number | null;
   manual_impressions: number | null;
+  manual_reach: number | null;
   manual_conversions: number | null;
   notes: string | null;
   import_source: string;
