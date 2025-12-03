@@ -39,6 +39,12 @@ interface Attachment {
   content_type?: string;
 }
 
+interface Reaction {
+  emoji: string;
+  users: string[]; // user IDs who reacted
+  count: number;
+}
+
 interface Message {
   id: string;
   content: string;
@@ -49,6 +55,7 @@ interface Message {
   author?: { full_name: string; avatar_url: string };
   reply_to_id?: string;
   reply_to?: { content: string; author?: { full_name: string } };
+  reactions?: Reaction[];
 }
 
 interface Member {
@@ -630,20 +637,85 @@ export default function DischatPage() {
   // Add reaction to message
   const addReaction = async (messageId: string, emoji: string) => {
     if (!currentUser) return;
-    
-    // For now, we'll add reactions to the message content display
-    // In a full implementation, you'd have a separate reactions table
-    // and real-time updates. This is a simplified version that updates the UI.
     setShowReactionPicker(null);
     
-    // Update message locally to show reaction (visual feedback)
+    // Update message locally to show reaction
     setMessages(prev => prev.map(m => {
       if (m.id === messageId) {
-        // Add emoji to content display or store in a reactions field
-        return m;
+        const existingReactions = m.reactions || [];
+        const existingReaction = existingReactions.find(r => r.emoji === emoji);
+        
+        if (existingReaction) {
+          // Check if user already reacted with this emoji
+          if (existingReaction.users.includes(currentUser.id)) {
+            // Remove user's reaction (toggle off)
+            const updatedUsers = existingReaction.users.filter(u => u !== currentUser.id);
+            if (updatedUsers.length === 0) {
+              // Remove the reaction entirely
+              return {
+                ...m,
+                reactions: existingReactions.filter(r => r.emoji !== emoji)
+              };
+            }
+            return {
+              ...m,
+              reactions: existingReactions.map(r => 
+                r.emoji === emoji 
+                  ? { ...r, users: updatedUsers, count: updatedUsers.length }
+                  : r
+              )
+            };
+          } else {
+            // Add user to existing reaction
+            return {
+              ...m,
+              reactions: existingReactions.map(r =>
+                r.emoji === emoji
+                  ? { ...r, users: [...r.users, currentUser.id], count: r.count + 1 }
+                  : r
+              )
+            };
+          }
+        } else {
+          // Add new reaction
+          return {
+            ...m,
+            reactions: [...existingReactions, { emoji, users: [currentUser.id], count: 1 }]
+          };
+        }
       }
       return m;
     }));
+    
+    // Persist to database (update message metadata)
+    try {
+      const message = messages.find(m => m.id === messageId);
+      if (message) {
+        const existingReactions = message.reactions || [];
+        const existingReaction = existingReactions.find(r => r.emoji === emoji);
+        let newReactions;
+        
+        if (existingReaction) {
+          if (existingReaction.users.includes(currentUser.id)) {
+            const updatedUsers = existingReaction.users.filter(u => u !== currentUser.id);
+            newReactions = updatedUsers.length === 0
+              ? existingReactions.filter(r => r.emoji !== emoji)
+              : existingReactions.map(r => r.emoji === emoji ? { ...r, users: updatedUsers, count: updatedUsers.length } : r);
+          } else {
+            newReactions = existingReactions.map(r => r.emoji === emoji ? { ...r, users: [...r.users, currentUser.id], count: r.count + 1 } : r);
+          }
+        } else {
+          newReactions = [...existingReactions, { emoji, users: [currentUser.id], count: 1 }];
+        }
+        
+        await supabaseClient
+          .from("dischat_messages")
+          .update({ reactions: newReactions })
+          .eq("id", messageId);
+      }
+    } catch (err) {
+      console.error("Error saving reaction:", err);
+    }
   };
 
   // Start replying to a message
@@ -1441,57 +1513,92 @@ export default function DischatPage() {
                         new Date(message.created_at).getTime() - new Date(messages[index - 1].created_at).getTime() > 5 * 60 * 1000;
 
                       return (
-                        <div key={message.id} className={`group relative flex gap-4 rounded px-2 py-0.5 hover:bg-slate-750 ${!showHeader ? "-mt-3" : ""}`}>
-                          {showHeader ? (
-                            <div className="relative mt-0.5 flex-shrink-0">
-                              {message.author?.avatar_url ? (
-                                <img src={message.author.avatar_url} alt="" className="h-10 w-10 rounded-full" />
-                              ) : (
-                                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-500 text-sm font-medium text-white">
-                                  {message.author?.full_name?.[0] || "U"}
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="w-10 flex-shrink-0">
-                              <span className="hidden text-xs text-slate-500 group-hover:block">
-                                {new Date(message.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                              </span>
-                            </div>
-                          )}
-                          <div className="flex-1 min-w-0">
-                            {/* Reply indicator */}
-                            {message.reply_to && (
-                              <div className="flex items-center gap-2 mb-1 text-xs text-slate-400">
-                                <svg className="h-3 w-3 rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <polyline points="9 17 4 12 9 7" />
-                                  <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
-                                </svg>
-                                <span className="text-indigo-400 font-medium">{message.reply_to.author?.full_name || "User"}</span>
-                                <span className="truncate max-w-xs">{message.reply_to.content?.slice(0, 50)}{message.reply_to.content?.length > 50 ? "..." : ""}</span>
-                              </div>
-                            )}
-                            {showHeader && (
-                              <div className="flex items-baseline gap-2">
-                                <span className="font-medium text-white hover:underline cursor-pointer">
-                                  {message.author?.full_name || "Unknown User"}
-                                </span>
-                                <span className="text-xs text-slate-500">{formatTime(message.created_at)}</span>
-                                {message.is_pinned && (
-                                  <span className="flex items-center gap-1 text-xs text-yellow-400">
-                                    <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1">
-                                      <line x1="12" x2="12" y1="17" y2="22" />
-                                      <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z" />
-                                    </svg>
-                                    Pinned
-                                  </span>
+                        <div key={message.id} className={`group relative rounded px-2 py-0.5 hover:bg-slate-750 ${!showHeader ? "-mt-3" : ""}`}>
+                          {/* Message actions - absolute positioned at top right */}
+                          <div className="hidden group-hover:flex items-center gap-0.5 bg-slate-700 rounded-md shadow-lg px-1 py-0.5 absolute -top-2 right-2 z-10">
+                            {["👍", "❤️", "😂", "😮"].map((emoji) => (
+                              <button
+                                key={emoji}
+                                onClick={() => addReaction(message.id, emoji)}
+                                className="text-sm hover:bg-slate-600 rounded px-1 py-0.5 transition-colors"
+                                title={`React with ${emoji}`}
+                              >
+                                {emoji}
+                              </button>
+                            ))}
+                            <div className="w-px h-4 bg-slate-600 mx-0.5" />
+                            <button 
+                              onClick={() => startReply(message)}
+                              className="rounded p-1 text-slate-400 hover:bg-slate-600 hover:text-white" 
+                              title="Reply"
+                            >
+                              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <polyline points="9 17 4 12 9 7" />
+                                <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+                              </svg>
+                            </button>
+                            <button 
+                              onClick={() => togglePinMessage(message)}
+                              className={`rounded p-1 hover:bg-slate-600 ${message.is_pinned ? "text-yellow-400" : "text-slate-400 hover:text-white"}`} 
+                              title={message.is_pinned ? "Unpin Message" : "Pin Message"}
+                            >
+                              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill={message.is_pinned ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+                                <line x1="12" x2="12" y1="17" y2="22" />
+                                <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z" />
+                              </svg>
+                            </button>
+                          </div>
+                          
+                          <div className="flex gap-4">
+                            {showHeader ? (
+                              <div className="relative mt-0.5 flex-shrink-0">
+                                {message.author?.avatar_url ? (
+                                  <img src={message.author.avatar_url} alt="" className="h-10 w-10 rounded-full" />
+                                ) : (
+                                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-500 text-sm font-medium text-white">
+                                    {message.author?.full_name?.[0] || "U"}
+                                  </div>
                                 )}
                               </div>
+                            ) : (
+                              <div className="w-10 flex-shrink-0">
+                                <span className="hidden text-xs text-slate-500 group-hover:block">
+                                  {new Date(message.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                </span>
+                              </div>
                             )}
-                            <p
-                              className="text-slate-200 break-words"
-                              dangerouslySetInnerHTML={{ __html: parseContent(message.content || "") }}
-                            />
+                            <div className="flex-1 min-w-0">
+                              {/* Reply indicator */}
+                              {message.reply_to && (
+                                <div className="flex items-center gap-2 mb-1 text-xs text-slate-400 bg-slate-800/50 rounded px-2 py-1 -ml-2">
+                                  <svg className="h-3 w-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M9 17l-5-5 5-5M4 12h16" />
+                                  </svg>
+                                  <span className="text-indigo-400 font-medium flex-shrink-0">@{message.reply_to.author?.full_name || "User"}</span>
+                                  <span className="truncate text-slate-500">{message.reply_to.content?.slice(0, 40)}{(message.reply_to.content?.length || 0) > 40 ? "..." : ""}</span>
+                                </div>
+                              )}
+                              {showHeader && (
+                                <div className="flex items-baseline gap-2">
+                                  <span className="font-medium text-white hover:underline cursor-pointer">
+                                    {message.author?.full_name || "Unknown User"}
+                                  </span>
+                                  <span className="text-xs text-slate-500">{formatTime(message.created_at)}</span>
+                                  {message.is_pinned && (
+                                    <span className="flex items-center gap-1 text-xs text-yellow-400">
+                                      <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1">
+                                        <line x1="12" x2="12" y1="17" y2="22" />
+                                        <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z" />
+                                      </svg>
+                                      Pinned
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                              <p
+                                className="text-slate-200 break-words"
+                                dangerouslySetInnerHTML={{ __html: parseContent(message.content || "") }}
+                              />
                             {message.attachments && message.attachments.length > 0 && (
                               <div className="mt-2 flex flex-wrap gap-2">
                                 {message.attachments.map((att, i) => {
@@ -1546,41 +1653,27 @@ export default function DischatPage() {
                                 })}
                               </div>
                             )}
-                          </div>
-                          {/* Message actions - inline with message */}
-                          <div className="hidden group-hover:flex items-center gap-0.5 bg-slate-700 rounded-md shadow-lg px-1 py-0.5 ml-auto flex-shrink-0">
-                            {/* Quick reactions inline */}
-                            {["👍", "❤️", "😂", "😮"].map((emoji) => (
-                              <button
-                                key={emoji}
-                                onClick={() => addReaction(message.id, emoji)}
-                                className="text-sm hover:bg-slate-600 rounded px-1 py-0.5 transition-colors"
-                                title={`React with ${emoji}`}
-                              >
-                                {emoji}
-                              </button>
-                            ))}
-                            <div className="w-px h-4 bg-slate-600 mx-0.5" />
-                            <button 
-                              onClick={() => startReply(message)}
-                              className="rounded p-1 text-slate-400 hover:bg-slate-600 hover:text-white" 
-                              title="Reply"
-                            >
-                              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <polyline points="9 17 4 12 9 7" />
-                                <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
-                              </svg>
-                            </button>
-                            <button 
-                              onClick={() => togglePinMessage(message)}
-                              className={`rounded p-1 hover:bg-slate-600 ${message.is_pinned ? "text-yellow-400" : "text-slate-400 hover:text-white"}`} 
-                              title={message.is_pinned ? "Unpin Message" : "Pin Message"}
-                            >
-                              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill={message.is_pinned ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
-                                <line x1="12" x2="12" y1="17" y2="22" />
-                                <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z" />
-                              </svg>
-                            </button>
+                              
+                              {/* Reactions display */}
+                              {message.reactions && message.reactions.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {message.reactions.map((reaction) => (
+                                    <button
+                                      key={reaction.emoji}
+                                      onClick={() => addReaction(message.id, reaction.emoji)}
+                                      className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${
+                                        reaction.users.includes(currentUser?.id || "")
+                                          ? "bg-indigo-500/30 border border-indigo-500"
+                                          : "bg-slate-700 hover:bg-slate-600"
+                                      }`}
+                                    >
+                                      <span>{reaction.emoji}</span>
+                                      <span className="text-slate-300">{reaction.count}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
                       );
