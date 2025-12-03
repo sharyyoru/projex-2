@@ -218,8 +218,31 @@ export default function DischatPage() {
   const [showNewDMModal, setShowNewDMModal] = useState(false);
   const [dmSearch, setDmSearch] = useState("");
   const [dmSearchResults, setDmSearchResults] = useState<{ id: string; full_name: string; avatar_url: string }[]>([]);
-  const [dmConversations, setDmConversations] = useState<{ id: string; user: { id: string; full_name: string; avatar_url: string }; last_message?: string }[]>([]);
+  const [dmConversations, setDmConversations] = useState<{ id: string; user: { id: string; full_name: string; avatar_url: string }; last_message?: string; unread_count?: number }[]>([]);
   const [selectedDM, setSelectedDM] = useState<{ id: string; user: { id: string; full_name: string; avatar_url: string } } | null>(null);
+  const [dmMessages, setDmMessages] = useState<Message[]>([]);
+  const [newDMMessage, setNewDMMessage] = useState("");
+  
+  // Notifications
+  interface Notification {
+    id: string;
+    type: "channel" | "dm";
+    channelId?: string;
+    channelName?: string;
+    serverId?: string;
+    serverName?: string;
+    dmUserId?: string;
+    dmUserName?: string;
+    message: string;
+    authorName: string;
+    authorAvatar?: string;
+    timestamp: Date;
+    read: boolean;
+  }
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [unreadChannelCounts, setUnreadChannelCounts] = useState<Record<string, number>>({});
+  const [unreadDMCounts, setUnreadDMCounts] = useState<Record<string, number>>({});
 
   // Fetch current user
   useEffect(() => {
@@ -741,6 +764,359 @@ export default function DischatPage() {
     setReplyingTo(null);
   };
 
+  // Request browser notification permission
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  // Send browser notification
+  const sendBrowserNotification = (title: string, body: string, onClick?: () => void) => {
+    if ("Notification" in window && Notification.permission === "granted") {
+      const notification = new Notification(title, {
+        body,
+        icon: "/dischat-icon.png",
+        tag: `dischat-${Date.now()}`,
+      });
+      if (onClick) {
+        notification.onclick = () => {
+          window.focus();
+          onClick();
+          notification.close();
+        };
+      }
+    }
+  };
+
+  // Add notification to list
+  const addNotification = (notif: Omit<Notification, "id" | "timestamp" | "read">) => {
+    const newNotif: Notification = {
+      ...notif,
+      id: `notif-${Date.now()}`,
+      timestamp: new Date(),
+      read: false,
+    };
+    setNotifications(prev => [newNotif, ...prev].slice(0, 50)); // Keep last 50
+    
+    // Update unread counts
+    if (notif.type === "channel" && notif.channelId) {
+      setUnreadChannelCounts(prev => ({
+        ...prev,
+        [notif.channelId!]: (prev[notif.channelId!] || 0) + 1
+      }));
+    } else if (notif.type === "dm" && notif.dmUserId) {
+      setUnreadDMCounts(prev => ({
+        ...prev,
+        [notif.dmUserId!]: (prev[notif.dmUserId!] || 0) + 1
+      }));
+    }
+  };
+
+  // Handle notification click - navigate to chat
+  const handleNotificationClick = (notif: Notification) => {
+    // Mark as read
+    setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, read: true } : n));
+    
+    if (notif.type === "channel" && notif.channelId && notif.serverId) {
+      // Navigate to channel
+      const server = servers.find(s => s.id === notif.serverId);
+      if (server) {
+        setSelectedServer(server);
+        setShowDMs(false);
+        setSelectedDM(null);
+        // Channel will be selected after channels load
+        setTimeout(() => {
+          const channel = channels.find(c => c.id === notif.channelId);
+          if (channel) setSelectedChannel(channel);
+        }, 500);
+      }
+      // Clear unread count for this channel
+      setUnreadChannelCounts(prev => ({ ...prev, [notif.channelId!]: 0 }));
+    } else if (notif.type === "dm" && notif.dmUserId) {
+      // Navigate to DM
+      setShowDMs(true);
+      setSelectedServer(null);
+      setSelectedChannel(null);
+      const dm = dmConversations.find(d => d.user.id === notif.dmUserId);
+      if (dm) {
+        setSelectedDM(dm);
+      }
+      // Clear unread count for this DM
+      setUnreadDMCounts(prev => ({ ...prev, [notif.dmUserId!]: 0 }));
+    }
+    setShowNotifications(false);
+  };
+
+  // Clear channel unread when viewing
+  useEffect(() => {
+    if (selectedChannel) {
+      setUnreadChannelCounts(prev => ({ ...prev, [selectedChannel.id]: 0 }));
+    }
+  }, [selectedChannel?.id]);
+
+  // Clear DM unread when viewing
+  useEffect(() => {
+    if (selectedDM) {
+      setUnreadDMCounts(prev => ({ ...prev, [selectedDM.user.id]: 0 }));
+    }
+  }, [selectedDM?.user.id]);
+
+  // Fetch DM messages when DM selected
+  useEffect(() => {
+    if (!selectedDM || !currentUser) {
+      setDmMessages([]);
+      return;
+    }
+
+    const fetchDMMessages = async () => {
+      const { data } = await supabaseClient
+        .from("dischat_dm_messages")
+        .select("*, author:users(full_name, avatar_url)")
+        .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${selectedDM.user.id}),and(sender_id.eq.${selectedDM.user.id},receiver_id.eq.${currentUser.id})`)
+        .order("created_at", { ascending: true })
+        .limit(100);
+
+      if (data) {
+        setDmMessages(data.map(m => ({
+          id: m.id,
+          content: m.content,
+          author_id: m.sender_id,
+          created_at: m.created_at,
+          attachments: m.attachments || [],
+          is_pinned: false,
+          author: m.author,
+          reactions: m.reactions || [],
+        })));
+      }
+    };
+
+    fetchDMMessages();
+
+    // Subscribe to new DM messages
+    const dmChannel = supabaseClient
+      .channel(`dm-${currentUser.id}-${selectedDM.user.id}-${Date.now()}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "dischat_dm_messages",
+        },
+        async (payload) => {
+          const newMsg = payload.new as Record<string, unknown>;
+          // Check if this message is part of our conversation
+          if (
+            (newMsg.sender_id === currentUser.id && newMsg.receiver_id === selectedDM.user.id) ||
+            (newMsg.sender_id === selectedDM.user.id && newMsg.receiver_id === currentUser.id)
+          ) {
+            // Fetch author info
+            const { data: authorData } = await supabaseClient
+              .from("users")
+              .select("full_name, avatar_url")
+              .eq("id", newMsg.sender_id)
+              .single();
+
+            const message: Message = {
+              id: newMsg.id as string,
+              content: newMsg.content as string,
+              author_id: newMsg.sender_id as string,
+              created_at: newMsg.created_at as string,
+              attachments: (newMsg.attachments as Attachment[]) || [],
+              is_pinned: false,
+              author: authorData || undefined,
+              reactions: (newMsg.reactions as Reaction[]) || [],
+            };
+
+            setDmMessages(prev => {
+              if (prev.some(m => m.id === message.id)) return prev;
+              return [...prev, message];
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabaseClient.removeChannel(dmChannel);
+    };
+  }, [selectedDM?.user.id, currentUser?.id]);
+
+  // Send DM message
+  const sendDMMessage = async () => {
+    if (!newDMMessage.trim() || !selectedDM || !currentUser) return;
+
+    const messageContent = newDMMessage.trim();
+    setNewDMMessage("");
+
+    // Optimistic update
+    const optimisticMessage: Message = {
+      id: `temp-${Date.now()}`,
+      content: messageContent,
+      author_id: currentUser.id,
+      created_at: new Date().toISOString(),
+      attachments: [],
+      is_pinned: false,
+      author: { full_name: currentUser.full_name, avatar_url: currentUser.avatar_url },
+    };
+    setDmMessages(prev => [...prev, optimisticMessage]);
+
+    const { data, error } = await supabaseClient
+      .from("dischat_dm_messages")
+      .insert({
+        sender_id: currentUser.id,
+        receiver_id: selectedDM.user.id,
+        content: messageContent,
+      })
+      .select("id")
+      .single();
+
+    if (error) {
+      setDmMessages(prev => prev.filter(m => m.id !== optimisticMessage.id));
+      console.error("Error sending DM:", error);
+    } else if (data) {
+      setDmMessages(prev => prev.map(m => m.id === optimisticMessage.id ? { ...m, id: data.id } : m));
+    }
+  };
+
+  // Global subscription for notifications (channel messages)
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const notifChannel = supabaseClient
+      .channel(`global-notifications-${currentUser.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "dischat_messages",
+        },
+        async (payload) => {
+          const newMsg = payload.new as Record<string, unknown>;
+          
+          // Don't notify for own messages
+          if (newMsg.author_id === currentUser.id) return;
+          
+          // Don't notify if we're viewing this channel
+          if (selectedChannel && newMsg.channel_id === selectedChannel.id) return;
+
+          // Fetch channel and author info
+          const [{ data: channelData }, { data: authorData }] = await Promise.all([
+            supabaseClient.from("dischat_channels").select("id, name, server_id").eq("id", newMsg.channel_id).single(),
+            supabaseClient.from("users").select("full_name, avatar_url").eq("id", newMsg.author_id).single(),
+          ]);
+
+          if (channelData && authorData) {
+            // Check if user is member of this server
+            const { data: memberCheck } = await supabaseClient
+              .from("dischat_members")
+              .select("id")
+              .eq("server_id", channelData.server_id)
+              .eq("user_id", currentUser.id)
+              .single();
+
+            if (memberCheck) {
+              const serverData = servers.find(s => s.id === channelData.server_id);
+              
+              addNotification({
+                type: "channel",
+                channelId: channelData.id,
+                channelName: channelData.name,
+                serverId: channelData.server_id,
+                serverName: serverData?.name || "Server",
+                message: (newMsg.content as string)?.slice(0, 100) || "[Attachment]",
+                authorName: authorData.full_name,
+                authorAvatar: authorData.avatar_url,
+              });
+
+              sendBrowserNotification(
+                `#${channelData.name}`,
+                `${authorData.full_name}: ${(newMsg.content as string)?.slice(0, 50) || "[Attachment]"}`,
+                () => {
+                  const channel = channels.find(c => c.id === channelData.id);
+                  if (channel) {
+                    setSelectedChannel(channel);
+                    setShowDMs(false);
+                  }
+                }
+              );
+            }
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "dischat_dm_messages",
+        },
+        async (payload) => {
+          const newMsg = payload.new as Record<string, unknown>;
+          
+          // Don't notify for own messages
+          if (newMsg.sender_id === currentUser.id) return;
+          
+          // Only notify if message is for us
+          if (newMsg.receiver_id !== currentUser.id) return;
+          
+          // Don't notify if we're viewing this DM
+          if (selectedDM && newMsg.sender_id === selectedDM.user.id) return;
+
+          // Fetch sender info
+          const { data: senderData } = await supabaseClient
+            .from("users")
+            .select("id, full_name, avatar_url")
+            .eq("id", newMsg.sender_id)
+            .single();
+
+          if (senderData) {
+            addNotification({
+              type: "dm",
+              dmUserId: senderData.id,
+              dmUserName: senderData.full_name,
+              message: (newMsg.content as string)?.slice(0, 100) || "[Attachment]",
+              authorName: senderData.full_name,
+              authorAvatar: senderData.avatar_url,
+            });
+
+            sendBrowserNotification(
+              `💬 ${senderData.full_name}`,
+              (newMsg.content as string)?.slice(0, 50) || "[Attachment]",
+              () => {
+                setShowDMs(true);
+                setSelectedServer(null);
+                setSelectedDM({
+                  id: `dm-${senderData.id}`,
+                  user: senderData,
+                });
+              }
+            );
+
+            // Update DM conversations unread count
+            setDmConversations(prev => {
+              const existing = prev.find(d => d.user.id === senderData.id);
+              if (existing) {
+                return prev.map(d => 
+                  d.user.id === senderData.id 
+                    ? { ...d, last_message: newMsg.content as string, unread_count: (d.unread_count || 0) + 1 }
+                    : d
+                );
+              } else {
+                return [{ id: `dm-${senderData.id}`, user: senderData, last_message: newMsg.content as string, unread_count: 1 }, ...prev];
+              }
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabaseClient.removeChannel(notifChannel);
+    };
+  }, [currentUser?.id, selectedChannel?.id, selectedDM?.user.id, servers, channels]);
+
   // Fetch pinned messages
   const fetchPinnedMessages = async () => {
     if (!selectedChannel) return;
@@ -988,10 +1364,95 @@ export default function DischatPage() {
     );
   }
 
+  // Calculate total unread counts
+  const totalUnreadDMs = Object.values(unreadDMCounts).reduce((a, b) => a + b, 0);
+  const totalUnreadChannels = Object.values(unreadChannelCounts).reduce((a, b) => a + b, 0);
+  const totalUnread = totalUnreadDMs + totalUnreadChannels;
+
   return (
     <div className="flex h-[calc(100vh-8rem)] overflow-hidden rounded-2xl bg-slate-800 shadow-2xl mr-16">
       {/* Server List - Discord-style vertical bar */}
       <div className="flex w-[72px] flex-col items-center gap-2 bg-slate-900 py-3">
+        {/* Notifications Bell */}
+        <div className="relative">
+          <button
+            onClick={() => setShowNotifications(!showNotifications)}
+            className={`group relative flex h-12 w-12 items-center justify-center rounded-2xl transition-all hover:rounded-xl ${
+              showNotifications ? "rounded-xl bg-amber-500 text-white" : "bg-slate-700 text-slate-400 hover:bg-amber-500 hover:text-white"
+            }`}
+            title="Notifications"
+          >
+            <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+              <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+            </svg>
+            {totalUnread > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                {totalUnread > 99 ? "99+" : totalUnread}
+              </span>
+            )}
+          </button>
+          
+          {/* Notifications Dropdown */}
+          {showNotifications && (
+            <div className="absolute left-16 top-0 z-50 w-80 rounded-lg bg-slate-800 shadow-xl border border-slate-700">
+              <div className="flex items-center justify-between border-b border-slate-700 px-4 py-3">
+                <h3 className="font-semibold text-white">Notifications</h3>
+                <button
+                  onClick={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}
+                  className="text-xs text-indigo-400 hover:text-indigo-300"
+                >
+                  Mark all as read
+                </button>
+              </div>
+              <div className="max-h-96 overflow-y-auto">
+                {notifications.length === 0 ? (
+                  <div className="py-8 text-center text-slate-400">
+                    <svg className="mx-auto h-12 w-12 mb-2 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
+                      <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                      <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+                    </svg>
+                    <p className="text-sm">No new notifications</p>
+                  </div>
+                ) : (
+                  notifications.slice(0, 20).map((notif) => (
+                    <button
+                      key={notif.id}
+                      onClick={() => handleNotificationClick(notif)}
+                      className={`flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-slate-700/50 transition-colors ${
+                        !notif.read ? "bg-slate-700/30" : ""
+                      }`}
+                    >
+                      {notif.authorAvatar ? (
+                        <img src={notif.authorAvatar} alt="" className="h-10 w-10 rounded-full flex-shrink-0" />
+                      ) : (
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-500 text-sm font-medium text-white flex-shrink-0">
+                          {notif.authorName[0]}
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          {notif.type === "channel" ? (
+                            <span className="text-xs text-indigo-400">#{notif.channelName}</span>
+                          ) : (
+                            <span className="text-xs text-green-400">💬 Direct Message</span>
+                          )}
+                          {!notif.read && <span className="h-2 w-2 rounded-full bg-red-500" />}
+                        </div>
+                        <p className="text-sm font-medium text-white">{notif.authorName}</p>
+                        <p className="text-xs text-slate-400 truncate">{notif.message}</p>
+                        <p className="text-xs text-slate-500 mt-1">
+                          {new Date(notif.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Direct Messages */}
         <button
           onClick={() => {
@@ -999,6 +1460,7 @@ export default function DischatPage() {
             setSelectedServer(null);
             setSelectedChannel(null);
             setMessages([]);
+            setShowNotifications(false);
           }}
           className={`group relative flex h-12 w-12 items-center justify-center rounded-2xl transition-all hover:rounded-xl ${
             showDMs ? "rounded-xl bg-indigo-500 text-white" : "bg-slate-700 text-slate-400 hover:bg-indigo-500 hover:text-white"
@@ -1010,6 +1472,12 @@ export default function DischatPage() {
           </svg>
           {/* Selection indicator */}
           <span className={`absolute left-0 h-2 w-1 rounded-r-full bg-white transition-all ${showDMs ? "h-10" : "h-0 group-hover:h-5"}`} />
+          {/* Unread DM badge */}
+          {totalUnreadDMs > 0 && (
+            <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+              {totalUnreadDMs > 9 ? "9+" : totalUnreadDMs}
+            </span>
+          )}
         </button>
 
         <div className="my-1 h-0.5 w-8 rounded-full bg-slate-700" />
@@ -1385,19 +1853,87 @@ export default function DischatPage() {
 
             {/* DM Messages */}
             <div className="flex-1 overflow-y-auto px-4 py-4">
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                {selectedDM.user.avatar_url ? (
-                  <img src={selectedDM.user.avatar_url} alt="" className="h-20 w-20 rounded-full mb-4" />
-                ) : (
-                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-indigo-500 text-2xl font-medium text-white mb-4">
-                    {selectedDM.user.full_name?.[0] || "U"}
-                  </div>
-                )}
-                <h3 className="text-xl font-bold text-white">{selectedDM.user.full_name}</h3>
-                <p className="mt-2 text-slate-400 max-w-md">
-                  This is the beginning of your direct message history with <strong>{selectedDM.user.full_name}</strong>.
-                </p>
-              </div>
+              {dmMessages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  {selectedDM.user.avatar_url ? (
+                    <img src={selectedDM.user.avatar_url} alt="" className="h-20 w-20 rounded-full mb-4" />
+                  ) : (
+                    <div className="flex h-20 w-20 items-center justify-center rounded-full bg-indigo-500 text-2xl font-medium text-white mb-4">
+                      {selectedDM.user.full_name?.[0] || "U"}
+                    </div>
+                  )}
+                  <h3 className="text-xl font-bold text-white">{selectedDM.user.full_name}</h3>
+                  <p className="mt-2 text-slate-400 max-w-md">
+                    This is the beginning of your direct message history with <strong>{selectedDM.user.full_name}</strong>.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {dmMessages.map((message, index) => {
+                    const showHeader =
+                      index === 0 ||
+                      dmMessages[index - 1].author_id !== message.author_id ||
+                      new Date(message.created_at).getTime() - new Date(dmMessages[index - 1].created_at).getTime() > 5 * 60 * 1000;
+
+                    return (
+                      <div key={message.id} className={`group relative rounded px-2 py-0.5 hover:bg-slate-750 ${!showHeader ? "-mt-3" : ""}`}>
+                        <div className="flex gap-4">
+                          {showHeader ? (
+                            <div className="relative mt-0.5 flex-shrink-0">
+                              {message.author?.avatar_url ? (
+                                <img src={message.author.avatar_url} alt="" className="h-10 w-10 rounded-full" />
+                              ) : (
+                                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-500 text-sm font-medium text-white">
+                                  {message.author?.full_name?.[0] || "U"}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="w-10 flex-shrink-0">
+                              <span className="hidden text-xs text-slate-500 group-hover:block">
+                                {new Date(message.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            {showHeader && (
+                              <div className="flex items-baseline gap-2">
+                                <span className="font-medium text-white">
+                                  {message.author?.full_name || "Unknown User"}
+                                </span>
+                                <span className="text-xs text-slate-500">{formatTime(message.created_at)}</span>
+                              </div>
+                            )}
+                            <p
+                              className="text-slate-200 break-words"
+                              dangerouslySetInnerHTML={{ __html: parseContent(message.content || "") }}
+                            />
+                            {/* Reactions */}
+                            {message.reactions && message.reactions.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {message.reactions.map((reaction) => (
+                                  <button
+                                    key={reaction.emoji}
+                                    className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${
+                                      reaction.users.includes(currentUser?.id || "")
+                                        ? "bg-indigo-500/30 border border-indigo-500"
+                                        : "bg-slate-700 hover:bg-slate-600"
+                                    }`}
+                                  >
+                                    <span>{reaction.emoji}</span>
+                                    <span className="text-slate-300">{reaction.count}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div ref={messagesEndRef} />
+                </div>
+              )}
             </div>
 
             {/* DM Message Input */}
@@ -1405,10 +1941,17 @@ export default function DischatPage() {
               <div className="flex items-center gap-2 rounded-lg bg-slate-600 px-4 py-2">
                 <input
                   type="text"
+                  value={newDMMessage}
+                  onChange={(e) => setNewDMMessage(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendDMMessage()}
                   placeholder={`Message @${selectedDM.user.full_name}`}
                   className="flex-1 bg-transparent text-white placeholder-slate-400 focus:outline-none"
                 />
-                <button className="rounded p-1.5 text-slate-400 hover:bg-slate-500 hover:text-white">
+                <button 
+                  onClick={sendDMMessage}
+                  disabled={!newDMMessage.trim()}
+                  className="rounded p-1.5 text-slate-400 hover:bg-slate-500 hover:text-white disabled:opacity-50"
+                >
                   <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="m22 2-7 20-4-9-9-4Z" />
                     <path d="M22 2 11 13" />
