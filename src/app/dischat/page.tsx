@@ -47,6 +47,8 @@ interface Message {
   attachments: Attachment[];
   is_pinned: boolean;
   author?: { full_name: string; avatar_url: string };
+  reply_to_id?: string;
+  reply_to?: { content: string; author?: { full_name: string } };
 }
 
 interface Member {
@@ -203,6 +205,14 @@ export default function DischatPage() {
   
   // Server dropdown menu
   const [showServerMenu, setShowServerMenu] = useState(false);
+  
+  // Direct Messages
+  const [showDMs, setShowDMs] = useState(false);
+  const [showNewDMModal, setShowNewDMModal] = useState(false);
+  const [dmSearch, setDmSearch] = useState("");
+  const [dmSearchResults, setDmSearchResults] = useState<{ id: string; full_name: string; avatar_url: string }[]>([]);
+  const [dmConversations, setDmConversations] = useState<{ id: string; user: { id: string; full_name: string; avatar_url: string }; last_message?: string }[]>([]);
+  const [selectedDM, setSelectedDM] = useState<{ id: string; user: { id: string; full_name: string; avatar_url: string } } | null>(null);
 
   // Fetch current user
   useEffect(() => {
@@ -283,11 +293,14 @@ export default function DischatPage() {
   // Fetch messages when channel changes
   useEffect(() => {
     if (!selectedChannel) return;
+    
+    // Clear messages immediately when channel changes
+    setMessages([]);
 
     const fetchMessages = async () => {
       const { data: messagesData } = await supabaseClient
         .from("dischat_messages")
-        .select("*, author:users(full_name, avatar_url)")
+        .select("*, author:users(full_name, avatar_url), reply_to:dischat_messages!reply_to_id(content, author:users(full_name))")
         .eq("channel_id", selectedChannel.id)
         .eq("is_deleted", false)
         .order("created_at", { ascending: true })
@@ -868,12 +881,22 @@ export default function DischatPage() {
       <div className="flex w-[72px] flex-col items-center gap-2 bg-slate-900 py-3">
         {/* Direct Messages */}
         <button
-          className="group relative flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-700 text-slate-400 transition-all hover:rounded-xl hover:bg-indigo-500 hover:text-white"
+          onClick={() => {
+            setShowDMs(true);
+            setSelectedServer(null);
+            setSelectedChannel(null);
+            setMessages([]);
+          }}
+          className={`group relative flex h-12 w-12 items-center justify-center rounded-2xl transition-all hover:rounded-xl ${
+            showDMs ? "rounded-xl bg-indigo-500 text-white" : "bg-slate-700 text-slate-400 hover:bg-indigo-500 hover:text-white"
+          }`}
           title="Direct Messages"
         >
           <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
           </svg>
+          {/* Selection indicator */}
+          <span className={`absolute left-0 h-2 w-1 rounded-r-full bg-white transition-all ${showDMs ? "h-10" : "h-0 group-hover:h-5"}`} />
         </button>
 
         <div className="my-1 h-0.5 w-8 rounded-full bg-slate-700" />
@@ -882,7 +905,12 @@ export default function DischatPage() {
         {servers.map((server) => (
           <button
             key={server.id}
-            onClick={() => setSelectedServer(server)}
+            onClick={() => {
+              setSelectedServer(server);
+              setShowDMs(false);
+              setSelectedDM(null);
+              setMessages([]);
+            }}
             className={`group relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl transition-all hover:rounded-xl ${
               selectedServer?.id === server.id
                 ? "rounded-xl bg-indigo-500 text-white"
@@ -1132,6 +1160,84 @@ export default function DischatPage() {
         </div>
       )}
 
+      {/* DM Sidebar */}
+      {showDMs && (
+        <div className="flex w-60 flex-col bg-slate-800">
+          {/* DM Header */}
+          <div className="flex h-12 items-center justify-between border-b border-slate-700 px-4 shadow">
+            <h2 className="font-semibold text-white">Direct Messages</h2>
+            <button
+              onClick={() => setShowNewDMModal(true)}
+              className="rounded p-1 text-slate-400 hover:bg-slate-700 hover:text-white"
+              title="New Message"
+            >
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+            </button>
+          </div>
+
+          {/* DM Conversations List */}
+          <div className="flex-1 overflow-y-auto px-2 py-3">
+            {dmConversations.length === 0 ? (
+              <div className="text-center py-8 text-slate-400">
+                <p className="text-sm">No conversations yet</p>
+                <button
+                  onClick={() => setShowNewDMModal(true)}
+                  className="mt-2 text-indigo-400 hover:text-indigo-300 text-sm"
+                >
+                  Start a conversation
+                </button>
+              </div>
+            ) : (
+              dmConversations.map((dm) => (
+                <button
+                  key={dm.id}
+                  onClick={() => setSelectedDM(dm)}
+                  className={`flex w-full items-center gap-2 rounded px-2 py-2 text-left transition-colors ${
+                    selectedDM?.id === dm.id ? "bg-slate-600" : "hover:bg-slate-700"
+                  }`}
+                >
+                  {dm.user.avatar_url ? (
+                    <img src={dm.user.avatar_url} alt="" className="h-8 w-8 rounded-full" />
+                  ) : (
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-500 text-sm font-medium text-white">
+                      {dm.user.full_name?.[0] || "U"}
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white truncate">{dm.user.full_name}</p>
+                    {dm.last_message && (
+                      <p className="text-xs text-slate-400 truncate">{dm.last_message}</p>
+                    )}
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+
+          {/* User Profile Bar */}
+          {currentUser && (
+            <div className="flex items-center gap-2 border-t border-slate-700 bg-slate-850 px-2 py-2">
+              <div className="relative">
+                {currentUser.avatar_url ? (
+                  <img src={currentUser.avatar_url} alt="" className="h-8 w-8 rounded-full" />
+                ) : (
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-500 text-sm font-medium text-white">
+                    {currentUser.full_name?.[0] || "U"}
+                  </div>
+                )}
+                <StatusIndicator status="online" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-white truncate">{currentUser.full_name}</p>
+                <p className="text-xs text-slate-400">Online</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Main Chat Area */}
       <div className="flex flex-1 flex-col bg-slate-700 relative">
         {selectedChannel ? (
@@ -1183,11 +1289,6 @@ export default function DischatPage() {
                     </svg>
                   </button>
                 )}
-                <button className="rounded p-1.5 text-slate-400 hover:bg-slate-600 hover:text-white" title="Threads">
-                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                  </svg>
-                </button>
                 <button 
                   onClick={() => setShowPinnedMessages(!showPinnedMessages)}
                   className={`relative rounded p-1.5 hover:bg-slate-600 ${showPinnedMessages ? "bg-slate-600 text-white" : "text-slate-400 hover:text-white"}`}
@@ -1264,6 +1365,17 @@ export default function DischatPage() {
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
+                            {/* Reply indicator */}
+                            {message.reply_to && (
+                              <div className="flex items-center gap-2 mb-1 text-xs text-slate-400">
+                                <svg className="h-3 w-3 rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <polyline points="9 17 4 12 9 7" />
+                                  <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+                                </svg>
+                                <span className="text-indigo-400 font-medium">{message.reply_to.author?.full_name || "User"}</span>
+                                <span className="truncate max-w-xs">{message.reply_to.content?.slice(0, 50)}{message.reply_to.content?.length > 50 ? "..." : ""}</span>
+                              </div>
+                            )}
                             {showHeader && (
                               <div className="flex items-baseline gap-2">
                                 <span className="font-medium text-white hover:underline cursor-pointer">
@@ -1340,44 +1452,26 @@ export default function DischatPage() {
                               </div>
                             )}
                           </div>
-                          {/* Message actions (hidden until hover) */}
-                          <div className="hidden group-hover:flex items-center gap-1 bg-slate-800 rounded shadow-lg p-0.5 absolute -top-3 right-0 h-8 z-10">
-                            <div className="relative">
-                              <button 
-                                onClick={() => setShowReactionPicker(showReactionPicker === message.id ? null : message.id)}
-                                className="rounded p-1 text-slate-400 hover:bg-slate-600 hover:text-white" 
-                                title="Add Reaction"
+                          {/* Message actions - inline with message */}
+                          <div className="hidden group-hover:flex items-center gap-0.5 bg-slate-700 rounded-md shadow-lg px-1 py-0.5 ml-auto flex-shrink-0">
+                            {/* Quick reactions inline */}
+                            {["👍", "❤️", "😂", "😮"].map((emoji) => (
+                              <button
+                                key={emoji}
+                                onClick={() => addReaction(message.id, emoji)}
+                                className="text-sm hover:bg-slate-600 rounded px-1 py-0.5 transition-colors"
+                                title={`React with ${emoji}`}
                               >
-                                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <circle cx="12" cy="12" r="10" />
-                                  <path d="M8 14s1.5 2 4 2 4-2 4-2" />
-                                  <line x1="9" x2="9.01" y1="9" y2="9" />
-                                  <line x1="15" x2="15.01" y1="9" y2="9" />
-                                </svg>
+                                {emoji}
                               </button>
-                              {showReactionPicker === message.id && (
-                                <div 
-                                  className="absolute left-0 top-full mt-1 flex gap-0.5 bg-slate-900 p-1 rounded-lg shadow-xl border border-slate-700 z-50"
-                                  onMouseLeave={() => setShowReactionPicker(null)}
-                                >
-                                  {QUICK_REACTIONS.map((emoji) => (
-                                    <button
-                                      key={emoji}
-                                      onClick={() => addReaction(message.id, emoji)}
-                                      className="text-lg hover:bg-slate-700 rounded p-0.5 transition-colors"
-                                    >
-                                      {emoji}
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
+                            ))}
+                            <div className="w-px h-4 bg-slate-600 mx-0.5" />
                             <button 
                               onClick={() => startReply(message)}
                               className="rounded p-1 text-slate-400 hover:bg-slate-600 hover:text-white" 
                               title="Reply"
                             >
-                              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <polyline points="9 17 4 12 9 7" />
                                 <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
                               </svg>
@@ -1387,14 +1481,9 @@ export default function DischatPage() {
                               className={`rounded p-1 hover:bg-slate-600 ${message.is_pinned ? "text-yellow-400" : "text-slate-400 hover:text-white"}`} 
                               title={message.is_pinned ? "Unpin Message" : "Pin Message"}
                             >
-                              <svg className="h-4 w-4" viewBox="0 0 24 24" fill={message.is_pinned ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+                              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill={message.is_pinned ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
                                 <line x1="12" x2="12" y1="17" y2="22" />
                                 <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z" />
-                              </svg>
-                            </button>
-                            <button className="rounded p-1 text-slate-400 hover:bg-slate-600 hover:text-white" title="Create Thread">
-                              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                               </svg>
                             </button>
                           </div>
@@ -1942,6 +2031,98 @@ export default function DischatPage() {
               <p className="text-xs text-slate-500 text-center">
                 Invited users will be added to the server and can access this channel.
               </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New DM Modal */}
+      {showNewDMModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="w-full max-w-md rounded-lg bg-slate-800 p-6 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-white">New Message</h2>
+              <button
+                onClick={() => {
+                  setShowNewDMModal(false);
+                  setDmSearch("");
+                  setDmSearchResults([]);
+                }}
+                className="text-slate-400 hover:text-white"
+              >
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <p className="text-sm text-slate-400 mb-4">
+              Search for a user to start a private conversation.
+            </p>
+
+            <input
+              type="text"
+              value={dmSearch}
+              onChange={async (e) => {
+                setDmSearch(e.target.value);
+                if (e.target.value.trim().length > 1) {
+                  const { data } = await supabaseClient
+                    .from("users")
+                    .select("id, full_name, avatar_url")
+                    .neq("id", currentUser?.id)
+                    .ilike("full_name", `%${e.target.value}%`)
+                    .limit(10);
+                  setDmSearchResults(data || []);
+                } else {
+                  setDmSearchResults([]);
+                }
+              }}
+              placeholder="Search by name..."
+              className="w-full rounded-lg bg-slate-900 px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              autoFocus
+            />
+
+            <div className="mt-4 max-h-64 overflow-y-auto">
+              {dmSearchResults.length === 0 ? (
+                <div className="text-center py-8 text-slate-400">
+                  {dmSearch.trim() ? "No users found" : "Start typing to find users"}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {dmSearchResults.map((user) => (
+                    <button
+                      key={user.id}
+                      onClick={() => {
+                        // Create or find existing DM conversation
+                        const existingDM = dmConversations.find(dm => dm.user.id === user.id);
+                        if (existingDM) {
+                          setSelectedDM(existingDM);
+                        } else {
+                          const newDM = { id: `dm-${user.id}`, user };
+                          setDmConversations(prev => [...prev, newDM]);
+                          setSelectedDM(newDM);
+                        }
+                        setShowNewDMModal(false);
+                        setDmSearch("");
+                        setDmSearchResults([]);
+                      }}
+                      className="flex w-full items-center gap-3 rounded-lg bg-slate-700/50 p-3 hover:bg-slate-700 transition-colors"
+                    >
+                      {user.avatar_url ? (
+                        <img src={user.avatar_url} alt="" className="h-10 w-10 rounded-full" />
+                      ) : (
+                        <div className="h-10 w-10 rounded-full bg-indigo-500 flex items-center justify-center text-white font-medium">
+                          {user.full_name?.[0] || "?"}
+                        </div>
+                      )}
+                      <div className="text-left">
+                        <p className="font-medium text-white">{user.full_name}</p>
+                        <p className="text-xs text-slate-400">Click to message</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
