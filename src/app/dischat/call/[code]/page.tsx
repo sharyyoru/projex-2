@@ -106,7 +106,7 @@ export default function GuestCallPage({ params }: { params: Promise<{ code: stri
         clientRef.current = client;
 
         // Set up event handlers
-        client.on("user-published", async (user: any, mediaType: string) => {
+        client.on("user-published", async (user: any, mediaType: "audio" | "video") => {
           await client.subscribe(user, mediaType);
           
           if (mediaType === "video") {
@@ -133,7 +133,7 @@ export default function GuestCallPage({ params }: { params: Promise<{ code: stri
           }
         });
 
-        client.on("user-unpublished", (user: any, mediaType: string) => {
+        client.on("user-unpublished", (user: any, mediaType: "audio" | "video") => {
           if (mediaType === "video") {
             setParticipants(prev => 
               prev.map(p => p.uid === user.uid ? { ...p, hasVideo: false } : p)
