@@ -273,7 +273,17 @@ export default function DischatPage() {
 
   // Fetch channels and categories when server changes
   useEffect(() => {
-    if (!selectedServer) return;
+    if (!selectedServer) {
+      setChannels([]);
+      setCategories([]);
+      setSelectedChannel(null);
+      setMessages([]);
+      return;
+    }
+
+    // Clear previous channel selection when switching servers
+    setSelectedChannel(null);
+    setMessages([]);
 
     const fetchChannelsAndCategories = async () => {
       const [{ data: categoriesData }, { data: channelsData }, { data: membersData }] = await Promise.all([
@@ -287,7 +297,7 @@ export default function DischatPage() {
         setChannels(channelsData);
         // Auto-select first text channel
         const firstTextChannel = channelsData.find(c => c.channel_type === "text");
-        if (firstTextChannel && !selectedChannel) {
+        if (firstTextChannel) {
           setSelectedChannel(firstTextChannel);
         }
       }
@@ -295,7 +305,7 @@ export default function DischatPage() {
     };
 
     fetchChannelsAndCategories();
-  }, [selectedServer]);
+  }, [selectedServer?.id]);
 
   // Fetch messages when channel changes - use channel ID as key
   const channelId = selectedChannel?.id;
@@ -1411,29 +1421,30 @@ export default function DischatPage() {
           <>
             {/* Channel Header */}
             <div className="flex h-12 items-center justify-between border-b border-slate-600 px-4 shadow">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <ChannelIcon type={selectedChannel.channel_type} className="h-5 w-5 text-slate-400" />
                 <h3 className="font-semibold text-white">{selectedChannel.name}</h3>
                 {selectedChannel.topic && (
                   <>
                     <span className="text-slate-500">|</span>
-                    <p className="truncate text-sm text-slate-400">{selectedChannel.topic}</p>
+                    <p className="truncate text-sm text-slate-400 max-w-xs">{selectedChannel.topic}</p>
                   </>
                 )}
               </div>
-              <div className="flex items-center gap-2">
-                {/* Invite Users Button */}
+              <div className="flex items-center gap-1">
+                {/* Invite Users Button - More Prominent */}
                 <button 
                   onClick={() => setShowInviteUser(true)}
-                  className="rounded p-1.5 text-slate-400 hover:bg-slate-600 hover:text-white" 
-                  title="Invite Users"
+                  className="flex items-center gap-1.5 rounded-md bg-indigo-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-600 transition-colors" 
+                  title="Invite Users to Channel"
                 >
-                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
                     <circle cx="9" cy="7" r="4" />
                     <line x1="19" x2="19" y1="8" y2="14" />
                     <line x1="22" x2="16" y1="11" y2="11" />
                   </svg>
+                  Invite
                 </button>
                 {/* Start Video Call (for text channels) */}
                 {selectedChannel.channel_type === "text" && (
@@ -1686,6 +1697,28 @@ export default function DischatPage() {
               {/* Member List */}
               {showMemberList && (
                 <div className="w-60 flex flex-col bg-slate-800 px-2 py-4 h-full overflow-y-auto">
+                  {/* Member List Header */}
+                  <div className="flex items-center justify-between px-2 mb-3">
+                    <h4 className="text-sm font-semibold text-white">Members</h4>
+                    <span className="text-xs text-slate-400 bg-slate-700 px-2 py-0.5 rounded-full">
+                      {members.length}
+                    </span>
+                  </div>
+                  
+                  {/* Invite to Channel Button */}
+                  <button
+                    onClick={() => setShowInviteUser(true)}
+                    className="mx-2 mb-3 flex items-center justify-center gap-2 rounded-lg border border-dashed border-slate-600 py-2 text-sm text-slate-400 hover:border-indigo-500 hover:text-indigo-400 transition-colors"
+                  >
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                      <circle cx="9" cy="7" r="4" />
+                      <line x1="19" x2="19" y1="8" y2="14" />
+                      <line x1="22" x2="16" y1="11" y2="11" />
+                    </svg>
+                    Add Member
+                  </button>
+                  
                   <h4 className="mb-2 px-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
                     Online — {members.filter((m) => m.status !== "offline").length}
                   </h4>
