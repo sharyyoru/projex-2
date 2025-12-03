@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-
-// Agora Token Generation
-// You need: npm install agora-token
+import { RtcTokenBuilder, RtcRole } from "agora-token";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -11,14 +9,6 @@ const supabaseAdmin = createClient(
 
 const AGORA_APP_ID = process.env.NEXT_PUBLIC_AGORA_APP_ID || "";
 const AGORA_APP_CERTIFICATE = process.env.AGORA_APP_CERTIFICATE || "";
-
-// Simple token generation without the agora-token package
-// In production, use the agora-token package for proper RTC tokens
-function generateSimpleToken(channelName: string, uid: number, role: number): string {
-  // This is a placeholder - in production, use agora-token package
-  // For development/testing, Agora allows no token if App Certificate is not enabled
-  return "";
-}
 
 // POST - Generate Agora token for a channel
 export async function POST(request: NextRequest) {
@@ -111,16 +101,23 @@ export async function POST(request: NextRequest) {
     const sanitizedChannelId = channel_id.replace(/-/g, "").substring(0, 12);
     const channelName = `ch${sanitizedServerId}${sanitizedChannelId}`;
 
-    // Generate token (or empty for testing without App Certificate)
+    // Generate token
     let agoraToken = "";
     if (AGORA_APP_CERTIFICATE) {
-      // In production, install agora-token and use:
-      // import { RtcTokenBuilder, RtcRole } from "agora-token";
-      // agoraToken = RtcTokenBuilder.buildTokenWithUid(
-      //   AGORA_APP_ID, AGORA_APP_CERTIFICATE, channelName, userId, role, 
-      //   Math.floor(Date.now() / 1000) + 3600
-      // );
-      agoraToken = generateSimpleToken(channelName, userId, role);
+      // Token expires in 1 hour
+      const expirationTimeInSeconds = 3600;
+      const currentTimestamp = Math.floor(Date.now() / 1000);
+      const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
+      
+      agoraToken = RtcTokenBuilder.buildTokenWithUid(
+        AGORA_APP_ID, 
+        AGORA_APP_CERTIFICATE, 
+        channelName, 
+        userId, 
+        RtcRole.PUBLISHER,
+        privilegeExpiredTs,
+        privilegeExpiredTs
+      );
     }
 
     return NextResponse.json({

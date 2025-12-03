@@ -200,6 +200,9 @@ export default function DischatPage() {
   // Quick reaction picker for a message
   const [showReactionPicker, setShowReactionPicker] = useState<string | null>(null);
   const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🔥", "👏", "🎉"];
+  
+  // Server dropdown menu
+  const [showServerMenu, setShowServerMenu] = useState(false);
 
   // Fetch current user
   useEffect(() => {
@@ -309,15 +312,29 @@ export default function DischatPage() {
           filter: `channel_id=eq.${selectedChannel.id}`,
         },
         async (payload) => {
-          // Fetch author info for new message
-          const { data: authorData } = await supabaseClient
-            .from("users")
-            .select("full_name, avatar_url")
-            .eq("id", payload.new.author_id)
-            .single();
-          
-          const newMsg = { ...payload.new, author: authorData } as Message;
-          setMessages((prev) => [...prev, newMsg]);
+          // Skip if message already exists (optimistic update)
+          const messageId = payload.new.id;
+          setMessages(prev => {
+            // Check if we already have this message (real or temp)
+            if (prev.some(m => m.id === messageId)) return prev;
+            
+            // Add the new message with author info
+            const fetchAuthor = async () => {
+              const { data: authorData } = await supabaseClient
+                .from("users")
+                .select("full_name, avatar_url")
+                .eq("id", payload.new.author_id)
+                .single();
+              
+              const newMsg = { ...payload.new, author: authorData } as Message;
+              setMessages(p => {
+                if (p.some(m => m.id === messageId)) return p;
+                return [...p, newMsg];
+              });
+            };
+            fetchAuthor();
+            return prev;
+          });
         }
       )
       .subscribe();
@@ -367,15 +384,47 @@ export default function DischatPage() {
       setPendingFiles([]);
     }
 
-    const { error } = await supabaseClient.from("dischat_messages").insert({
+    const messageData: Record<string, unknown> = {
       channel_id: selectedChannel.id,
       author_id: currentUser.id,
       content: newMessage.trim() || null,
       attachments: attachments,
-    });
+    };
+    
+    // Include reply reference if replying
+    if (replyingTo) {
+      messageData.reply_to_id = replyingTo.id;
+    }
 
-    if (!error) {
-      setNewMessage("");
+    // Optimistic update - add message immediately for fast UI
+    const optimisticMessage: Message = {
+      id: `temp-${Date.now()}`,
+      content: newMessage.trim() || "",
+      author_id: currentUser.id,
+      created_at: new Date().toISOString(),
+      attachments: attachments,
+      is_pinned: false,
+      author: { full_name: currentUser.full_name, avatar_url: currentUser.avatar_url },
+    };
+    
+    setMessages(prev => [...prev, optimisticMessage]);
+    setNewMessage("");
+    setReplyingTo(null);
+
+    const { data, error } = await supabaseClient
+      .from("dischat_messages")
+      .insert(messageData)
+      .select("id")
+      .single();
+
+    if (error) {
+      // Remove optimistic message on error
+      setMessages(prev => prev.filter(m => m.id !== optimisticMessage.id));
+    } else if (data) {
+      // Replace temp id with real id
+      setMessages(prev => prev.map(m => 
+        m.id === optimisticMessage.id ? { ...m, id: data.id } : m
+      ));
     }
   };
 
@@ -872,14 +921,54 @@ export default function DischatPage() {
       {/* Channel Sidebar */}
       {selectedServer && (
         <div className="flex w-60 flex-col bg-slate-800">
-          {/* Server Header */}
-          <div className="flex h-12 items-center justify-between border-b border-slate-700 px-4 shadow">
-            <h2 className="truncate font-semibold text-white">{selectedServer.name}</h2>
-            <button className="text-slate-400 hover:text-white">
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          {/* Server Header with Dropdown */}
+          <div className="relative">
+            <button 
+              onClick={() => setShowServerMenu(!showServerMenu)}
+              className="flex h-12 w-full items-center justify-between border-b border-slate-700 px-4 shadow hover:bg-slate-700/50 transition-colors"
+            >
+              <h2 className="truncate font-semibold text-white">{selectedServer.name}</h2>
+              <svg className={`h-4 w-4 text-slate-400 transition-transform ${showServerMenu ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="m6 9 6 6 6-6" />
               </svg>
             </button>
+            
+            {/* Server Dropdown Menu */}
+            {showServerMenu && (
+              <div className="absolute top-full left-0 right-0 z-50 mt-1 mx-2 rounded-lg bg-slate-900 py-2 shadow-xl border border-slate-700">
+                <button
+                  onClick={() => { setShowInviteUser(true); setShowServerMenu(false); }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-indigo-500 hover:text-white"
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <line x1="19" x2="19" y1="8" y2="14" />
+                    <line x1="22" x2="16" y1="11" y2="11" />
+                  </svg>
+                  Invite People
+                </button>
+                <button
+                  onClick={() => { setShowCreateChannel(true); setShowServerMenu(false); }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-indigo-500 hover:text-white"
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                  Create Channel
+                </button>
+                <div className="my-1 border-t border-slate-700" />
+                <button
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700"
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                  </svg>
+                  Server Settings
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Channels List */}
@@ -1267,12 +1356,15 @@ export default function DischatPage() {
                                 </svg>
                               </button>
                               {showReactionPicker === message.id && (
-                                <div className="absolute bottom-full right-0 mb-1 flex gap-1 bg-slate-900 p-1 rounded-lg shadow-xl border border-slate-700">
+                                <div 
+                                  className="absolute left-0 top-full mt-1 flex gap-0.5 bg-slate-900 p-1 rounded-lg shadow-xl border border-slate-700 z-50"
+                                  onMouseLeave={() => setShowReactionPicker(null)}
+                                >
                                   {QUICK_REACTIONS.map((emoji) => (
                                     <button
                                       key={emoji}
                                       onClick={() => addReaction(message.id, emoji)}
-                                      className="text-lg hover:bg-slate-700 rounded p-1 transition-colors"
+                                      className="text-lg hover:bg-slate-700 rounded p-0.5 transition-colors"
                                     >
                                       {emoji}
                                     </button>
