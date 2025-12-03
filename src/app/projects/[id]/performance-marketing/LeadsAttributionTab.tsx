@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { supabaseClient } from "@/lib/supabaseClient";
-import { MarketingLead, Campaign, MarketingChannel, CHANNELS, LEAD_SOURCES, formatMoney, getChannelLabel } from "./types";
+import { MarketingLead, Campaign, MarketingChannel, CHANNELS, LEAD_SOURCES, COMMON_COUNTRIES, UAE_EMIRATES, formatMoney, getChannelLabel } from "./types";
 
 export default function LeadsAttributionTab({
   projectId,
@@ -29,6 +29,9 @@ export default function LeadsAttributionTab({
     fbclid: "",
     deal_value: "",
     deal_status: "open",
+    country: "United Arab Emirates",
+    region: "",
+    city: "",
   });
   const [saving, setSaving] = useState(false);
 
@@ -63,9 +66,12 @@ export default function LeadsAttributionTab({
       fbclid: form.fbclid || null,
       deal_value: form.deal_value ? parseFloat(form.deal_value) : null,
       deal_status: form.deal_status as "open" | "won" | "lost",
+      country: form.country || null,
+      region: form.region || null,
+      city: form.city || null,
     });
     
-    setForm({ first_name: "", last_name: "", email: "", phone: "", company_name: "", channel: "", lead_source: "", utm_campaign: "", gclid: "", fbclid: "", deal_value: "", deal_status: "open" });
+    setForm({ first_name: "", last_name: "", email: "", phone: "", company_name: "", channel: "", lead_source: "", utm_campaign: "", gclid: "", fbclid: "", deal_value: "", deal_status: "open", country: "United Arab Emirates", region: "", city: "" });
     setSaving(false);
     setShowModal(false);
     onRefresh();
@@ -121,6 +127,7 @@ export default function LeadsAttributionTab({
                 <th className="px-4 py-3">UTM Campaign</th>
                 <th className="px-4 py-3">Click IDs</th>
                 <th className="px-4 py-3 text-right">Deal Value</th>
+                <th className="px-4 py-3">Location</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Date</th>
                 <th className="px-4 py-3"></th>
@@ -145,6 +152,7 @@ export default function LeadsAttributionTab({
                     {!lead.gclid && !lead.fbclid && <span className="text-slate-400">—</span>}
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-900 font-semibold text-right">{lead.deal_value ? formatMoney(lead.deal_value) : "—"}</td>
+                  <td className="px-4 py-3 text-xs text-slate-600">{[lead.city, lead.region, lead.country].filter(Boolean).join(", ") || "—"}</td>
                   <td className="px-4 py-3">
                     <select value={lead.deal_status || "open"} onChange={(e) => updateDealStatus(lead, e.target.value)} className={`rounded-full px-2 py-1 text-xs font-medium border-0 ${getStatusColor(lead.deal_status)}`}>
                       <option value="open">Open</option>
@@ -186,6 +194,14 @@ export default function LeadsAttributionTab({
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-700">GCLID</label><input type="text" value={form.gclid} onChange={(e) => setForm({ ...form, gclid: e.target.value })} placeholder="Google Click ID" className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm" /></div>
                 <div><label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-700">FBCLID</label><input type="text" value={form.fbclid} onChange={(e) => setForm({ ...form, fbclid: e.target.value })} placeholder="Facebook Click ID" className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm" /></div>
+              </div>
+              <div className="border-t border-slate-200 pt-4">
+                <h4 className="text-xs font-semibold text-slate-600 mb-3">Geographic Location</h4>
+                <div className="grid grid-cols-3 gap-3">
+                  <div><label className="mb-1 block text-xs text-slate-500">Country</label><select value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value, region: e.target.value === "United Arab Emirates" ? form.region : "" })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs">{COMMON_COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                  <div><label className="mb-1 block text-xs text-slate-500">Region/Emirate</label>{form.country === "United Arab Emirates" ? <select value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs"><option value="">Select...</option>{UAE_EMIRATES.map(e => <option key={e} value={e}>{e}</option>)}</select> : <input type="text" value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} placeholder="Region/State" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs" />}</div>
+                  <div><label className="mb-1 block text-xs text-slate-500">City</label><input type="text" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="City" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs" /></div>
+                </div>
               </div>
               <div className="border-t border-slate-200 pt-4">
                 <h4 className="text-xs font-semibold text-slate-600 mb-3">Deal Information</h4>

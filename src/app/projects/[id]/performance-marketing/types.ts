@@ -35,6 +35,10 @@ export type ExpenseLog = {
   notes: string | null;
   import_source: string;
   created_at: string;
+  // Geo fields
+  country: string | null;
+  region: string | null;
+  city: string | null;
 };
 
 export type MarketingLead = {
@@ -53,6 +57,10 @@ export type MarketingLead = {
   deal_status: string | null;
   converted_at: string | null;
   created_at: string;
+  // Geo fields
+  country: string | null;
+  region: string | null;
+  city: string | null;
 };
 
 export type Project = {
@@ -91,6 +99,45 @@ export const LEAD_SOURCES = [
   "Trade Show",
   "Cold Outreach",
   "Website",
+  "Other",
+];
+
+export const GCC_COUNTRIES = [
+  "United Arab Emirates",
+  "Saudi Arabia",
+  "Qatar",
+  "Kuwait",
+  "Bahrain",
+  "Oman",
+];
+
+export const UAE_EMIRATES = [
+  "Abu Dhabi",
+  "Dubai",
+  "Sharjah",
+  "Ajman",
+  "Umm Al Quwain",
+  "Ras Al Khaimah",
+  "Fujairah",
+];
+
+export const COMMON_COUNTRIES = [
+  "United Arab Emirates",
+  "Saudi Arabia",
+  "Qatar",
+  "Kuwait",
+  "Bahrain",
+  "Oman",
+  "Egypt",
+  "Jordan",
+  "Lebanon",
+  "India",
+  "Pakistan",
+  "Philippines",
+  "United Kingdom",
+  "United States",
+  "Germany",
+  "France",
   "Other",
 ];
 

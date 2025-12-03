@@ -7,6 +7,7 @@ import { supabaseClient } from "@/lib/supabaseClient";
 type ReportData = {
   metrics: { totalSpend: number; totalLeads: number; totalClicks: number; totalImpressions: number; totalRevenue: number; cpl: number; cpc: number; ctr: number; roas: number; conversionRate: number; };
   channels: { channel: string; spend: number; leads: number; revenue: number; cpl: number; roas: number; }[];
+  geoData?: { location: string; spend: number; leads: number; revenue: number; cpl: number; roas: number; }[];
   dateRange: { start: string; end: string };
   generatedAt: string;
 };
@@ -41,7 +42,7 @@ export default function PublicMarketingReportPage() {
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="h-10 w-10 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" /></div>;
   if (error || !report) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="text-center"><div className="text-4xl mb-4">📊</div><h1 className="text-xl font-semibold text-slate-900 mb-2">Report Not Available</h1><p className="text-slate-500">{error || "Unable to load the report."}</p></div></div>;
 
-  const { metrics, channels, dateRange } = report.report_data;
+  const { metrics, channels, geoData, dateRange } = report.report_data;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -89,9 +90,32 @@ export default function PublicMarketingReportPage() {
           </div>
         </div>
 
+        {geoData && geoData.length > 0 && (
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm mb-8">
+            <div className="p-4 border-b border-slate-200"><h2 className="text-lg font-semibold text-slate-900">🌍 Geographic Performance</h2></div>
+            <div className="p-4 overflow-x-auto">
+              <table className="w-full">
+                <thead><tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500"><th className="px-4 py-3">Location</th><th className="px-4 py-3 text-right">Spend</th><th className="px-4 py-3 text-right">Leads</th><th className="px-4 py-3 text-right">CPL</th><th className="px-4 py-3 text-right">Revenue</th><th className="px-4 py-3 text-right">ROAS</th></tr></thead>
+                <tbody>
+                  {geoData.map((geo) => (
+                    <tr key={geo.location} className="border-b border-slate-100 hover:bg-slate-50">
+                      <td className="px-4 py-3"><span className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-900">📍 {geo.location}</span></td>
+                      <td className="px-4 py-3 text-sm text-slate-900 font-semibold text-right">{formatMoney(geo.spend)}</td>
+                      <td className="px-4 py-3 text-sm text-slate-600 text-right">{geo.leads.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-sm text-slate-600 text-right">{formatMoney(geo.cpl)}</td>
+                      <td className="px-4 py-3 text-sm text-emerald-600 font-semibold text-right">{formatMoney(geo.revenue)}</td>
+                      <td className="px-4 py-3 text-sm font-semibold text-right"><span className={geo.roas >= 1 ? "text-emerald-600" : "text-red-600"}>{geo.roas.toFixed(2)}x</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {channels.length > 0 && (
           <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="p-4 border-b border-slate-200"><h2 className="text-lg font-semibold text-slate-900">Channel Performance</h2></div>
+            <div className="p-4 border-b border-slate-200"><h2 className="text-lg font-semibold text-slate-900">📊 Channel Performance</h2></div>
             <div className="p-4 overflow-x-auto">
               <table className="w-full">
                 <thead><tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500"><th className="px-4 py-3">Channel</th><th className="px-4 py-3 text-right">Spend</th><th className="px-4 py-3 text-right">Leads</th><th className="px-4 py-3 text-right">CPL</th><th className="px-4 py-3 text-right">Revenue</th><th className="px-4 py-3 text-right">ROAS</th></tr></thead>

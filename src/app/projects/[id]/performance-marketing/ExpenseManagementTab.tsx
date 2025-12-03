@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { supabaseClient } from "@/lib/supabaseClient";
-import { ExpenseLog, Campaign, MarketingChannel, CHANNELS, formatMoney, getChannelLabel } from "./types";
+import { ExpenseLog, Campaign, MarketingChannel, CHANNELS, COMMON_COUNTRIES, UAE_EMIRATES, formatMoney, getChannelLabel } from "./types";
 
 export default function ExpenseManagementTab({
   projectId,
@@ -27,6 +27,9 @@ export default function ExpenseManagementTab({
     manual_clicks: "",
     manual_impressions: "",
     notes: "",
+    country: "United Arab Emirates",
+    region: "",
+    city: "",
   });
   const [saving, setSaving] = useState(false);
   const [csvFile, setCsvFile] = useState<File | null>(null);
@@ -51,8 +54,11 @@ export default function ExpenseManagementTab({
       notes: form.notes || null,
       import_source: "manual",
       created_by_user_id: user?.id,
+      country: form.country || null,
+      region: form.region || null,
+      city: form.city || null,
     });
-    setForm({ date_start: new Date().toISOString().split("T")[0], date_end: new Date().toISOString().split("T")[0], channel: "google_ads", campaign_name: "", spend_amount: "", currency: "AED", manual_clicks: "", manual_impressions: "", notes: "" });
+    setForm({ date_start: new Date().toISOString().split("T")[0], date_end: new Date().toISOString().split("T")[0], channel: "google_ads", campaign_name: "", spend_amount: "", currency: "AED", manual_clicks: "", manual_impressions: "", notes: "", country: "United Arab Emirates", region: "", city: "" });
     setSaving(false);
     setShowModal(false);
     onRefresh();
@@ -163,6 +169,7 @@ export default function ExpenseManagementTab({
                 <th className="px-4 py-3 text-right">Spend</th>
                 <th className="px-4 py-3 text-right">Clicks</th>
                 <th className="px-4 py-3 text-right">Impressions</th>
+                <th className="px-4 py-3">Location</th>
                 <th className="px-4 py-3">Source</th>
                 <th className="px-4 py-3"></th>
               </tr>
@@ -176,6 +183,7 @@ export default function ExpenseManagementTab({
                   <td className="px-4 py-3 text-sm text-slate-900 font-semibold text-right">{formatMoney(expense.spend_amount)}</td>
                   <td className="px-4 py-3 text-sm text-slate-600 text-right">{expense.manual_clicks?.toLocaleString() || "—"}</td>
                   <td className="px-4 py-3 text-sm text-slate-600 text-right">{expense.manual_impressions?.toLocaleString() || "—"}</td>
+                  <td className="px-4 py-3 text-xs text-slate-600">{[expense.city, expense.region, expense.country].filter(Boolean).join(", ") || "—"}</td>
                   <td className="px-4 py-3"><span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${expense.import_source === "csv" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-600"}`}>{expense.import_source === "csv" ? "CSV Import" : "Manual"}</span></td>
                   <td className="px-4 py-3"><button onClick={() => handleDelete(expense.id)} className="text-slate-400 hover:text-red-500"><svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /></svg></button></td>
                 </tr>
@@ -203,6 +211,14 @@ export default function ExpenseManagementTab({
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-700">Total Clicks</label><input type="number" value={form.manual_clicks} onChange={(e) => setForm({ ...form, manual_clicks: e.target.value })} placeholder="0" className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm" /></div>
                 <div><label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-700">Total Impressions</label><input type="number" value={form.manual_impressions} onChange={(e) => setForm({ ...form, manual_impressions: e.target.value })} placeholder="0" className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm" /></div>
+              </div>
+              <div className="border-t border-slate-200 pt-4">
+                <h4 className="text-xs font-semibold text-slate-600 mb-3">Geographic Location</h4>
+                <div className="grid grid-cols-3 gap-3">
+                  <div><label className="mb-1 block text-xs text-slate-500">Country</label><select value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value, region: e.target.value === "United Arab Emirates" ? form.region : "" })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs">{COMMON_COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                  <div><label className="mb-1 block text-xs text-slate-500">Region/Emirate</label>{form.country === "United Arab Emirates" ? <select value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs"><option value="">All Emirates</option>{UAE_EMIRATES.map(e => <option key={e} value={e}>{e}</option>)}</select> : <input type="text" value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} placeholder="Region/State" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs" />}</div>
+                  <div><label className="mb-1 block text-xs text-slate-500">City</label><input type="text" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="City" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs" /></div>
+                </div>
               </div>
               <div><label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-700">Notes</label><textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Optional notes..." rows={2} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm resize-none" /></div>
             </div>

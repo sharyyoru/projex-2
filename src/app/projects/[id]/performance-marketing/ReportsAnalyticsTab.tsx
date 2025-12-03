@@ -26,15 +26,26 @@ type ChannelData = {
   roas: number;
 };
 
+type GeoData = {
+  location: string;
+  spend: number;
+  leads: number;
+  revenue: number;
+  cpl: number;
+  roas: number;
+};
+
 export default function ReportsAnalyticsTab({
   projectId,
   metrics,
   channels,
+  geoData,
   dateRange,
 }: {
   projectId: string;
   metrics: Metrics;
   channels: ChannelData[];
+  geoData: GeoData[];
   dateRange: { start: string; end: string };
 }) {
   const [showShareModal, setShowShareModal] = useState(false);
@@ -49,6 +60,7 @@ export default function ReportsAnalyticsTab({
     const reportData = {
       metrics,
       channels,
+      geoData,
       dateRange,
       generatedAt: new Date().toISOString(),
     };
@@ -151,9 +163,52 @@ export default function ReportsAnalyticsTab({
         </div>
       </div>
 
+      {/* Geographic Performance */}
+      <div className="mb-6">
+        <h3 className="text-sm font-semibold text-slate-700 mb-3">🌍 Geographic Performance</h3>
+        {geoData.length === 0 ? (
+          <div className="text-center py-8 text-slate-500 bg-slate-50 rounded-xl">
+            <p>No geographic data available. Add location data to expenses and leads.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <th className="px-4 py-3">Location</th>
+                  <th className="px-4 py-3 text-right">Spend</th>
+                  <th className="px-4 py-3 text-right">Leads</th>
+                  <th className="px-4 py-3 text-right">CPL</th>
+                  <th className="px-4 py-3 text-right">Revenue</th>
+                  <th className="px-4 py-3 text-right">ROAS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {geoData.map((geo) => (
+                  <tr key={geo.location} className="border-b border-slate-100 hover:bg-slate-50">
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-900">
+                        <span className="text-base">📍</span> {geo.location}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-slate-900 font-semibold text-right">{formatMoney(geo.spend)}</td>
+                    <td className="px-4 py-3 text-sm text-slate-600 text-right">{geo.leads.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-sm text-slate-600 text-right">{formatMoney(geo.cpl)}</td>
+                    <td className="px-4 py-3 text-sm text-emerald-600 font-semibold text-right">{formatMoney(geo.revenue)}</td>
+                    <td className="px-4 py-3 text-sm font-semibold text-right">
+                      <span className={geo.roas >= 1 ? "text-emerald-600" : "text-red-600"}>{geo.roas.toFixed(2)}x</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       {/* Channel Performance Grid */}
       <div>
-        <h3 className="text-sm font-semibold text-slate-700 mb-3">Channel Performance Grid</h3>
+        <h3 className="text-sm font-semibold text-slate-700 mb-3">📊 Channel Performance Grid</h3>
         {channels.length === 0 ? (
           <div className="text-center py-8 text-slate-500">
             <p>No channel data available for the selected date range.</p>

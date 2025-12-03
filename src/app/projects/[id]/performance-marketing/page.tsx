@@ -101,6 +101,31 @@ export default function PerformanceMarketingPage() {
     }));
   }, [expenses, leads, reportDateRange]);
 
+  const geoBreakdown = useCallback(() => {
+    const breakdown: Record<string, { spend: number; leads: number; revenue: number }> = {};
+    // Add spend by location
+    expenses.filter(e => e.date_start >= reportDateRange.start && e.date_end <= reportDateRange.end && e.country).forEach(e => {
+      const location = e.region ? `${e.region}, ${e.country}` : e.country!;
+      if (!breakdown[location]) breakdown[location] = { spend: 0, leads: 0, revenue: 0 };
+      breakdown[location].spend += Number(e.spend_amount);
+    });
+    // Add leads by location
+    leads.filter(l => l.created_at >= reportDateRange.start && l.created_at <= reportDateRange.end + "T23:59:59" && l.country).forEach(l => {
+      const location = l.region ? `${l.region}, ${l.country}` : l.country!;
+      if (!breakdown[location]) breakdown[location] = { spend: 0, leads: 0, revenue: 0 };
+      breakdown[location].leads += 1;
+      if (l.deal_status === "won") breakdown[location].revenue += l.deal_value || 0;
+    });
+    return Object.entries(breakdown)
+      .map(([location, data]) => ({
+        location,
+        ...data,
+        cpl: data.leads > 0 ? data.spend / data.leads : 0,
+        roas: data.spend > 0 ? data.revenue / data.spend : 0,
+      }))
+      .sort((a, b) => b.spend - a.spend);
+  }, [expenses, leads, reportDateRange]);
+
   if (loading || !project) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -111,6 +136,7 @@ export default function PerformanceMarketingPage() {
 
   const m = metrics();
   const channels = channelBreakdown();
+  const geoData = geoBreakdown();
 
   return (
     <div className="space-y-6">
@@ -183,7 +209,7 @@ export default function PerformanceMarketingPage() {
         {activeTab === "expenses" && <ExpenseManagementTab projectId={projectId} expenses={expenses} campaigns={campaigns} onRefresh={loadExpenses} />}
         {activeTab === "campaigns" && <CampaignMasterListTab projectId={projectId} campaigns={campaigns} onRefresh={loadCampaigns} />}
         {activeTab === "leads" && <LeadsAttributionTab projectId={projectId} leads={leads} campaigns={campaigns} onRefresh={loadLeads} />}
-        {activeTab === "reports" && <ReportsAnalyticsTab projectId={projectId} metrics={m} channels={channels} dateRange={reportDateRange} />}
+        {activeTab === "reports" && <ReportsAnalyticsTab projectId={projectId} metrics={m} channels={channels} geoData={geoData} dateRange={reportDateRange} />}
         {activeTab === "exports" && <OfflineExportsTab projectId={projectId} leads={leads} />}
       </div>
     </div>
