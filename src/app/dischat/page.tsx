@@ -722,8 +722,18 @@ export default function DischatPage() {
     return d.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
   };
 
-  // Parse markdown-like formatting
+  // Parse markdown-like formatting and render media
   const parseContent = (content: string) => {
+    if (!content) return "";
+    
+    // Check if the content is just a GIF/image URL (from Giphy or other sources)
+    const imageUrlRegex = /^(https?:\/\/[^\s]+\.(gif|png|jpg|jpeg|webp)(\?[^\s]*)?)$/i;
+    const giphyRegex = /^https?:\/\/media\d*\.giphy\.com\/[^\s]+$/i;
+    
+    if (imageUrlRegex.test(content.trim()) || giphyRegex.test(content.trim())) {
+      return `<img src="${content.trim()}" alt="Image" class="max-w-md max-h-80 rounded-lg mt-1" loading="lazy" />`;
+    }
+    
     // Bold: **text**
     content = content.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
     // Italic: *text* or _text_
@@ -731,11 +741,25 @@ export default function DischatPage() {
     content = content.replace(/_(.*?)_/g, "<em>$1</em>");
     // Code: `text`
     content = content.replace(/`(.*?)`/g, '<code class="bg-slate-700 px-1 py-0.5 rounded text-sm font-mono">$1</code>');
-    // Links
+    
+    // Convert image/gif URLs in mixed content to images
     content = content.replace(
-      /(https?:\/\/[^\s]+)/g,
+      /(https?:\/\/[^\s]+\.(gif|png|jpg|jpeg|webp)(\?[^\s]*)?)/gi,
+      '<img src="$1" alt="Image" class="max-w-md max-h-60 rounded-lg my-1 inline-block" loading="lazy" />'
+    );
+    
+    // Convert Giphy URLs to images
+    content = content.replace(
+      /(https?:\/\/media\d*\.giphy\.com\/[^\s]+)/gi,
+      '<img src="$1" alt="GIF" class="max-w-md max-h-60 rounded-lg my-1" loading="lazy" />'
+    );
+    
+    // Regular links (that aren't images)
+    content = content.replace(
+      /(https?:\/\/(?!media\d*\.giphy\.com)[^\s]+(?<!\.(gif|png|jpg|jpeg|webp)))/gi,
       '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">$1</a>'
     );
+    
     return content;
   };
 
@@ -858,6 +882,15 @@ export default function DischatPage() {
                         channel={channel}
                         isSelected={selectedChannel?.id === channel.id}
                         onClick={() => setSelectedChannel(channel)}
+                        onInvite={() => {
+                          setSelectedChannel(channel);
+                          setShowInviteUser(true);
+                        }}
+                        onJoinCall={() => {
+                          setSelectedChannel(channel);
+                          joinVoiceChannel(channel.id);
+                          setIsInVideoCall(true);
+                        }}
                       />
                     ))}
               </div>
@@ -988,6 +1021,40 @@ export default function DischatPage() {
                 )}
               </div>
               <div className="flex items-center gap-2">
+                {/* Invite Users Button */}
+                <button 
+                  onClick={() => setShowInviteUser(true)}
+                  className="rounded p-1.5 text-slate-400 hover:bg-slate-600 hover:text-white" 
+                  title="Invite Users"
+                >
+                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <line x1="19" x2="19" y1="8" y2="14" />
+                    <line x1="22" x2="16" y1="11" y2="11" />
+                  </svg>
+                </button>
+                {/* Start Video Call (for text channels) */}
+                {selectedChannel.channel_type === "text" && (
+                  <button 
+                    onClick={() => {
+                      // Find or create a video channel and join it
+                      const videoChannel = channels.find(c => c.channel_type === "video");
+                      if (videoChannel) {
+                        setSelectedChannel(videoChannel);
+                        setIsInVideoCall(true);
+                        joinVoiceChannel(videoChannel.id);
+                      }
+                    }}
+                    className="rounded p-1.5 text-slate-400 hover:bg-slate-600 hover:text-white" 
+                    title="Start Video Call"
+                  >
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="m22 8-6 4 6 4V8Z" />
+                      <rect width="14" height="12" x="2" y="6" rx="2" ry="2" />
+                    </svg>
+                  </button>
+                )}
                 <button className="rounded p-1.5 text-slate-400 hover:bg-slate-600 hover:text-white" title="Threads">
                   <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -995,7 +1062,7 @@ export default function DischatPage() {
                 </button>
                 <button 
                   onClick={() => setShowPinnedMessages(!showPinnedMessages)}
-                  className={`rounded p-1.5 hover:bg-slate-600 ${showPinnedMessages ? "bg-slate-600 text-white" : "text-slate-400 hover:text-white"}`}
+                  className={`relative rounded p-1.5 hover:bg-slate-600 ${showPinnedMessages ? "bg-slate-600 text-white" : "text-slate-400 hover:text-white"}`}
                   title="Pinned Messages"
                 >
                   <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1716,23 +1783,65 @@ function ChannelButton({
   channel,
   isSelected,
   onClick,
+  onInvite,
+  onJoinCall,
 }: {
   channel: Channel;
   isSelected: boolean;
   onClick: () => void;
+  onInvite?: () => void;
+  onJoinCall?: () => void;
 }) {
   return (
-    <button
-      onClick={onClick}
-      className={`flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-sm transition-colors ${
-        isSelected
-          ? "bg-slate-700 text-white"
-          : "text-slate-400 hover:bg-slate-700/50 hover:text-slate-200"
-      }`}
-    >
-      <ChannelIcon type={channel.channel_type} className="h-4 w-4 flex-shrink-0" />
-      <span className="truncate">{channel.name}</span>
-    </button>
+    <div className="group relative">
+      <button
+        onClick={onClick}
+        className={`flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-sm transition-colors ${
+          isSelected
+            ? "bg-slate-700 text-white"
+            : "text-slate-400 hover:bg-slate-700/50 hover:text-slate-200"
+        }`}
+      >
+        <ChannelIcon type={channel.channel_type} className="h-4 w-4 flex-shrink-0" />
+        <span className="truncate flex-1 text-left">{channel.name}</span>
+        
+        {/* Hover actions */}
+        <div className="hidden group-hover:flex items-center gap-1">
+          {(channel.channel_type === "voice" || channel.channel_type === "video") && onJoinCall && (
+            <span
+              onClick={(e) => { e.stopPropagation(); onJoinCall(); }}
+              className="p-1 hover:bg-slate-600 rounded text-green-400"
+              title={`Join ${channel.channel_type}`}
+            >
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                {channel.channel_type === "voice" ? (
+                  <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                ) : (
+                  <>
+                    <path d="m22 8-6 4 6 4V8Z" />
+                    <rect width="14" height="12" x="2" y="6" rx="2" ry="2" />
+                  </>
+                )}
+              </svg>
+            </span>
+          )}
+          {onInvite && (
+            <span
+              onClick={(e) => { e.stopPropagation(); onInvite(); }}
+              className="p-1 hover:bg-slate-600 rounded"
+              title="Invite users"
+            >
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <line x1="19" x2="19" y1="8" y2="14" />
+                <line x1="22" x2="16" y1="11" y2="11" />
+              </svg>
+            </span>
+          )}
+        </div>
+      </button>
+    </div>
   );
 }
 
