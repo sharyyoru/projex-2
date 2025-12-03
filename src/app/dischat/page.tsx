@@ -2,6 +2,10 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabaseClient } from "@/lib/supabaseClient";
+import dynamic from "next/dynamic";
+
+// Dynamically import VideoCall to avoid SSR issues with Agora
+const VideoCall = dynamic(() => import("@/components/dischat/VideoCall"), { ssr: false });
 
 // Types
 interface Server {
@@ -180,6 +184,15 @@ export default function DischatPage() {
   // Pinned messages
   const [showPinnedMessages, setShowPinnedMessages] = useState(false);
   const [pinnedMessages, setPinnedMessages] = useState<Message[]>([]);
+  
+  // Invite user to channel
+  const [showInviteUser, setShowInviteUser] = useState(false);
+  const [inviteUserSearch, setInviteUserSearch] = useState("");
+  const [searchResults, setSearchResults] = useState<{ id: string; full_name: string; email: string; avatar_url: string }[]>([]);
+  const [searchingUsers, setSearchingUsers] = useState(false);
+  
+  // Active video call
+  const [isInVideoCall, setIsInVideoCall] = useState(false);
 
   // Fetch current user
   useEffect(() => {
@@ -544,6 +557,74 @@ export default function DischatPage() {
       fetchPinnedMessages();
     }
   }, [selectedChannel]);
+
+  // Search users to invite
+  const searchUsersToInvite = async (search: string) => {
+    if (!search.trim() || !selectedChannel) {
+      setSearchResults([]);
+      return;
+    }
+
+    setSearchingUsers(true);
+    try {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session) return;
+
+      const res = await fetch(`/api/dischat/channels/${selectedChannel.id}/invite?search=${encodeURIComponent(search)}`, {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setSearchResults(data.users || []);
+      }
+    } catch (err) {
+      console.error("Error searching users:", err);
+    }
+    setSearchingUsers(false);
+  };
+
+  // Invite user to channel
+  const inviteUserToChannel = async (userId: string) => {
+    if (!selectedChannel) return;
+
+    try {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session) return;
+
+      const res = await fetch(`/api/dischat/channels/${selectedChannel.id}/invite`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ user_id: userId }),
+      });
+
+      if (res.ok) {
+        // Remove from search results
+        setSearchResults(prev => prev.filter(u => u.id !== userId));
+        // Refresh members
+        const { data: membersData } = await supabaseClient
+          .from("dischat_members")
+          .select("*, user:users(full_name, avatar_url)")
+          .eq("server_id", selectedServer?.id);
+        if (membersData) setMembers(membersData as Member[]);
+      }
+    } catch (err) {
+      console.error("Error inviting user:", err);
+    }
+  };
+
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      searchUsersToInvite(inviteUserSearch);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [inviteUserSearch]);
 
   // Create server
   const createServer = async (name: string) => {
@@ -1324,113 +1405,131 @@ export default function DischatPage() {
 
             {/* Voice/Video Channel UI */}
             {(selectedChannel.channel_type === "voice" || selectedChannel.channel_type === "video") && (
-              <div className="flex flex-col items-center justify-center flex-1 gap-4 p-8">
-                <div className="text-center">
-                  <div className="mb-4 rounded-full bg-slate-600 p-6 mx-auto w-fit">
-                    <ChannelIcon type={selectedChannel.channel_type} className="h-16 w-16 text-slate-400" />
-                  </div>
-                  <h3 className="text-2xl font-bold text-white">{selectedChannel.name}</h3>
-                  <p className="mt-2 text-slate-400">
-                    {inVoiceChannel && voiceChannelId === selectedChannel.id
-                      ? "You are connected to this channel"
-                      : selectedChannel.channel_type === "voice"
-                      ? "No one is currently in this voice channel"
-                      : "Start a video call with friends"}
-                  </p>
-                  
-                  {/* Members in voice channel */}
-                  {members.filter(m => m.user?.full_name).length > 0 && (
-                    <div className="mt-4 flex justify-center gap-2">
-                      {members.slice(0, 5).map((m) => (
-                        <div key={m.id} className="relative" title={m.user?.full_name || m.nickname || ""}>
-                          {m.user?.avatar_url ? (
-                            <img src={m.user.avatar_url} alt="" className="h-8 w-8 rounded-full" />
-                          ) : (
-                            <div className="h-8 w-8 rounded-full bg-slate-500 flex items-center justify-center text-xs text-white">
-                              {m.user?.full_name?.[0] || "?"}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {inVoiceChannel && voiceChannelId === selectedChannel.id ? (
-                  <div className="flex items-center gap-3">
-                    {/* Voice Controls */}
-                    <button
-                      onClick={toggleMute}
-                      className={`flex items-center gap-2 rounded-lg px-4 py-2 font-medium transition-colors ${
-                        isMuted ? "bg-red-500/20 text-red-400" : "bg-slate-600 text-white hover:bg-slate-500"
-                      }`}
-                    >
-                      {isMuted ? (
-                        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <line x1="1" x2="23" y1="1" y2="23" />
-                          <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V5a3 3 0 0 0-5.94-.6" />
-                        </svg>
-                      ) : (
-                        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-                        </svg>
-                      )}
-                      {isMuted ? "Unmute" : "Mute"}
-                    </button>
-
-                    <button
-                      onClick={toggleDeafen}
-                      className={`flex items-center gap-2 rounded-lg px-4 py-2 font-medium transition-colors ${
-                        isDeafened ? "bg-red-500/20 text-red-400" : "bg-slate-600 text-white hover:bg-slate-500"
-                      }`}
-                    >
-                      {isDeafened ? (
-                        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <line x1="1" x2="23" y1="1" y2="23" />
-                          <path d="M17.5 17.5A9 9 0 0 1 3 12v-6" />
-                        </svg>
-                      ) : (
-                        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
-                        </svg>
-                      )}
-                      {isDeafened ? "Undeafen" : "Deafen"}
-                    </button>
-
-                    <button
-                      onClick={leaveVoiceChannel}
-                      className="flex items-center gap-2 rounded-lg bg-red-500 px-4 py-2 font-medium text-white hover:bg-red-600 transition-colors"
-                    >
-                      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91" />
-                        <line x1="22" x2="2" y1="2" y2="22" />
-                      </svg>
-                      Disconnect
-                    </button>
-                  </div>
+              <>
+                {isInVideoCall && currentUser ? (
+                  <VideoCall
+                    channelId={selectedChannel.id}
+                    serverId={selectedServer?.id || ""}
+                    channelName={selectedChannel.name}
+                    currentUser={currentUser}
+                    onLeave={() => {
+                      setIsInVideoCall(false);
+                      leaveVoiceChannel();
+                    }}
+                  />
                 ) : (
-                  <button 
-                    onClick={() => joinVoiceChannel(selectedChannel.id)}
-                    className="flex items-center gap-2 rounded-lg bg-green-500 px-6 py-3 font-medium text-white hover:bg-green-600 transition-colors"
-                  >
-                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      {selectedChannel.channel_type === "voice" ? (
-                        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-                      ) : (
-                        <>
-                          <path d="m22 8-6 4 6 4V8Z" />
-                          <rect width="14" height="12" x="2" y="6" rx="2" ry="2" />
-                        </>
+                  <div className="flex flex-col items-center justify-center flex-1 gap-4 p-8">
+                    <div className="text-center">
+                      <div className="mb-4 rounded-full bg-slate-600 p-6 mx-auto w-fit">
+                        <ChannelIcon type={selectedChannel.channel_type} className="h-16 w-16 text-slate-400" />
+                      </div>
+                      <h3 className="text-2xl font-bold text-white">{selectedChannel.name}</h3>
+                      <p className="mt-2 text-slate-400">
+                        {selectedChannel.channel_type === "voice"
+                          ? "Join voice chat with your community"
+                          : "Start a video call with friends"}
+                      </p>
+                      
+                      {/* Members in server */}
+                      {members.filter(m => m.status === "online").length > 0 && (
+                        <div className="mt-4">
+                          <p className="text-xs text-slate-500 mb-2">
+                            {members.filter(m => m.status === "online").length} members online
+                          </p>
+                          <div className="flex justify-center gap-2">
+                            {members.filter(m => m.status === "online").slice(0, 5).map((m) => (
+                              <div key={m.id} className="relative" title={m.user?.full_name || m.nickname || ""}>
+                                {m.user?.avatar_url ? (
+                                  <img src={m.user.avatar_url} alt="" className="h-8 w-8 rounded-full" />
+                                ) : (
+                                  <div className="h-8 w-8 rounded-full bg-slate-500 flex items-center justify-center text-xs text-white">
+                                    {m.user?.full_name?.[0] || "?"}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       )}
-                    </svg>
-                    Join {selectedChannel.channel_type === "voice" ? "Voice" : "Video"}
-                  </button>
-                )}
+                    </div>
 
-                <p className="text-xs text-slate-500 mt-4">
-                  Note: Real-time voice requires WebRTC integration (LiveKit, Agora, or Daily.co)
-                </p>
-              </div>
+                    <div className="flex items-center gap-3">
+                      <button 
+                        onClick={() => {
+                          joinVoiceChannel(selectedChannel.id);
+                          setIsInVideoCall(true);
+                        }}
+                        className="flex items-center gap-2 rounded-lg bg-green-500 px-6 py-3 font-medium text-white hover:bg-green-600 transition-colors"
+                      >
+                        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          {selectedChannel.channel_type === "voice" ? (
+                            <>
+                              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                            </>
+                          ) : (
+                            <>
+                              <path d="m22 8-6 4 6 4V8Z" />
+                              <rect width="14" height="12" x="2" y="6" rx="2" ry="2" />
+                            </>
+                          )}
+                        </svg>
+                        Join {selectedChannel.channel_type === "voice" ? "Voice" : "Video"}
+                      </button>
+
+                      <button
+                        onClick={() => setShowInviteUser(true)}
+                        className="flex items-center gap-2 rounded-lg bg-slate-600 px-4 py-3 font-medium text-white hover:bg-slate-500 transition-colors"
+                        title="Invite users to this channel"
+                      >
+                        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                          <circle cx="9" cy="7" r="4" />
+                          <line x1="19" x2="19" y1="8" y2="14" />
+                          <line x1="22" x2="16" y1="11" y2="11" />
+                        </svg>
+                        Invite
+                      </button>
+                    </div>
+
+                    <div className="mt-4 text-center">
+                      <p className="text-sm text-slate-400">Features include:</p>
+                      <div className="flex justify-center gap-4 mt-2 text-xs text-slate-500">
+                        <span className="flex items-center gap-1">
+                          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                          </svg>
+                          Voice
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="m22 8-6 4 6 4V8Z" />
+                            <rect width="14" height="12" x="2" y="6" rx="2" ry="2" />
+                          </svg>
+                          Video
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <rect width="20" height="14" x="2" y="3" rx="2" />
+                            <line x1="8" x2="16" y1="21" y2="21" />
+                            <line x1="12" x2="12" y1="17" y2="21" />
+                          </svg>
+                          Screen Share
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                            <circle cx="9" cy="7" r="4" />
+                            <line x1="19" x2="19" y1="8" y2="14" />
+                            <line x1="22" x2="16" y1="11" y2="11" />
+                          </svg>
+                          Guest Invite
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
             {/* Pinned Messages Sidebar */}
@@ -1524,6 +1623,89 @@ export default function DischatPage() {
           onClose={() => setShowCreateChannel(false)}
           onCreate={createChannel}
         />
+      )}
+
+      {/* Invite User Modal */}
+      {showInviteUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="w-full max-w-md rounded-lg bg-slate-800 p-6 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-white">Invite Users</h2>
+              <button
+                onClick={() => {
+                  setShowInviteUser(false);
+                  setInviteUserSearch("");
+                  setSearchResults([]);
+                }}
+                className="text-slate-400 hover:text-white"
+              >
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <p className="text-sm text-slate-400 mb-4">
+              Search for users to invite to {selectedChannel?.name ? `#${selectedChannel.name}` : "this channel"}.
+            </p>
+
+            <input
+              type="text"
+              value={inviteUserSearch}
+              onChange={(e) => setInviteUserSearch(e.target.value)}
+              placeholder="Search by name or email..."
+              className="w-full rounded-lg bg-slate-900 px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              autoFocus
+            />
+
+            <div className="mt-4 max-h-64 overflow-y-auto">
+              {searchingUsers ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+                </div>
+              ) : searchResults.length === 0 ? (
+                <div className="text-center py-8 text-slate-400">
+                  {inviteUserSearch.trim() ? "No users found" : "Start typing to search for users"}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {searchResults.map((user) => (
+                    <div
+                      key={user.id}
+                      className="flex items-center justify-between rounded-lg bg-slate-700/50 p-3 hover:bg-slate-700"
+                    >
+                      <div className="flex items-center gap-3">
+                        {user.avatar_url ? (
+                          <img src={user.avatar_url} alt="" className="h-10 w-10 rounded-full" />
+                        ) : (
+                          <div className="h-10 w-10 rounded-full bg-indigo-500 flex items-center justify-center text-white font-medium">
+                            {user.full_name?.[0] || "?"}
+                          </div>
+                        )}
+                        <div>
+                          <p className="font-medium text-white">{user.full_name}</p>
+                          <p className="text-xs text-slate-400">{user.email}</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => inviteUserToChannel(user.id)}
+                        className="rounded bg-indigo-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-600"
+                      >
+                        Invite
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-slate-700">
+              <p className="text-xs text-slate-500 text-center">
+                Invited users will be added to the server and can access this channel.
+              </p>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
