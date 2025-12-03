@@ -1197,3 +1197,114 @@ create table if not exists danote_unsorted (
 );
 
 create index if not exists danote_unsorted_board_id_idx on danote_unsorted(board_id);
+
+-- ============================================
+-- PERFORMANCE MARKETING MODULE
+-- ============================================
+
+-- Marketing Campaigns Master List
+create table if not exists marketing_campaigns (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references projects(id) on delete cascade,
+  name text not null,
+  channel text not null,
+  utm_campaign text,
+  utm_source text,
+  utm_medium text,
+  description text,
+  start_date date,
+  end_date date,
+  budget numeric(12, 2),
+  is_active boolean default true,
+  created_by_user_id uuid references users(id),
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create index if not exists marketing_campaigns_project_id_idx on marketing_campaigns(project_id);
+create index if not exists marketing_campaigns_utm_campaign_idx on marketing_campaigns(utm_campaign);
+
+-- Marketing Expense Log (Manual Spend Entries)
+create table if not exists marketing_expense_logs (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references projects(id) on delete cascade,
+  campaign_id uuid references marketing_campaigns(id) on delete set null,
+  date_start date not null,
+  date_end date not null,
+  channel text not null,
+  campaign_name text not null,
+  spend_amount numeric(12, 2) not null,
+  currency text default 'AED',
+  manual_clicks integer,
+  manual_impressions integer,
+  manual_conversions integer,
+  notes text,
+  import_source text check (import_source in ('manual', 'csv', 'xlsx')) default 'manual',
+  import_filename text,
+  import_hash text,
+  created_by_user_id uuid references users(id),
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create index if not exists marketing_expense_logs_project_id_idx on marketing_expense_logs(project_id);
+create index if not exists marketing_expense_logs_date_idx on marketing_expense_logs(date_start, date_end);
+
+-- Marketing Leads (Leads with attribution data)
+create table if not exists marketing_leads (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references projects(id) on delete cascade,
+  campaign_id uuid references marketing_campaigns(id) on delete set null,
+  first_name text,
+  last_name text,
+  email text,
+  phone text,
+  company_name text,
+  channel text,
+  lead_source text,
+  utm_campaign text,
+  utm_source text,
+  utm_medium text,
+  utm_content text,
+  utm_term text,
+  gclid text,
+  fbclid text,
+  msclkid text,
+  ttclid text,
+  li_fat_id text,
+  landing_page text,
+  referrer_url text,
+  user_agent text,
+  ip_address text,
+  deal_id uuid references deals(id) on delete set null,
+  deal_value numeric(12, 2),
+  deal_status text check (deal_status in ('open', 'won', 'lost')),
+  converted_at timestamptz,
+  attributed_cost numeric(12, 2),
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create index if not exists marketing_leads_project_id_idx on marketing_leads(project_id);
+create index if not exists marketing_leads_utm_campaign_idx on marketing_leads(utm_campaign);
+create index if not exists marketing_leads_gclid_idx on marketing_leads(gclid) where gclid is not null;
+create index if not exists marketing_leads_fbclid_idx on marketing_leads(fbclid) where fbclid is not null;
+
+-- Marketing Reports (Stored snapshots for public sharing)
+create table if not exists marketing_reports (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references projects(id) on delete cascade,
+  title text not null,
+  date_start date not null,
+  date_end date not null,
+  report_data jsonb not null default '{}'::jsonb,
+  public_token text unique default gen_random_uuid()::text,
+  public_expires_at timestamptz,
+  is_published boolean default false,
+  created_by_user_id uuid references users(id),
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create index if not exists marketing_reports_project_id_idx on marketing_reports(project_id);
+create unique index if not exists marketing_reports_token_idx on marketing_reports(public_token) where public_token is not null;
