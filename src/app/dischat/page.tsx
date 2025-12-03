@@ -290,72 +290,103 @@ export default function DischatPage() {
     fetchChannelsAndCategories();
   }, [selectedServer]);
 
-  // Fetch messages when channel changes
+  // Fetch messages when channel changes - use channel ID as key
+  const channelId = selectedChannel?.id;
+  
   useEffect(() => {
-    if (!selectedChannel) return;
+    if (!channelId) {
+      setMessages([]);
+      return;
+    }
     
     // Clear messages immediately when channel changes
     setMessages([]);
+    
+    let isMounted = true;
 
     const fetchMessages = async () => {
-      const { data: messagesData } = await supabaseClient
-        .from("dischat_messages")
-        .select("*, author:users(full_name, avatar_url), reply_to:dischat_messages!reply_to_id(content, author:users(full_name))")
-        .eq("channel_id", selectedChannel.id)
-        .eq("is_deleted", false)
-        .order("created_at", { ascending: true })
-        .limit(50);
+      try {
+        // Fetch messages
+        const { data: messagesData, error } = await supabaseClient
+          .from("dischat_messages")
+          .select("*, author:users(full_name, avatar_url)")
+          .eq("channel_id", channelId)
+          .eq("is_deleted", false)
+          .order("created_at", { ascending: true })
+          .limit(50);
 
-      if (messagesData) {
-        setMessages(messagesData as Message[]);
+        if (error) {
+          console.error("Error fetching messages:", error);
+          return;
+        }
+
+        if (!isMounted || !messagesData) return;
+
+        // Fetch reply info for messages that have reply_to_id
+        const messagesWithReplies = await Promise.all(
+          messagesData.map(async (msg: any) => {
+            if (msg.reply_to_id) {
+              const { data: replyData } = await supabaseClient
+                .from("dischat_messages")
+                .select("content, author:users(full_name)")
+                .eq("id", msg.reply_to_id)
+                .single();
+              return { ...msg, reply_to: replyData };
+            }
+            return msg;
+          })
+        );
+
+        if (isMounted) {
+          setMessages(messagesWithReplies as Message[]);
+        }
+      } catch (err) {
+        console.error("Error in fetchMessages:", err);
       }
     };
 
     fetchMessages();
 
-    // Subscribe to new messages
+    // Subscribe to new messages with unique channel name
+    const subscriptionChannel = `messages-channel-${channelId}-${Date.now()}`;
     const subscription = supabaseClient
-      .channel(`messages:${selectedChannel.id}`)
+      .channel(subscriptionChannel)
       .on(
         "postgres_changes",
         {
           event: "INSERT",
           schema: "public",
           table: "dischat_messages",
-          filter: `channel_id=eq.${selectedChannel.id}`,
+          filter: `channel_id=eq.${channelId}`,
         },
         async (payload) => {
-          // Skip if message already exists (optimistic update)
+          if (!isMounted) return;
+          
           const messageId = payload.new.id;
+          
+          // Fetch author info for the new message
+          const { data: authorData } = await supabaseClient
+            .from("users")
+            .select("full_name, avatar_url")
+            .eq("id", payload.new.author_id)
+            .single();
+          
+          const newMsg = { ...payload.new, author: authorData } as Message;
+          
           setMessages(prev => {
-            // Check if we already have this message (real or temp)
+            // Check if we already have this message
             if (prev.some(m => m.id === messageId)) return prev;
-            
-            // Add the new message with author info
-            const fetchAuthor = async () => {
-              const { data: authorData } = await supabaseClient
-                .from("users")
-                .select("full_name, avatar_url")
-                .eq("id", payload.new.author_id)
-                .single();
-              
-              const newMsg = { ...payload.new, author: authorData } as Message;
-              setMessages(p => {
-                if (p.some(m => m.id === messageId)) return p;
-                return [...p, newMsg];
-              });
-            };
-            fetchAuthor();
-            return prev;
+            return [...prev, newMsg];
           });
         }
       )
       .subscribe();
 
     return () => {
+      isMounted = false;
       subscription.unsubscribe();
     };
-  }, [selectedChannel]);
+  }, [channelId]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -1240,7 +1271,71 @@ export default function DischatPage() {
 
       {/* Main Chat Area */}
       <div className="flex flex-1 flex-col bg-slate-700 relative">
-        {selectedChannel ? (
+        {/* DM Chat View */}
+        {selectedDM ? (
+          <>
+            {/* DM Header */}
+            <div className="flex h-12 items-center justify-between border-b border-slate-600 px-4 shadow">
+              <div className="flex items-center gap-2">
+                {selectedDM.user.avatar_url ? (
+                  <img src={selectedDM.user.avatar_url} alt="" className="h-8 w-8 rounded-full" />
+                ) : (
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-500 text-sm font-medium text-white">
+                    {selectedDM.user.full_name?.[0] || "U"}
+                  </div>
+                )}
+                <h3 className="font-semibold text-white">{selectedDM.user.full_name}</h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <button className="rounded p-1.5 text-slate-400 hover:bg-slate-600 hover:text-white" title="Start Video Call">
+                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="m22 8-6 4 6 4V8Z" />
+                    <rect width="14" height="12" x="2" y="6" rx="2" ry="2" />
+                  </svg>
+                </button>
+                <button className="rounded p-1.5 text-slate-400 hover:bg-slate-600 hover:text-white" title="Voice Call">
+                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* DM Messages */}
+            <div className="flex-1 overflow-y-auto px-4 py-4">
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                {selectedDM.user.avatar_url ? (
+                  <img src={selectedDM.user.avatar_url} alt="" className="h-20 w-20 rounded-full mb-4" />
+                ) : (
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-indigo-500 text-2xl font-medium text-white mb-4">
+                    {selectedDM.user.full_name?.[0] || "U"}
+                  </div>
+                )}
+                <h3 className="text-xl font-bold text-white">{selectedDM.user.full_name}</h3>
+                <p className="mt-2 text-slate-400 max-w-md">
+                  This is the beginning of your direct message history with <strong>{selectedDM.user.full_name}</strong>.
+                </p>
+              </div>
+            </div>
+
+            {/* DM Message Input */}
+            <div className="border-t border-slate-600 p-4">
+              <div className="flex items-center gap-2 rounded-lg bg-slate-600 px-4 py-2">
+                <input
+                  type="text"
+                  placeholder={`Message @${selectedDM.user.full_name}`}
+                  className="flex-1 bg-transparent text-white placeholder-slate-400 focus:outline-none"
+                />
+                <button className="rounded p-1.5 text-slate-400 hover:bg-slate-500 hover:text-white">
+                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="m22 2-7 20-4-9-9-4Z" />
+                    <path d="M22 2 11 13" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </>
+        ) : selectedChannel ? (
           <>
             {/* Channel Header */}
             <div className="flex h-12 items-center justify-between border-b border-slate-600 px-4 shadow">
