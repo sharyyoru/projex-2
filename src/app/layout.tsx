@@ -25,7 +25,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Projext by Mutant",
+  title: "Projex by Mutant",
   description: "Project management and collaboration platform",
   appleWebApp: {
     capable: true,

@@ -1646,6 +1646,7 @@ function AddProjectModal({
     const description = (formData.get("description") as string | null)?.trim();
     const status = (formData.get("status") as string | null)?.trim();
     const pipeline = (formData.get("pipeline") as string | null)?.trim();
+    const projectType = (formData.get("project_type") as string | null)?.trim();
     const processedOutcome = (formData.get("processed_outcome") as string | null)?.trim();
     const valueRaw = (formData.get("value") as string | null)?.trim();
     const startDate = (formData.get("start_date") as string | null)?.trim();
@@ -1654,6 +1655,11 @@ function AddProjectModal({
 
     if (!name) {
       setError("Project name is required.");
+      return;
+    }
+
+    if (!projectType) {
+      setError("Project type is required.");
       return;
     }
 
@@ -1679,6 +1685,7 @@ function AddProjectModal({
           status: status || null,
           processed_outcome: status === "Processed" ? processedOutcome || null : null,
           pipeline: pipeline || null,
+          project_type: projectType,
           value,
           start_date: startDate || null,
           due_date: dueDate || null,
@@ -1746,6 +1753,44 @@ function AddProjectModal({
               placeholder="e.g. Website Redesign"
               className="block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm text-black placeholder:text-slate-400 shadow-sm focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
             />
+          </div>
+
+          {/* Project Type Selection */}
+          <div className="space-y-2">
+            <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide">
+              Project Type *
+            </label>
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { value: "social_media", label: "Social Media", color: "from-pink-500 to-fuchsia-500", icon: "📱" },
+                { value: "website", label: "Website", color: "from-blue-500 to-cyan-500", icon: "🌐" },
+                { value: "branding", label: "Branding", color: "from-purple-500 to-violet-500", icon: "🎨" },
+              ].map((type) => (
+                <label
+                  key={type.value}
+                  className="relative cursor-pointer"
+                >
+                  <input
+                    type="radio"
+                    name="project_type"
+                    value={type.value}
+                    className="peer sr-only"
+                    required
+                  />
+                  <div className="flex flex-col items-center gap-2 rounded-xl border-2 border-slate-200 bg-white p-3 transition-all peer-checked:border-emerald-500 peer-checked:bg-emerald-50/50 peer-checked:shadow-lg peer-checked:shadow-emerald-500/10 hover:border-slate-300 hover:bg-slate-50">
+                    <div className={`flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br ${type.color} text-white text-base shadow-lg`}>
+                      {type.icon}
+                    </div>
+                    <span className="text-[11px] font-semibold text-slate-700">{type.label}</span>
+                  </div>
+                  <div className="absolute -top-1 -right-1 hidden h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white peer-checked:flex">
+                    <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                  </div>
+                </label>
+              ))}
+            </div>
           </div>
           
           <div className="space-y-1.5">

@@ -28,6 +28,8 @@ type ProjectRow = {
   status: string | null;
   processed_outcome: string | null;
   pipeline: string | null;
+  project_type: string | null;
+  social_calendar_id: string | null;
   value: number | null;
   start_date: string | null;
   due_date: string | null;
@@ -79,7 +81,7 @@ async function getProjectWithRelations(id: string): Promise<{
     const { data: project, error } = await supabaseClient
       .from("projects")
       .select(
-        "id, company_id, primary_contact_id, name, description, status, processed_outcome, pipeline, value, start_date, due_date, created_at, is_archived",
+        "id, company_id, primary_contact_id, name, description, status, processed_outcome, pipeline, project_type, social_calendar_id, value, start_date, due_date, created_at, is_archived",
       )
       .eq("id", id)
       .single();
@@ -266,7 +268,7 @@ export default async function ProjectPage({
         <>
           <div className="grid items-stretch gap-6 md:grid-cols-2">
             {/* Enhanced Project Details Card - Editable */}
-            <ProjectDetailsCard project={project} />
+            <ProjectDetailsCard project={project} companyId={project.company_id} />
 
             {/* Enhanced Context Card */}
             <ProjectContextCard

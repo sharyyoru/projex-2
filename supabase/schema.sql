@@ -83,6 +83,16 @@ create index if not exists projects_primary_contact_id_idx on projects(primary_c
 alter table if exists projects
   add column if not exists processed_outcome text;
 
+-- Project type (Social Media, Website, Branding)
+alter table if exists projects
+  add column if not exists project_type text check (project_type in ('social_media', 'website', 'branding'));
+
+-- Link to social media calendar (social_projects)
+alter table if exists projects
+  add column if not exists social_calendar_id uuid references social_projects(id) on delete set null;
+
+create index if not exists projects_social_calendar_id_idx on projects(social_calendar_id);
+
 -- Patients
 create table if not exists patients (
   id uuid primary key default gen_random_uuid(),
