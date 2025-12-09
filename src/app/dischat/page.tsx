@@ -1370,15 +1370,15 @@ export default function DischatPage() {
   const totalUnread = totalUnreadDMs + totalUnreadChannels;
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] overflow-hidden rounded-2xl bg-slate-800 shadow-2xl mr-16">
+    <div className="flex h-[calc(100vh-8rem)] overflow-hidden rounded-2xl bg-white shadow-2xl border border-slate-200/80 mr-16">
       {/* Server List - Discord-style vertical bar */}
-      <div className="flex w-[72px] flex-col items-center gap-2 bg-slate-900 py-3">
+      <div className="flex w-[72px] flex-col items-center gap-2 bg-gradient-to-b from-indigo-900 via-slate-900 to-slate-900 py-3">
         {/* Notifications Bell */}
         <div className="relative">
           <button
             onClick={() => setShowNotifications(!showNotifications)}
             className={`group relative flex h-12 w-12 items-center justify-center rounded-2xl transition-all hover:rounded-xl ${
-              showNotifications ? "rounded-xl bg-amber-500 text-white" : "bg-slate-700 text-slate-400 hover:bg-amber-500 hover:text-white"
+              showNotifications ? "rounded-xl bg-amber-500 text-white" : "bg-slate-700/80 text-slate-300 hover:bg-amber-500 hover:text-white"
             }`}
             title="Notifications"
           >
@@ -1395,9 +1395,9 @@ export default function DischatPage() {
           
           {/* Notifications Dropdown */}
           {showNotifications && (
-            <div className="absolute left-16 top-0 z-50 w-80 rounded-lg bg-slate-800 shadow-xl border border-slate-700">
-              <div className="flex items-center justify-between border-b border-slate-700 px-4 py-3">
-                <h3 className="font-semibold text-white">Notifications</h3>
+            <div className="absolute left-16 top-0 z-50 w-80 rounded-xl bg-white shadow-2xl border border-slate-200">
+              <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                <h3 className="font-semibold text-slate-900">Notifications</h3>
                 <button
                   onClick={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}
                   className="text-xs text-indigo-400 hover:text-indigo-300"
@@ -1407,7 +1407,7 @@ export default function DischatPage() {
               </div>
               <div className="max-h-96 overflow-y-auto">
                 {notifications.length === 0 ? (
-                  <div className="py-8 text-center text-slate-400">
+                  <div className="py-8 text-center text-slate-500">
                     <svg className="mx-auto h-12 w-12 mb-2 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
                       <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
                       <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
@@ -1419,8 +1419,8 @@ export default function DischatPage() {
                     <button
                       key={notif.id}
                       onClick={() => handleNotificationClick(notif)}
-                      className={`flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-slate-700/50 transition-colors ${
-                        !notif.read ? "bg-slate-700/30" : ""
+                      className={`flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors ${
+                        !notif.read ? "bg-indigo-50/50" : ""
                       }`}
                     >
                       {notif.authorAvatar ? (
@@ -1439,9 +1439,9 @@ export default function DischatPage() {
                           )}
                           {!notif.read && <span className="h-2 w-2 rounded-full bg-red-500" />}
                         </div>
-                        <p className="text-sm font-medium text-white">{notif.authorName}</p>
-                        <p className="text-xs text-slate-400 truncate">{notif.message}</p>
-                        <p className="text-xs text-slate-500 mt-1">
+                        <p className="text-sm font-medium text-slate-900">{notif.authorName}</p>
+                        <p className="text-xs text-slate-600 truncate">{notif.message}</p>
+                        <p className="text-xs text-slate-400 mt-1">
                           {new Date(notif.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                         </p>
                       </div>
@@ -1480,7 +1480,7 @@ export default function DischatPage() {
           )}
         </button>
 
-        <div className="my-1 h-0.5 w-8 rounded-full bg-slate-700" />
+        <div className="my-1 h-0.5 w-8 rounded-full bg-slate-600/50" />
 
         {/* Server Icons */}
         {servers.map((server) => (
@@ -1529,25 +1529,25 @@ export default function DischatPage() {
 
       {/* Channel Sidebar */}
       {selectedServer && (
-        <div className="flex w-60 flex-col bg-slate-800">
+        <div className="flex w-60 flex-col bg-slate-50 border-r border-slate-200">
           {/* Server Header with Dropdown */}
           <div className="relative">
             <button 
               onClick={() => setShowServerMenu(!showServerMenu)}
-              className="flex h-12 w-full items-center justify-between border-b border-slate-700 px-4 shadow hover:bg-slate-700/50 transition-colors"
+              className="flex h-12 w-full items-center justify-between border-b border-slate-200 px-4 shadow-sm hover:bg-slate-100 transition-colors bg-white"
             >
-              <h2 className="truncate font-semibold text-white">{selectedServer.name}</h2>
-              <svg className={`h-4 w-4 text-slate-400 transition-transform ${showServerMenu ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <h2 className="truncate font-semibold text-slate-900">{selectedServer.name}</h2>
+              <svg className={`h-4 w-4 text-slate-500 transition-transform ${showServerMenu ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="m6 9 6 6 6-6" />
               </svg>
             </button>
             
             {/* Server Dropdown Menu */}
             {showServerMenu && (
-              <div className="absolute top-full left-0 right-0 z-50 mt-1 mx-2 rounded-lg bg-slate-900 py-2 shadow-xl border border-slate-700">
+              <div className="absolute top-full left-0 right-0 z-50 mt-1 mx-2 rounded-xl bg-white py-2 shadow-xl border border-slate-200">
                 <button
                   onClick={() => { setShowInviteUser(true); setShowServerMenu(false); }}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-indigo-500 hover:text-white"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-indigo-500 hover:text-white"
                 >
                   <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
@@ -1559,16 +1559,16 @@ export default function DischatPage() {
                 </button>
                 <button
                   onClick={() => { setShowCreateChannel(true); setShowServerMenu(false); }}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-indigo-500 hover:text-white"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-indigo-500 hover:text-white"
                 >
                   <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M12 5v14M5 12h14" />
                   </svg>
                   Create Channel
                 </button>
-                <div className="my-1 border-t border-slate-700" />
+                <div className="my-1 border-t border-slate-100" />
                 <button
-                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:bg-slate-100"
                 >
                   <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <circle cx="12" cy="12" r="3" />
@@ -1743,13 +1743,13 @@ export default function DischatPage() {
 
       {/* DM Sidebar */}
       {showDMs && (
-        <div className="flex w-60 flex-col bg-slate-800">
+        <div className="flex w-60 flex-col bg-slate-50 border-r border-slate-200">
           {/* DM Header */}
-          <div className="flex h-12 items-center justify-between border-b border-slate-700 px-4 shadow">
-            <h2 className="font-semibold text-white">Direct Messages</h2>
+          <div className="flex h-12 items-center justify-between border-b border-slate-200 px-4 shadow-sm bg-white">
+            <h2 className="font-semibold text-slate-900">Direct Messages</h2>
             <button
               onClick={() => setShowNewDMModal(true)}
-              className="rounded p-1 text-slate-400 hover:bg-slate-700 hover:text-white"
+              className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
               title="New Message"
             >
               <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1761,7 +1761,7 @@ export default function DischatPage() {
           {/* DM Conversations List */}
           <div className="flex-1 overflow-y-auto px-2 py-3">
             {dmConversations.length === 0 ? (
-              <div className="text-center py-8 text-slate-400">
+              <div className="text-center py-8 text-slate-500">
                 <p className="text-sm">No conversations yet</p>
                 <button
                   onClick={() => setShowNewDMModal(true)}
@@ -1775,8 +1775,8 @@ export default function DischatPage() {
                 <button
                   key={dm.id}
                   onClick={() => setSelectedDM(dm)}
-                  className={`flex w-full items-center gap-2 rounded px-2 py-2 text-left transition-colors ${
-                    selectedDM?.id === dm.id ? "bg-slate-600" : "hover:bg-slate-700"
+                  className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left transition-colors ${
+                    selectedDM?.id === dm.id ? "bg-indigo-100" : "hover:bg-slate-100"
                   }`}
                 >
                   {dm.user.avatar_url ? (
@@ -1787,9 +1787,9 @@ export default function DischatPage() {
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">{dm.user.full_name}</p>
+                    <p className="text-sm font-medium text-slate-900 truncate">{dm.user.full_name}</p>
                     {dm.last_message && (
-                      <p className="text-xs text-slate-400 truncate">{dm.last_message}</p>
+                      <p className="text-xs text-slate-500 truncate">{dm.last_message}</p>
                     )}
                   </div>
                 </button>
@@ -1799,7 +1799,7 @@ export default function DischatPage() {
 
           {/* User Profile Bar */}
           {currentUser && (
-            <div className="flex items-center gap-2 border-t border-slate-700 bg-slate-850 px-2 py-2">
+            <div className="flex items-center gap-2 border-t border-slate-200 bg-white px-2 py-2">
               <div className="relative">
                 {currentUser.avatar_url ? (
                   <img src={currentUser.avatar_url} alt="" className="h-8 w-8 rounded-full" />
@@ -1811,8 +1811,8 @@ export default function DischatPage() {
                 <StatusIndicator status="online" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">{currentUser.full_name}</p>
-                <p className="text-xs text-slate-400">Online</p>
+                <p className="text-sm font-medium text-slate-900 truncate">{currentUser.full_name}</p>
+                <p className="text-xs text-slate-500">Online</p>
               </div>
             </div>
           )}
@@ -1820,12 +1820,12 @@ export default function DischatPage() {
       )}
 
       {/* Main Chat Area */}
-      <div className="flex flex-1 flex-col bg-slate-700 relative">
+      <div className="flex flex-1 flex-col bg-white relative">
         {/* DM Chat View */}
         {selectedDM ? (
           <>
             {/* DM Header */}
-            <div className="flex h-12 items-center justify-between border-b border-slate-600 px-4 shadow">
+            <div className="flex h-12 items-center justify-between border-b border-slate-200 px-4 shadow-sm bg-slate-50">
               <div className="flex items-center gap-2">
                 {selectedDM.user.avatar_url ? (
                   <img src={selectedDM.user.avatar_url} alt="" className="h-8 w-8 rounded-full" />
@@ -1834,16 +1834,16 @@ export default function DischatPage() {
                     {selectedDM.user.full_name?.[0] || "U"}
                   </div>
                 )}
-                <h3 className="font-semibold text-white">{selectedDM.user.full_name}</h3>
+                <h3 className="font-semibold text-slate-900">{selectedDM.user.full_name}</h3>
               </div>
               <div className="flex items-center gap-2">
-                <button className="rounded p-1.5 text-slate-400 hover:bg-slate-600 hover:text-white" title="Start Video Call">
+                <button className="rounded p-1.5 text-slate-500 hover:bg-slate-200 hover:text-slate-700" title="Start Video Call">
                   <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="m22 8-6 4 6 4V8Z" />
                     <rect width="14" height="12" x="2" y="6" rx="2" ry="2" />
                   </svg>
                 </button>
-                <button className="rounded p-1.5 text-slate-400 hover:bg-slate-600 hover:text-white" title="Voice Call">
+                <button className="rounded p-1.5 text-slate-500 hover:bg-slate-200 hover:text-slate-700" title="Voice Call">
                   <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
                   </svg>
@@ -1862,8 +1862,8 @@ export default function DischatPage() {
                       {selectedDM.user.full_name?.[0] || "U"}
                     </div>
                   )}
-                  <h3 className="text-xl font-bold text-white">{selectedDM.user.full_name}</h3>
-                  <p className="mt-2 text-slate-400 max-w-md">
+                  <h3 className="text-xl font-bold text-slate-900">{selectedDM.user.full_name}</h3>
+                  <p className="mt-2 text-slate-600 max-w-md">
                     This is the beginning of your direct message history with <strong>{selectedDM.user.full_name}</strong>.
                   </p>
                 </div>
@@ -1876,7 +1876,7 @@ export default function DischatPage() {
                       new Date(message.created_at).getTime() - new Date(dmMessages[index - 1].created_at).getTime() > 5 * 60 * 1000;
 
                     return (
-                      <div key={message.id} className={`group relative rounded px-2 py-0.5 hover:bg-slate-750 ${!showHeader ? "-mt-3" : ""}`}>
+                      <div key={message.id} className={`group relative rounded-lg px-2 py-0.5 hover:bg-slate-50 ${!showHeader ? "-mt-3" : ""}`}>
                         <div className="flex gap-4">
                           {showHeader ? (
                             <div className="relative mt-0.5 flex-shrink-0">
@@ -1898,14 +1898,14 @@ export default function DischatPage() {
                           <div className="flex-1 min-w-0">
                             {showHeader && (
                               <div className="flex items-baseline gap-2">
-                                <span className="font-medium text-white">
+                                <span className="font-medium text-slate-900">
                                   {message.author?.full_name || "Unknown User"}
                                 </span>
-                                <span className="text-xs text-slate-500">{formatTime(message.created_at)}</span>
+                                <span className="text-xs text-slate-400">{formatTime(message.created_at)}</span>
                               </div>
                             )}
                             <p
-                              className="text-slate-200 break-words"
+                              className="text-slate-700 break-words"
                               dangerouslySetInnerHTML={{ __html: parseContent(message.content || "") }}
                             />
                             {/* Reactions */}
@@ -1916,12 +1916,12 @@ export default function DischatPage() {
                                     key={reaction.emoji}
                                     className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${
                                       reaction.users.includes(currentUser?.id || "")
-                                        ? "bg-indigo-500/30 border border-indigo-500"
-                                        : "bg-slate-700 hover:bg-slate-600"
+                                        ? "bg-indigo-100 border border-indigo-400"
+                                        : "bg-slate-100 hover:bg-slate-200 border border-slate-200"
                                     }`}
                                   >
                                     <span>{reaction.emoji}</span>
-                                    <span className="text-slate-300">{reaction.count}</span>
+                                    <span className="text-slate-700">{reaction.count}</span>
                                   </button>
                                 ))}
                               </div>
@@ -1937,20 +1937,20 @@ export default function DischatPage() {
             </div>
 
             {/* DM Message Input */}
-            <div className="border-t border-slate-600 p-4">
-              <div className="flex items-center gap-2 rounded-lg bg-slate-600 px-4 py-2">
+            <div className="border-t border-slate-200 p-4 bg-slate-50">
+              <div className="flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-4 py-2 shadow-sm">
                 <input
                   type="text"
                   value={newDMMessage}
                   onChange={(e) => setNewDMMessage(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendDMMessage()}
                   placeholder={`Message @${selectedDM.user.full_name}`}
-                  className="flex-1 bg-transparent text-white placeholder-slate-400 focus:outline-none"
+                  className="flex-1 bg-transparent text-slate-900 placeholder-slate-400 focus:outline-none"
                 />
                 <button 
                   onClick={sendDMMessage}
                   disabled={!newDMMessage.trim()}
-                  className="rounded p-1.5 text-slate-400 hover:bg-slate-500 hover:text-white disabled:opacity-50"
+                  className="rounded p-1.5 text-indigo-500 hover:bg-indigo-50 hover:text-indigo-600 disabled:opacity-50"
                 >
                   <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="m22 2-7 20-4-9-9-4Z" />
@@ -1963,14 +1963,14 @@ export default function DischatPage() {
         ) : selectedChannel ? (
           <>
             {/* Channel Header */}
-            <div className="flex h-12 items-center justify-between border-b border-slate-600 px-4 shadow">
+            <div className="flex h-12 items-center justify-between border-b border-slate-200 px-4 shadow-sm bg-slate-50">
               <div className="flex items-center gap-3">
-                <ChannelIcon type={selectedChannel.channel_type} className="h-5 w-5 text-slate-400" />
-                <h3 className="font-semibold text-white">{selectedChannel.name}</h3>
+                <ChannelIcon type={selectedChannel.channel_type} className="h-5 w-5 text-indigo-500" />
+                <h3 className="font-semibold text-slate-900">{selectedChannel.name}</h3>
                 {selectedChannel.topic && (
                   <>
-                    <span className="text-slate-500">|</span>
-                    <p className="truncate text-sm text-slate-400 max-w-xs">{selectedChannel.topic}</p>
+                    <span className="text-slate-300">|</span>
+                    <p className="truncate text-sm text-slate-600 max-w-xs">{selectedChannel.topic}</p>
                   </>
                 )}
               </div>
@@ -2001,7 +2001,7 @@ export default function DischatPage() {
                         joinVoiceChannel(videoChannel.id);
                       }
                     }}
-                    className="rounded p-1.5 text-slate-400 hover:bg-slate-600 hover:text-white" 
+                    className="rounded p-1.5 text-slate-500 hover:bg-slate-200 hover:text-slate-700" 
                     title="Start Video Call"
                   >
                     <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -2012,7 +2012,7 @@ export default function DischatPage() {
                 )}
                 <button 
                   onClick={() => setShowPinnedMessages(!showPinnedMessages)}
-                  className={`relative rounded p-1.5 hover:bg-slate-600 ${showPinnedMessages ? "bg-slate-600 text-white" : "text-slate-400 hover:text-white"}`}
+                  className={`relative rounded p-1.5 hover:bg-slate-200 ${showPinnedMessages ? "bg-slate-200 text-slate-700" : "text-slate-500 hover:text-slate-700"}`}
                   title="Pinned Messages"
                 >
                   <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -2027,7 +2027,7 @@ export default function DischatPage() {
                 </button>
                 <button
                   onClick={() => setShowMemberList(!showMemberList)}
-                  className={`rounded p-1.5 hover:bg-slate-600 ${showMemberList ? "bg-slate-600 text-white" : "text-slate-400 hover:text-white"}`}
+                  className={`rounded p-1.5 hover:bg-slate-200 ${showMemberList ? "bg-slate-200 text-slate-700" : "text-slate-500 hover:text-slate-700"}`}
                   title="Member List"
                 >
                   <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -2041,7 +2041,7 @@ export default function DischatPage() {
                   <input
                     type="text"
                     placeholder="Search"
-                    className="w-36 rounded bg-slate-900 px-2 py-1 text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    className="w-36 rounded-lg bg-slate-100 px-2 py-1 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 border border-slate-200"
                   />
                 </div>
               </div>
@@ -2052,11 +2052,11 @@ export default function DischatPage() {
               <div className="flex-1 overflow-y-auto px-4 py-4">
                 {messages.length === 0 ? (
                   <div className="flex h-full flex-col items-center justify-center text-center">
-                    <div className="mb-4 rounded-full bg-slate-600 p-4">
-                      <ChannelIcon type={selectedChannel.channel_type} className="h-12 w-12 text-slate-400" />
+                    <div className="mb-4 rounded-full bg-indigo-100 p-4">
+                      <ChannelIcon type={selectedChannel.channel_type} className="h-12 w-12 text-indigo-500" />
                     </div>
-                    <h3 className="text-2xl font-bold text-white">Welcome to #{selectedChannel.name}!</h3>
-                    <p className="mt-1 text-slate-400">This is the beginning of the #{selectedChannel.name} channel.</p>
+                    <h3 className="text-2xl font-bold text-slate-900">Welcome to #{selectedChannel.name}!</h3>
+                    <p className="mt-1 text-slate-600">This is the beginning of the #{selectedChannel.name} channel.</p>
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -2067,23 +2067,23 @@ export default function DischatPage() {
                         new Date(message.created_at).getTime() - new Date(messages[index - 1].created_at).getTime() > 5 * 60 * 1000;
 
                       return (
-                        <div key={message.id} className={`group relative rounded px-2 py-0.5 hover:bg-slate-750 ${!showHeader ? "-mt-3" : ""}`}>
+                        <div key={message.id} className={`group relative rounded-lg px-2 py-0.5 hover:bg-slate-50 ${!showHeader ? "-mt-3" : ""}`}>
                           {/* Message actions - absolute positioned at top right */}
-                          <div className="hidden group-hover:flex items-center gap-0.5 bg-slate-700 rounded-md shadow-lg px-1 py-0.5 absolute -top-2 right-2 z-10">
+                          <div className="hidden group-hover:flex items-center gap-0.5 bg-white border border-slate-200 rounded-md shadow-lg px-1 py-0.5 absolute -top-2 right-2 z-10">
                             {["👍", "❤️", "😂", "😮"].map((emoji) => (
                               <button
                                 key={emoji}
                                 onClick={() => addReaction(message.id, emoji)}
-                                className="text-sm hover:bg-slate-600 rounded px-1 py-0.5 transition-colors"
+                                className="text-sm hover:bg-slate-100 rounded px-1 py-0.5 transition-colors"
                                 title={`React with ${emoji}`}
                               >
                                 {emoji}
                               </button>
                             ))}
-                            <div className="w-px h-4 bg-slate-600 mx-0.5" />
+                            <div className="w-px h-4 bg-slate-200 mx-0.5" />
                             <button 
                               onClick={() => startReply(message)}
-                              className="rounded p-1 text-slate-400 hover:bg-slate-600 hover:text-white" 
+                              className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700" 
                               title="Reply"
                             >
                               <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -2093,7 +2093,7 @@ export default function DischatPage() {
                             </button>
                             <button 
                               onClick={() => togglePinMessage(message)}
-                              className={`rounded p-1 hover:bg-slate-600 ${message.is_pinned ? "text-yellow-400" : "text-slate-400 hover:text-white"}`} 
+                              className={`rounded p-1 hover:bg-slate-100 ${message.is_pinned ? "text-yellow-500" : "text-slate-400 hover:text-slate-700"}`} 
                               title={message.is_pinned ? "Unpin Message" : "Pin Message"}
                             >
                               <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill={message.is_pinned ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
@@ -2124,7 +2124,7 @@ export default function DischatPage() {
                             <div className="flex-1 min-w-0">
                               {/* Reply indicator */}
                               {message.reply_to && (
-                                <div className="flex items-center gap-2 mb-1 text-xs text-slate-400 bg-slate-800/50 rounded px-2 py-1 -ml-2">
+                                <div className="flex items-center gap-2 mb-1 text-xs text-slate-500 bg-slate-100 rounded px-2 py-1 -ml-2">
                                   <svg className="h-3 w-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                     <path d="M9 17l-5-5 5-5M4 12h16" />
                                   </svg>
@@ -2134,10 +2134,10 @@ export default function DischatPage() {
                               )}
                               {showHeader && (
                                 <div className="flex items-baseline gap-2">
-                                  <span className="font-medium text-white hover:underline cursor-pointer">
+                                  <span className="font-medium text-slate-900 hover:underline cursor-pointer">
                                     {message.author?.full_name || "Unknown User"}
                                   </span>
-                                  <span className="text-xs text-slate-500">{formatTime(message.created_at)}</span>
+                                  <span className="text-xs text-slate-400">{formatTime(message.created_at)}</span>
                                   {message.is_pinned && (
                                     <span className="flex items-center gap-1 text-xs text-yellow-400">
                                       <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1">
@@ -2150,7 +2150,7 @@ export default function DischatPage() {
                                 </div>
                               )}
                               <p
-                                className="text-slate-200 break-words"
+                                className="text-slate-700 break-words"
                                 dangerouslySetInnerHTML={{ __html: parseContent(message.content || "") }}
                               />
                             {message.attachments && message.attachments.length > 0 && (
@@ -2222,7 +2222,7 @@ export default function DischatPage() {
                                       }`}
                                     >
                                       <span>{reaction.emoji}</span>
-                                      <span className="text-slate-300">{reaction.count}</span>
+                                      <span className="text-slate-700">{reaction.count}</span>
                                     </button>
                                   ))}
                                 </div>
@@ -2330,15 +2330,15 @@ export default function DischatPage() {
               <div className="px-4 pb-4">
                 {/* Reply Indicator */}
                 {replyingTo && (
-                  <div className="mb-2 flex items-center gap-2 rounded-t-lg bg-slate-700 px-3 py-2">
-                    <svg className="h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <div className="mb-2 flex items-center gap-2 rounded-t-lg bg-indigo-50 border border-indigo-200 px-3 py-2">
+                    <svg className="h-4 w-4 text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <polyline points="9 17 4 12 9 7" />
                       <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
                     </svg>
-                    <span className="text-sm text-slate-400">Replying to</span>
-                    <span className="text-sm font-medium text-white">{replyingTo.author?.full_name}</span>
-                    <span className="flex-1 text-sm text-slate-400 truncate">{replyingTo.content?.slice(0, 50)}...</span>
-                    <button onClick={cancelReply} className="text-slate-400 hover:text-white">
+                    <span className="text-sm text-slate-500">Replying to</span>
+                    <span className="text-sm font-medium text-indigo-700">{replyingTo.author?.full_name}</span>
+                    <span className="flex-1 text-sm text-slate-600 truncate">{replyingTo.content?.slice(0, 50)}...</span>
+                    <button onClick={cancelReply} className="text-slate-400 hover:text-slate-700">
                       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M18 6L6 18M6 6l12 12" />
                       </svg>
@@ -2348,9 +2348,9 @@ export default function DischatPage() {
 
                 {/* Pending Files Preview */}
                 {pendingFiles.length > 0 && (
-                  <div className="mb-2 flex flex-wrap gap-2 rounded-t-lg bg-slate-600 p-2">
+                  <div className="mb-2 flex flex-wrap gap-2 rounded-t-lg bg-slate-100 border border-slate-200 p-2">
                     {pendingFiles.map((file, index) => (
-                      <div key={index} className="relative flex items-center gap-2 rounded bg-slate-700 px-2 py-1">
+                      <div key={index} className="relative flex items-center gap-2 rounded bg-white border border-slate-200 px-2 py-1">
                         {file.type.startsWith("image/") ? (
                           <img src={URL.createObjectURL(file)} alt="" className="h-10 w-10 rounded object-cover" />
                         ) : (
@@ -2359,7 +2359,7 @@ export default function DischatPage() {
                             <polyline points="14 2 14 8 20 8" />
                           </svg>
                         )}
-                        <span className="text-xs text-slate-300 max-w-[100px] truncate">{file.name}</span>
+                        <span className="text-xs text-slate-700 max-w-[100px] truncate">{file.name}</span>
                         <button
                           onClick={() => removePendingFile(index)}
                           className="absolute -top-1 -right-1 rounded-full bg-red-500 p-0.5 text-white hover:bg-red-600"
@@ -2373,7 +2373,7 @@ export default function DischatPage() {
                   </div>
                 )}
 
-                <div className="relative flex items-center gap-2 rounded-lg bg-slate-600 px-4 py-2">
+                <div className="relative flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-4 py-2 shadow-sm">
                   {/* File Upload */}
                   <input
                     ref={fileInputRef}
@@ -2385,7 +2385,7 @@ export default function DischatPage() {
                   />
                   <button 
                     onClick={() => fileInputRef.current?.click()}
-                    className="text-slate-400 hover:text-slate-200"
+                    className="text-slate-500 hover:text-indigo-600"
                     title="Attach Files"
                   >
                     <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -2401,7 +2401,7 @@ export default function DischatPage() {
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
                     placeholder={`Message #${selectedChannel.name}`}
-                    className="flex-1 bg-transparent text-white placeholder-slate-400 focus:outline-none"
+                    className="flex-1 bg-transparent text-slate-900 placeholder-slate-400 focus:outline-none"
                   />
 
                   {uploadingFiles && (
@@ -2665,7 +2665,7 @@ export default function DischatPage() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-medium text-white">{message.author?.full_name}</span>
-                              <span className="text-xs text-slate-500">{formatTime(message.created_at)}</span>
+                              <span className="text-xs text-slate-400">{formatTime(message.created_at)}</span>
                             </div>
                             <p className="text-sm text-slate-300 break-words mt-1">{message.content}</p>
                           </div>

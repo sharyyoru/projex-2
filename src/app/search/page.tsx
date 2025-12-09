@@ -66,7 +66,7 @@ export default function GlobalSearchPage() {
       return;
     }
     if (projectId) {
-      router.push(`/projects/${projectId}?tab=quotes`);
+      router.push(`/projects/${projectId}?mode=admin&tab=invoice`);
     } else {
       router.push("/financials");
     }
