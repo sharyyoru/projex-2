@@ -8,11 +8,13 @@ type StepStatus = "locked" | "pending" | "in_progress" | "completed";
 type WebsiteProjectSubtype = "custom" | "template" | "saas" | null;
 type ReviewStatus = "needs_improvement" | "lacks_information" | "passed" | null;
 type PaymentStatus = "unpaid" | "partially_paid" | "paid";
+type RevisionStepStatus = "in_progress" | "submitted" | "approved" | null;
 type UserSummary = { id: string; full_name: string | null; email: string | null };
 type FileUpload = { name: string; url: string; uploadedAt: string; isActive?: boolean; version?: number };
 type StepComment = { id: string; userId: string; userName: string; body: string; createdAt: string };
 type QuoteAssociation = { invoiceId: string; invoiceNumber: string; total: number; sentToClient: boolean; approvedByClient: boolean; revisions: { timestamp: string; changes: string }[] };
 type InvoiceAssociation = { invoiceId: string; invoiceNumber: string; total: number; paymentStatus: PaymentStatus; paidAmount: number; revisions: { timestamp: string; changes: string }[] };
+type RevisionChecklistItem = { id: string; text: string; completed: boolean; assignedUserId: string | null; assignedUserName: string | null; taskId: string | null };
 
 type WorkflowStep = {
   id: string;
@@ -28,6 +30,8 @@ type WorkflowStep = {
   files?: FileUpload[];
   comments?: StepComment[];
   reviewStatus?: ReviewStatus;
+  revisionStatus?: RevisionStepStatus;
+  revisionChecklist?: RevisionChecklistItem[];
   concurrent?: boolean;
   quotes?: QuoteAssociation[];
   invoices?: InvoiceAssociation[];
@@ -61,6 +65,7 @@ function getStepsForSubtype(subtype: WebsiteProjectSubtype, needsFigma?: boolean
     { id: "financials", number: 6, title: "Financials", description: "Associate quotes and invoices", status: "locked", assignedUserId: null, assignedUserName: null, taskId: null, completedAt: null, quotes: [], invoices: [], comments: [] },
   ];
 
+  let nextNum = 8;
   if (subtype === "custom") {
     steps.push(
       { id: "ui_ux_design", number: "7a", title: "UI/UX Design", description: "Provide Figma design link", status: "locked", assignedUserId: null, assignedUserName: null, taskId: null, completedAt: null, data: { figmaLink: "" }, reviewStatus: null, comments: [], concurrent: true },
@@ -72,6 +77,7 @@ function getStepsForSubtype(subtype: WebsiteProjectSubtype, needsFigma?: boolean
         { id: "ui_ux_design", number: 7, title: "UI/UX Design", description: "Provide Figma design link", status: "locked", assignedUserId: null, assignedUserName: null, taskId: null, completedAt: null, data: { figmaLink: "" }, reviewStatus: null, comments: [] },
         { id: "project_scaffolding", number: 8, title: "Project Scaffolding", description: "Define project schema", status: "locked", assignedUserId: null, assignedUserName: null, taskId: null, completedAt: null, data: { schemaText: "" }, reviewStatus: null, files: [], comments: [] }
       );
+      nextNum = 9;
     } else {
       steps.push(
         { id: "project_scaffolding", number: 7, title: "Project Scaffolding", description: "Define project schema", status: "locked", assignedUserId: null, assignedUserName: null, taskId: null, completedAt: null, data: { schemaText: "" }, reviewStatus: null, files: [], comments: [] }
@@ -82,6 +88,13 @@ function getStepsForSubtype(subtype: WebsiteProjectSubtype, needsFigma?: boolean
       { id: "project_scaffolding", number: 7, title: "Project Scaffolding", description: "Define SAAS schema and architecture", status: "locked", assignedUserId: null, assignedUserName: null, taskId: null, completedAt: null, data: { schemaText: "" }, reviewStatus: null, files: [], comments: [] }
     );
   }
+
+  // Add final steps: MVP Production, Revisions, Project Completion
+  steps.push(
+    { id: "mvp_production", number: nextNum, title: "MVP Production", description: "Provide MVP preview link", status: "locked", assignedUserId: null, assignedUserName: null, taskId: null, completedAt: null, data: { mvpLink: "" }, comments: [] },
+    { id: "revisions", number: nextNum + 1, title: "Revisions", description: "Manage revision checklist and tasks", status: "locked", assignedUserId: null, assignedUserName: null, taskId: null, completedAt: null, revisionStatus: null, revisionChecklist: [], comments: [] },
+    { id: "project_completion", number: nextNum + 2, title: "Project Completion", description: "Upload project completion form", status: "locked", assignedUserId: null, assignedUserName: null, taskId: null, completedAt: null, files: [], comments: [] }
+  );
 
   return steps;
 }
@@ -405,6 +418,16 @@ export default function ProjectWorkflows({ projectId, projectType }: { projectId
     setData(updated); await save(updated);
   }
 
+  async function updateRevisionStatus(stepId: string, revisionStatus: RevisionStepStatus) {
+    const updated = { ...data, steps: data.steps.map(s => s.id === stepId ? { ...s, revisionStatus } : s) };
+    setData(updated); await save(updated);
+  }
+
+  async function updateRevisionChecklist(stepId: string, revisionChecklist: RevisionChecklistItem[]) {
+    const updated = { ...data, steps: data.steps.map(s => s.id === stepId ? { ...s, revisionChecklist } : s) };
+    setData(updated); await save(updated);
+  }
+
   if (projectType !== "website") {
     return <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center"><h3 className="text-lg font-semibold text-slate-900">Workflow Not Available</h3><p className="mt-2 text-sm text-slate-500">Workflows are only available for Website projects.</p></div>;
   }
@@ -441,6 +464,7 @@ export default function ProjectWorkflows({ projectId, projectType }: { projectId
             onAddComment={addComment} onUpdateData={updateStepData} onSetReviewStatus={setReviewStatus}
             onFileUpload={handleFileUpload} onSetFileActive={setFileActive} onDeleteFile={deleteFile}
             onUpdateQuotes={updateQuotes} onUpdateInvoices={updateInvoices}
+            onUpdateRevisionStatus={updateRevisionStatus} onUpdateRevisionChecklist={updateRevisionChecklist}
             // Step 1 specific
             selected={selected} setSelected={setSelected} subtypeName={subtypeName} setSubtypeName={setSubtypeName}
             needsFigma={needsFigma} setNeedsFigma={setNeedsFigma} onCompleteStep1={completeStep1}
@@ -454,7 +478,7 @@ export default function ProjectWorkflows({ projectId, projectType }: { projectId
 type InvoiceListItem = { id: string; invoice_number: string; invoice_type: "quote" | "invoice"; status: string; total: number; client_name: string; notes: string | null };
 
 // Step Card Component
-function StepCard({ step, data, users, projectId, activePickerStep, setActivePickerStep, onAssignUser, onMarkIncomplete, onComplete, onAddComment, onUpdateData, onSetReviewStatus, onFileUpload, onSetFileActive, onDeleteFile, onUpdateQuotes, onUpdateInvoices, selected, setSelected, subtypeName, setSubtypeName, needsFigma, setNeedsFigma, onCompleteStep1 }: {
+function StepCard({ step, data, users, projectId, activePickerStep, setActivePickerStep, onAssignUser, onMarkIncomplete, onComplete, onAddComment, onUpdateData, onSetReviewStatus, onFileUpload, onSetFileActive, onDeleteFile, onUpdateQuotes, onUpdateInvoices, onUpdateRevisionStatus, onUpdateRevisionChecklist, selected, setSelected, subtypeName, setSubtypeName, needsFigma, setNeedsFigma, onCompleteStep1 }: {
   step: WorkflowStep; data: WebsiteWorkflowData; users: UserSummary[]; projectId: string;
   activePickerStep: string | null; setActivePickerStep: (s: string | null) => void;
   onAssignUser: (stepId: string, user: UserSummary) => void;
@@ -468,6 +492,8 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
   onDeleteFile: (stepId: string, fileIndex: number) => void;
   onUpdateQuotes: (stepId: string, quotes: QuoteAssociation[]) => void;
   onUpdateInvoices: (stepId: string, invoices: InvoiceAssociation[]) => void;
+  onUpdateRevisionStatus: (stepId: string, status: RevisionStepStatus) => void;
+  onUpdateRevisionChecklist: (stepId: string, checklist: RevisionChecklistItem[]) => void;
   selected: WebsiteProjectSubtype; setSelected: (s: WebsiteProjectSubtype) => void;
   subtypeName: string; setSubtypeName: (s: string) => void;
   needsFigma: boolean | undefined; setNeedsFigma: (v: boolean) => void;
@@ -482,6 +508,10 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
   const [generating, setGenerating] = useState(false);
   const [figmaLink, setFigmaLink] = useState((step.data?.figmaLink as string) || "");
   const [schemaText, setSchemaText] = useState((step.data?.schemaText as string) || "");
+  const [mvpLink, setMvpLink] = useState((step.data?.mvpLink as string) || "");
+  const [newChecklistItem, setNewChecklistItem] = useState("");
+  const [showUserSearch, setShowUserSearch] = useState<string | null>(null);
+  const [userSearchTerm, setUserSearchTerm] = useState("");
   
   // Financials state
   const [availableQuotes, setAvailableQuotes] = useState<InvoiceListItem[]>([]);
@@ -686,7 +716,15 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
           {step.id === "ui_ux_design" && (
             <div>
               <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-2">Figma Link</label>
-              <input type="url" value={figmaLink} onChange={(e) => setFigmaLink(e.target.value)} onBlur={() => onUpdateData(step.id, "figmaLink", figmaLink)} placeholder="https://www.figma.com/..." className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900 focus:border-blue-400 focus:outline-none" />
+              <div className="flex gap-2">
+                <input type="url" value={figmaLink} onChange={(e) => setFigmaLink(e.target.value)} onBlur={() => onUpdateData(step.id, "figmaLink", figmaLink)} placeholder="https://www.figma.com/..." className="flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm text-black focus:border-blue-400 focus:outline-none" />
+                {figmaLink && (
+                  <a href={figmaLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700">
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/></svg>
+                    Preview
+                  </a>
+                )}
+              </div>
             </div>
           )}
           {step.id === "project_scaffolding" && (
@@ -832,10 +870,10 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
                         const updated = [...(step.invoices || [])];
                         updated[idx] = { ...updated[idx], paymentStatus: e.target.value as PaymentStatus, revisions: [...updated[idx].revisions, { timestamp: new Date().toISOString(), changes: `Payment status: ${e.target.value}` }] };
                         onUpdateInvoices(step.id, updated);
-                      }} className="text-sm border border-slate-200 rounded-lg px-2 py-1">
-                        <option value="unpaid">Unpaid</option>
-                        <option value="partially_paid">Partially Paid</option>
-                        <option value="paid">Paid</option>
+                      }} className={`text-sm border border-slate-200 rounded-lg px-2 py-1 font-semibold ${inv.paymentStatus === "paid" ? "text-emerald-600" : inv.paymentStatus === "partially_paid" ? "text-amber-600" : "text-red-600"}`}>
+                        <option value="unpaid" className="text-red-600">Unpaid</option>
+                        <option value="partially_paid" className="text-amber-600">Partially Paid</option>
+                        <option value="paid" className="text-emerald-600">Paid</option>
                       </select>
                     </div>
                     {inv.revisions.length > 0 && (
@@ -897,6 +935,143 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
         </div>
       )}
 
+      {/* MVP Production Step */}
+      {step.id === "mvp_production" && isActive && (
+        <div className="mt-5 space-y-4">
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-2">MVP Preview Link</label>
+            <div className="flex gap-2">
+              <input type="url" value={mvpLink} onChange={(e) => setMvpLink(e.target.value)} onBlur={() => onUpdateData(step.id, "mvpLink", mvpLink)} placeholder="https://..." className="flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm text-black focus:border-blue-400 focus:outline-none" />
+              {mvpLink && (
+                <a href={mvpLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700">
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/></svg>
+                  Preview
+                </a>
+              )}
+            </div>
+          </div>
+          <button type="button" onClick={() => onComplete(step.id)} disabled={!step.assignedUserId || !mvpLink} className="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed">Complete MVP Production Step</button>
+        </div>
+      )}
+
+      {/* Revisions Step */}
+      {step.id === "revisions" && isActive && (
+        <div className="mt-5 space-y-4">
+          {/* Status Marker */}
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-2">Revision Status</label>
+            <div className="flex gap-2">
+              {(["in_progress", "submitted", "approved"] as RevisionStepStatus[]).map(status => (
+                <button key={status} type="button" onClick={() => onUpdateRevisionStatus(step.id, status)}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-medium border-2 transition-all ${
+                    step.revisionStatus === status 
+                      ? status === "approved" ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                        : status === "submitted" ? "border-blue-500 bg-blue-50 text-blue-700"
+                        : "border-amber-500 bg-amber-50 text-amber-700"
+                      : "border-slate-200 text-slate-600 hover:border-slate-300"
+                  }`}>
+                  {status === "in_progress" ? "In Progress" : status === "submitted" ? "Submitted" : "Approved"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Revision Checklist */}
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-2">Revision Checklist</label>
+            <div className="space-y-2">
+              {(step.revisionChecklist || []).map((item, idx) => (
+                <div key={item.id} className="flex items-start gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200">
+                  <input type="checkbox" checked={item.completed} onChange={(e) => {
+                    const updated = [...(step.revisionChecklist || [])];
+                    updated[idx] = { ...updated[idx], completed: e.target.checked };
+                    onUpdateRevisionChecklist(step.id, updated);
+                  }} className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                  <div className="flex-1">
+                    <p className={`text-sm ${item.completed ? "line-through text-slate-400" : "text-slate-800"}`}>{item.text}</p>
+                    {item.assignedUserName && (
+                      <p className="text-[10px] text-slate-500 mt-1">Assigned to: {item.assignedUserName}</p>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <button type="button" onClick={() => { setShowUserSearch(showUserSearch === item.id ? null : item.id); setUserSearchTerm(""); }} className="text-[10px] text-blue-600 hover:underline">
+                      {item.assignedUserName ? "Reassign" : "Assign Task"}
+                    </button>
+                    {showUserSearch === item.id && (
+                      <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-slate-200 rounded-xl shadow-xl p-2 w-56">
+                        <input type="text" value={userSearchTerm} onChange={(e) => setUserSearchTerm(e.target.value)} placeholder="Search users..." className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm text-black mb-2" autoFocus />
+                        <div className="max-h-32 overflow-y-auto">
+                          {users.filter(u => (u.full_name || u.email || "").toLowerCase().includes(userSearchTerm.toLowerCase())).map(u => (
+                            <button key={u.id} type="button" onClick={() => {
+                              const updated = [...(step.revisionChecklist || [])];
+                              updated[idx] = { ...updated[idx], assignedUserId: u.id, assignedUserName: u.full_name || u.email || "Unknown" };
+                              onUpdateRevisionChecklist(step.id, updated);
+                              setShowUserSearch(null);
+                            }} className="w-full text-left px-3 py-2 hover:bg-blue-50 rounded-lg text-sm text-slate-700">
+                              {u.full_name || u.email}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <button type="button" onClick={() => {
+                    const updated = (step.revisionChecklist || []).filter((_, i) => i !== idx);
+                    onUpdateRevisionChecklist(step.id, updated);
+                  }} className="text-red-500 hover:text-red-700 p-1">
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2 mt-3">
+              <input type="text" value={newChecklistItem} onChange={(e) => setNewChecklistItem(e.target.value)} placeholder="Add revision item..." className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm text-black focus:border-blue-400 focus:outline-none" />
+              <button type="button" onClick={() => {
+                if (!newChecklistItem.trim()) return;
+                const newItem: RevisionChecklistItem = { id: Date.now().toString(), text: newChecklistItem, completed: false, assignedUserId: null, assignedUserName: null, taskId: null };
+                onUpdateRevisionChecklist(step.id, [...(step.revisionChecklist || []), newItem]);
+                setNewChecklistItem("");
+              }} className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">Add</button>
+            </div>
+          </div>
+
+          <button type="button" onClick={() => onComplete(step.id)} disabled={!step.assignedUserId || step.revisionStatus !== "approved"} className="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed">Complete Revisions Step</button>
+          {step.revisionStatus !== "approved" && <p className="text-[11px] text-amber-600 text-center">Status must be "Approved" to proceed</p>}
+        </div>
+      )}
+
+      {/* Project Completion Step */}
+      {step.id === "project_completion" && isActive && (
+        <div className="mt-5 space-y-4">
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-2">Project Completion Form</label>
+            <input ref={fileRef} type="file" accept=".pdf,.doc,.docx" onChange={handleUpload} className="hidden" />
+            <button type="button" onClick={() => fileRef.current?.click()} className="w-full flex items-center justify-center gap-2 py-3 rounded-lg border-2 border-dashed border-slate-300 text-slate-600 hover:border-blue-400 hover:text-blue-600">
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+              Upload Project Completion Form
+            </button>
+          </div>
+          {step.files && step.files.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-[10px] font-semibold text-slate-500 uppercase">Uploaded Documents</p>
+              {step.files.map((f, i) => (
+                <div key={i} className={`flex items-center gap-2 p-3 rounded-lg border ${f.isActive ? "bg-emerald-50 border-emerald-200" : "bg-slate-50 border-slate-200"}`}>
+                  <a href={f.url} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center gap-2 text-sm text-slate-700 hover:text-blue-600">
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    <span className="truncate">{f.name}</span>
+                    <span className="text-[10px] text-slate-400">v{f.version || 1}</span>
+                  </a>
+                  {f.isActive && <span className="text-[9px] bg-emerald-500 text-white px-1.5 py-0.5 rounded font-bold">ACTIVE</span>}
+                  {!f.isActive && <button type="button" onClick={() => onSetFileActive(step.id, i)} className="text-[10px] text-blue-600 hover:underline">Set Active</button>}
+                  <button type="button" onClick={() => onDeleteFile(step.id, i)} className="text-red-500 hover:text-red-700 p-1"><svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+                </div>
+              ))}
+            </div>
+          )}
+          <button type="button" onClick={() => onComplete(step.id)} disabled={!step.assignedUserId || !step.files?.length} className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed">Complete Project!</button>
+        </div>
+      )}
+
       {/* Completed content display */}
       {isDone && step.id === "technical_scope" && (step.data?.scopeText || step.files?.length) && (
         <div className="mt-4 p-3 rounded-xl bg-emerald-50 border border-emerald-100 text-sm">
@@ -918,6 +1093,45 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
             </a>
           ))}
           {step.files.length > 1 && <p className="text-[10px] text-slate-400 mt-2">+{step.files.length - 1} more version(s)</p>}
+        </div>
+      )}
+      {/* Completed Figma link display */}
+      {isDone && step.id === "ui_ux_design" && step.data?.figmaLink && (
+        <div className="mt-4 p-3 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-between">
+          <span className="text-sm text-emerald-700 truncate flex-1">{step.data.figmaLink as string}</span>
+          <a href={step.data.figmaLink as string} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 text-white text-xs font-medium rounded-lg hover:bg-emerald-700 ml-2">
+            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/></svg>
+            Preview
+          </a>
+        </div>
+      )}
+      {/* Completed MVP link display */}
+      {isDone && step.id === "mvp_production" && step.data?.mvpLink && (
+        <div className="mt-4 p-3 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-between">
+          <span className="text-sm text-emerald-700 truncate flex-1">{step.data.mvpLink as string}</span>
+          <a href={step.data.mvpLink as string} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 text-white text-xs font-medium rounded-lg hover:bg-emerald-700 ml-2">
+            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/></svg>
+            Preview
+          </a>
+        </div>
+      )}
+      {/* Completed Revisions display */}
+      {isDone && step.id === "revisions" && (
+        <div className="mt-4 p-3 rounded-xl bg-emerald-50 border border-emerald-100">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs font-semibold text-emerald-700">Status:</span>
+            <span className="px-2 py-0.5 bg-emerald-500 text-white text-[10px] font-bold rounded uppercase">{step.revisionStatus}</span>
+          </div>
+          {step.revisionChecklist && step.revisionChecklist.length > 0 && (
+            <div className="space-y-1">
+              {step.revisionChecklist.map(item => (
+                <div key={item.id} className="flex items-center gap-2 text-xs text-emerald-700">
+                  <span>{item.completed ? "✓" : "○"}</span>
+                  <span className={item.completed ? "line-through opacity-70" : ""}>{item.text}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

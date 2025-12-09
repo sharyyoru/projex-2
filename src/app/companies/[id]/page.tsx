@@ -1027,7 +1027,7 @@ export default function CompanyDetailPage() {
                     type="text"
                     value={editingContact.first_name}
                     onChange={(e) => setEditingContact({ ...editingContact, first_name: e.target.value })}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-violet-400 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-black focus:border-violet-400 focus:outline-none"
                   />
                 </div>
                 <div>
@@ -1036,7 +1036,7 @@ export default function CompanyDetailPage() {
                     type="text"
                     value={editingContact.last_name}
                     onChange={(e) => setEditingContact({ ...editingContact, last_name: e.target.value })}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-violet-400 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-black focus:border-violet-400 focus:outline-none"
                   />
                 </div>
               </div>
@@ -1047,7 +1047,7 @@ export default function CompanyDetailPage() {
                   type="text"
                   value={editingContact.job_title || ""}
                   onChange={(e) => setEditingContact({ ...editingContact, job_title: e.target.value || null })}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-violet-400 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-black focus:border-violet-400 focus:outline-none"
                 />
               </div>
               
@@ -1057,7 +1057,7 @@ export default function CompanyDetailPage() {
                   type="email"
                   value={editingContact.email || ""}
                   onChange={(e) => setEditingContact({ ...editingContact, email: e.target.value || null })}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-violet-400 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-black focus:border-violet-400 focus:outline-none"
                 />
               </div>
               
@@ -1068,7 +1068,7 @@ export default function CompanyDetailPage() {
                     type="tel"
                     value={editingContact.mobile || ""}
                     onChange={(e) => setEditingContact({ ...editingContact, mobile: e.target.value || null })}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-violet-400 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-black focus:border-violet-400 focus:outline-none"
                   />
                 </div>
                 <div>
@@ -1077,7 +1077,7 @@ export default function CompanyDetailPage() {
                     type="tel"
                     value={editingContact.phone || ""}
                     onChange={(e) => setEditingContact({ ...editingContact, phone: e.target.value || null })}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-violet-400 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-black focus:border-violet-400 focus:outline-none"
                   />
                 </div>
               </div>

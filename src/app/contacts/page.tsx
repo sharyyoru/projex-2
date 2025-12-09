@@ -131,7 +131,7 @@ export default function ContactsPage() {
         <div className="flex flex-wrap items-center gap-4">
           {/* Search */}
           <div className="relative flex-1 min-w-[250px]">
-            <svg className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="8" />
               <path d="m21 21-4.35-4.35" />
             </svg>
@@ -140,7 +140,7 @@ export default function ContactsPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by name, email, company, job title..."
-              className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm text-slate-900 placeholder-slate-400 shadow-sm focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-100"
+              className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm text-black placeholder-slate-400 shadow-sm focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-100"
             />
           </div>
 
@@ -306,7 +306,7 @@ export default function ContactsPage() {
                     type="text"
                     value={editingContact.first_name}
                     onChange={(e) => setEditingContact({ ...editingContact, first_name: e.target.value })}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-black focus:border-rose-400 focus:outline-none"
                   />
                 </div>
                 <div>
@@ -315,7 +315,7 @@ export default function ContactsPage() {
                     type="text"
                     value={editingContact.last_name}
                     onChange={(e) => setEditingContact({ ...editingContact, last_name: e.target.value })}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-black focus:border-rose-400 focus:outline-none"
                   />
                 </div>
               </div>
@@ -326,7 +326,7 @@ export default function ContactsPage() {
                   type="text"
                   value={editingContact.job_title || ""}
                   onChange={(e) => setEditingContact({ ...editingContact, job_title: e.target.value || null })}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-black focus:border-rose-400 focus:outline-none"
                 />
               </div>
               
@@ -336,7 +336,7 @@ export default function ContactsPage() {
                   type="email"
                   value={editingContact.email || ""}
                   onChange={(e) => setEditingContact({ ...editingContact, email: e.target.value || null })}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-black focus:border-rose-400 focus:outline-none"
                 />
               </div>
               
@@ -347,7 +347,7 @@ export default function ContactsPage() {
                     type="tel"
                     value={editingContact.mobile || ""}
                     onChange={(e) => setEditingContact({ ...editingContact, mobile: e.target.value || null })}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-black focus:border-rose-400 focus:outline-none"
                   />
                 </div>
                 <div>
@@ -356,7 +356,7 @@ export default function ContactsPage() {
                     type="tel"
                     value={editingContact.phone || ""}
                     onChange={(e) => setEditingContact({ ...editingContact, phone: e.target.value || null })}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-black focus:border-rose-400 focus:outline-none"
                   />
                 </div>
               </div>
