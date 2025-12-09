@@ -9,7 +9,7 @@ type WebsiteProjectSubtype = "custom" | "template" | "saas" | null;
 type ReviewStatus = "needs_improvement" | "lacks_information" | "passed" | null;
 type PaymentStatus = "unpaid" | "partially_paid" | "paid";
 type UserSummary = { id: string; full_name: string | null; email: string | null };
-type FileUpload = { name: string; url: string; uploadedAt: string };
+type FileUpload = { name: string; url: string; uploadedAt: string; isActive?: boolean; version?: number };
 type StepComment = { id: string; userId: string; userName: string; body: string; createdAt: string };
 type QuoteAssociation = { invoiceId: string; invoiceNumber: string; total: number; sentToClient: boolean; approvedByClient: boolean; revisions: { timestamp: string; changes: string }[] };
 type InvoiceAssociation = { invoiceId: string; invoiceNumber: string; total: number; paymentStatus: PaymentStatus; paidAmount: number; revisions: { timestamp: string; changes: string }[] };
@@ -165,7 +165,34 @@ export default function ProjectWorkflows({ projectId, projectType }: { projectId
   useEffect(() => {
     supabaseClient.from("project_workflows").select("workflow_data").eq("project_id", projectId).single().then(({ data: d }) => {
       if (d?.workflow_data) {
-        const loaded = d.workflow_data as WebsiteWorkflowData;
+        let loaded = d.workflow_data as WebsiteWorkflowData;
+        
+        // Migration: Add Financials step if missing (for existing workflows)
+        if (loaded.projectSubtype && !loaded.steps.find(s => s.id === "financials")) {
+          const techReviewIndex = loaded.steps.findIndex(s => s.id === "technical_review");
+          if (techReviewIndex !== -1) {
+            const financialsStep: WorkflowStep = {
+              id: "financials", number: 6, title: "Financials", description: "Associate quotes and invoices",
+              status: loaded.steps[techReviewIndex].status === "completed" ? "pending" : "locked",
+              assignedUserId: null, assignedUserName: null, taskId: null, completedAt: null,
+              quotes: [], invoices: [], comments: []
+            };
+            // Insert after technical_review
+            loaded = { ...loaded, steps: [...loaded.steps.slice(0, techReviewIndex + 1), financialsStep, ...loaded.steps.slice(techReviewIndex + 1)] };
+            // Renumber subsequent steps
+            loaded.steps = loaded.steps.map((s, i) => {
+              if (i > techReviewIndex + 1) {
+                const oldNum = typeof s.number === "string" ? s.number : s.number;
+                if (s.concurrent) return { ...s, number: s.id === "ui_ux_design" ? "7a" : "7b" };
+                return { ...s, number: 7 + (i - techReviewIndex - 2) };
+              }
+              return s;
+            });
+            // Save migrated data
+            supabaseClient.from("project_workflows").upsert({ project_id: projectId, workflow_data: loaded, updated_at: new Date().toISOString() }, { onConflict: "project_id" });
+          }
+        }
+        
         setData(loaded);
         if (loaded.projectSubtype) setSelected(loaded.projectSubtype);
         if (loaded.subtypeName) setSubtypeName(loaded.subtypeName);
@@ -332,8 +359,39 @@ export default function ProjectWorkflows({ projectId, projectType }: { projectId
     const { error } = await supabaseClient.storage.from("project-files").upload(path, file);
     if (error) { console.error(error); return; }
     const { data: urlData } = supabaseClient.storage.from("project-files").getPublicUrl(path);
-    const newFile: FileUpload = { name: file.name, url: urlData.publicUrl, uploadedAt: new Date().toISOString() };
-    const updated = { ...data, steps: data.steps.map(s => s.id === stepId ? { ...s, files: [...(s.files || []), newFile] } : s) };
+    
+    // Get current files and determine next version
+    const step = data.steps.find(s => s.id === stepId);
+    const currentFiles = step?.files || [];
+    const maxVersion = currentFiles.reduce((max, f) => Math.max(max, f.version || 1), 0);
+    
+    // New file is active by default, mark others as inactive
+    const updatedFiles = currentFiles.map(f => ({ ...f, isActive: false }));
+    const newFile: FileUpload = { name: file.name, url: urlData.publicUrl, uploadedAt: new Date().toISOString(), isActive: true, version: maxVersion + 1 };
+    
+    const updated = { ...data, steps: data.steps.map(s => s.id === stepId ? { ...s, files: [...updatedFiles, newFile] } : s) };
+    setData(updated); await save(updated);
+  }
+
+  async function setFileActive(stepId: string, fileIndex: number) {
+    const updated = { ...data, steps: data.steps.map(s => {
+      if (s.id !== stepId) return s;
+      const files = (s.files || []).map((f, i) => ({ ...f, isActive: i === fileIndex }));
+      return { ...s, files };
+    })};
+    setData(updated); await save(updated);
+  }
+
+  async function deleteFile(stepId: string, fileIndex: number) {
+    const updated = { ...data, steps: data.steps.map(s => {
+      if (s.id !== stepId) return s;
+      const files = (s.files || []).filter((_, i) => i !== fileIndex);
+      // If we deleted the active file, make the latest one active
+      if (files.length > 0 && !files.some(f => f.isActive)) {
+        files[files.length - 1].isActive = true;
+      }
+      return { ...s, files };
+    })};
     setData(updated); await save(updated);
   }
 
@@ -381,7 +439,8 @@ export default function ProjectWorkflows({ projectId, projectType }: { projectId
             activePickerStep={activePickerStep} setActivePickerStep={setActivePickerStep}
             onAssignUser={assignUser} onMarkIncomplete={markStepIncomplete} onComplete={completeStep}
             onAddComment={addComment} onUpdateData={updateStepData} onSetReviewStatus={setReviewStatus}
-            onFileUpload={handleFileUpload} onUpdateQuotes={updateQuotes} onUpdateInvoices={updateInvoices}
+            onFileUpload={handleFileUpload} onSetFileActive={setFileActive} onDeleteFile={deleteFile}
+            onUpdateQuotes={updateQuotes} onUpdateInvoices={updateInvoices}
             // Step 1 specific
             selected={selected} setSelected={setSelected} subtypeName={subtypeName} setSubtypeName={setSubtypeName}
             needsFigma={needsFigma} setNeedsFigma={setNeedsFigma} onCompleteStep1={completeStep1}
@@ -395,7 +454,7 @@ export default function ProjectWorkflows({ projectId, projectType }: { projectId
 type InvoiceListItem = { id: string; invoice_number: string; invoice_type: "quote" | "invoice"; status: string; total: number; client_name: string };
 
 // Step Card Component
-function StepCard({ step, data, users, projectId, activePickerStep, setActivePickerStep, onAssignUser, onMarkIncomplete, onComplete, onAddComment, onUpdateData, onSetReviewStatus, onFileUpload, onUpdateQuotes, onUpdateInvoices, selected, setSelected, subtypeName, setSubtypeName, needsFigma, setNeedsFigma, onCompleteStep1 }: {
+function StepCard({ step, data, users, projectId, activePickerStep, setActivePickerStep, onAssignUser, onMarkIncomplete, onComplete, onAddComment, onUpdateData, onSetReviewStatus, onFileUpload, onSetFileActive, onDeleteFile, onUpdateQuotes, onUpdateInvoices, selected, setSelected, subtypeName, setSubtypeName, needsFigma, setNeedsFigma, onCompleteStep1 }: {
   step: WorkflowStep; data: WebsiteWorkflowData; users: UserSummary[]; projectId: string;
   activePickerStep: string | null; setActivePickerStep: (s: string | null) => void;
   onAssignUser: (stepId: string, user: UserSummary) => void;
@@ -405,6 +464,8 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
   onUpdateData: (stepId: string, key: string, value: unknown) => void;
   onSetReviewStatus: (stepId: string, status: ReviewStatus) => void;
   onFileUpload: (stepId: string, file: File) => void;
+  onSetFileActive: (stepId: string, fileIndex: number) => void;
+  onDeleteFile: (stepId: string, fileIndex: number) => void;
   onUpdateQuotes: (stepId: string, quotes: QuoteAssociation[]) => void;
   onUpdateInvoices: (stepId: string, invoices: InvoiceAssociation[]) => void;
   selected: WebsiteProjectSubtype; setSelected: (s: WebsiteProjectSubtype) => void;
@@ -554,8 +615,24 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
           <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} className="flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 px-4 py-6 w-full hover:border-blue-400 hover:bg-blue-50/50 disabled:opacity-50">
             {uploading ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" /> : <svg className="h-8 w-8 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>}
           </button>
-          {step.files?.map((f, i) => <a key={i} href={f.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 p-3 rounded-lg bg-blue-50 text-blue-700 text-sm hover:bg-blue-100"><svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>{f.name}</a>)}
-          <button type="button" onClick={() => onComplete(step.id)} disabled={!step.assignedUserId || !step.files?.length} className="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed">Complete Step</button>
+          {step.files && step.files.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-[10px] font-semibold text-slate-500 uppercase">Document Versions</p>
+              {step.files.map((f, i) => (
+                <div key={i} className={`flex items-center gap-2 p-3 rounded-lg border ${f.isActive ? "bg-emerald-50 border-emerald-200" : "bg-slate-50 border-slate-200"}`}>
+                  <a href={f.url} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center gap-2 text-sm text-slate-700 hover:text-blue-600">
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    <span className="truncate">{f.name}</span>
+                    <span className="text-[10px] text-slate-400">v{f.version || 1}</span>
+                  </a>
+                  {f.isActive && <span className="text-[9px] bg-emerald-500 text-white px-1.5 py-0.5 rounded font-bold">ACTIVE</span>}
+                  {!f.isActive && <button type="button" onClick={() => onSetFileActive(step.id, i)} className="text-[10px] text-blue-600 hover:underline">Set Active</button>}
+                  <button type="button" onClick={() => onDeleteFile(step.id, i)} className="text-red-500 hover:text-red-700 p-1"><svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+                </div>
+              ))}
+            </div>
+          )}
+          <button type="button" onClick={() => onComplete(step.id)} disabled={!step.assignedUserId || !step.files?.some(f => f.isActive)} className="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed">Complete Step</button>
         </div>
       )}
 
@@ -580,10 +657,26 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
               <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} className="flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 px-4 py-6 w-full hover:border-blue-400 disabled:opacity-50">
                 {uploading ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" /> : <span className="text-slate-500">Click to upload PDF/Word</span>}
               </button>
-              {step.files?.map((f, i) => <a key={i} href={f.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 p-3 rounded-lg bg-blue-50 text-blue-700 text-sm">{f.name}</a>)}
+              {step.files && step.files.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[10px] font-semibold text-slate-500 uppercase">Document Versions</p>
+                  {step.files.map((f, i) => (
+                    <div key={i} className={`flex items-center gap-2 p-3 rounded-lg border ${f.isActive ? "bg-emerald-50 border-emerald-200" : "bg-slate-50 border-slate-200"}`}>
+                      <a href={f.url} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center gap-2 text-sm text-slate-700 hover:text-blue-600">
+                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        <span className="truncate">{f.name}</span>
+                        <span className="text-[10px] text-slate-400">v{f.version || 1}</span>
+                      </a>
+                      {f.isActive && <span className="text-[9px] bg-emerald-500 text-white px-1.5 py-0.5 rounded font-bold">ACTIVE</span>}
+                      {!f.isActive && <button type="button" onClick={() => onSetFileActive(step.id, i)} className="text-[10px] text-blue-600 hover:underline">Set Active</button>}
+                      <button type="button" onClick={() => onDeleteFile(step.id, i)} className="text-red-500 hover:text-red-700 p-1"><svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </>
           )}
-          <button type="button" onClick={() => onComplete(step.id)} disabled={!step.assignedUserId || (!scopeText.trim() && !step.files?.length)} className="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">Complete Step</button>
+          <button type="button" onClick={() => onComplete(step.id)} disabled={!step.assignedUserId || (!scopeText.trim() && !step.files?.some(f => f.isActive))} className="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">Complete Step</button>
         </div>
       )}
 
@@ -604,7 +697,23 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
               </div>
               <input ref={fileRef} type="file" accept=".pdf,.doc,.docx" onChange={handleUpload} className="hidden" />
               <button type="button" onClick={() => fileRef.current?.click()} className="text-sm text-blue-600 hover:underline">Or upload a document</button>
-              {step.files?.map((f, i) => <a key={i} href={f.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 p-3 rounded-lg bg-blue-50 text-blue-700 text-sm">{f.name}</a>)}
+              {step.files && step.files.length > 0 && (
+                <div className="space-y-2 mt-2">
+                  <p className="text-[10px] font-semibold text-slate-500 uppercase">Document Versions</p>
+                  {step.files.map((f, i) => (
+                    <div key={i} className={`flex items-center gap-2 p-3 rounded-lg border ${f.isActive ? "bg-emerald-50 border-emerald-200" : "bg-slate-50 border-slate-200"}`}>
+                      <a href={f.url} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center gap-2 text-sm text-slate-700 hover:text-blue-600">
+                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        <span className="truncate">{f.name}</span>
+                        <span className="text-[10px] text-slate-400">v{f.version || 1}</span>
+                      </a>
+                      {f.isActive && <span className="text-[9px] bg-emerald-500 text-white px-1.5 py-0.5 rounded font-bold">ACTIVE</span>}
+                      {!f.isActive && <button type="button" onClick={() => onSetFileActive(step.id, i)} className="text-[10px] text-blue-600 hover:underline">Set Active</button>}
+                      <button type="button" onClick={() => onDeleteFile(step.id, i)} className="text-red-500 hover:text-red-700 p-1"><svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </>
           )}
           <div>
@@ -784,12 +893,23 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
       {isDone && step.id === "technical_scope" && (step.data?.scopeText || step.files?.length) && (
         <div className="mt-4 p-3 rounded-xl bg-emerald-50 border border-emerald-100 text-sm">
           {typeof step.data?.scopeText === "string" && step.data.scopeText && <p className="text-emerald-800 whitespace-pre-wrap line-clamp-3">{step.data.scopeText}</p>}
-          {step.files?.map((f, i) => <a key={i} href={f.url} target="_blank" className="text-emerald-700 hover:underline block mt-1">{f.name}</a>)}
+          {step.files?.filter(f => f.isActive).map((f, i) => (
+            <a key={i} href={f.url} target="_blank" className="flex items-center gap-2 text-emerald-700 hover:underline mt-1">
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              {f.name} <span className="text-[10px] text-emerald-500">(v{f.version || 1} - Active)</span>
+            </a>
+          ))}
         </div>
       )}
       {isDone && step.files && step.files.length > 0 && !["technical_scope"].includes(step.id) && (
         <div className="mt-4 p-3 rounded-xl bg-emerald-50 border border-emerald-100">
-          {step.files.map((f, i) => <a key={i} href={f.url} target="_blank" className="text-emerald-700 text-sm hover:underline block">{f.name}</a>)}
+          {step.files.filter(f => f.isActive).map((f, i) => (
+            <a key={i} href={f.url} target="_blank" className="flex items-center gap-2 text-emerald-700 text-sm hover:underline">
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              {f.name} <span className="text-[10px] text-emerald-500">(v{f.version || 1} - Active)</span>
+            </a>
+          ))}
+          {step.files.length > 1 && <p className="text-[10px] text-slate-400 mt-2">+{step.files.length - 1} more version(s)</p>}
         </div>
       )}
 
