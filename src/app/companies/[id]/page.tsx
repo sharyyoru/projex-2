@@ -118,6 +118,31 @@ export default function CompanyDetailPage() {
   const [socialError, setSocialError] = useState<string | null>(null);
   const [showContactModal, setShowContactModal] = useState(false);
   const [showProjectModal, setShowProjectModal] = useState(false);
+  const [editingContact, setEditingContact] = useState<Contact | null>(null);
+  const [savingContact, setSavingContact] = useState(false);
+
+  async function handleSaveContact() {
+    if (!editingContact) return;
+    setSavingContact(true);
+    const { error } = await supabaseClient
+      .from("contacts")
+      .update({
+        first_name: editingContact.first_name,
+        last_name: editingContact.last_name,
+        email: editingContact.email,
+        phone: editingContact.phone,
+        mobile: editingContact.mobile,
+        job_title: editingContact.job_title,
+        is_primary: editingContact.is_primary,
+      })
+      .eq("id", editingContact.id);
+    
+    if (!error) {
+      setContacts(prev => prev.map(c => c.id === editingContact.id ? editingContact : c));
+      setEditingContact(null);
+    }
+    setSavingContact(false);
+  }
 
   useEffect(() => {
     if (!companyId) return;
@@ -542,7 +567,7 @@ export default function CompanyDetailPage() {
 
         {/* Content Area */}
         {activeTab === "contacts" ? (
-          <ContactsDisplay contacts={contacts} />
+          <ContactsDisplay contacts={contacts} onEdit={setEditingContact} />
         ) : (
           <ProjectsDisplay projects={projects} contactsById={contactsById} />
         )}
@@ -980,6 +1005,114 @@ export default function CompanyDetailPage() {
           }}
         />
       )}
+
+      {/* Edit Contact Modal */}
+      {editingContact && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-slate-900">Edit Contact</h2>
+              <button type="button" onClick={() => setEditingContact(null)} className="p-2 rounded-lg hover:bg-slate-100">
+                <svg className="h-5 w-5 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">First Name</label>
+                  <input
+                    type="text"
+                    value={editingContact.first_name}
+                    onChange={(e) => setEditingContact({ ...editingContact, first_name: e.target.value })}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-violet-400 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Last Name</label>
+                  <input
+                    type="text"
+                    value={editingContact.last_name}
+                    onChange={(e) => setEditingContact({ ...editingContact, last_name: e.target.value })}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-violet-400 focus:outline-none"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Job Title</label>
+                <input
+                  type="text"
+                  value={editingContact.job_title || ""}
+                  onChange={(e) => setEditingContact({ ...editingContact, job_title: e.target.value || null })}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-violet-400 focus:outline-none"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={editingContact.email || ""}
+                  onChange={(e) => setEditingContact({ ...editingContact, email: e.target.value || null })}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-violet-400 focus:outline-none"
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Mobile</label>
+                  <input
+                    type="tel"
+                    value={editingContact.mobile || ""}
+                    onChange={(e) => setEditingContact({ ...editingContact, mobile: e.target.value || null })}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-violet-400 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
+                  <input
+                    type="tel"
+                    value={editingContact.phone || ""}
+                    onChange={(e) => setEditingContact({ ...editingContact, phone: e.target.value || null })}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-violet-400 focus:outline-none"
+                  />
+                </div>
+              </div>
+              
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={editingContact.is_primary}
+                  onChange={(e) => setEditingContact({ ...editingContact, is_primary: e.target.checked })}
+                  className="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500"
+                />
+                <span className="text-sm text-slate-700">Primary Contact</span>
+              </label>
+            </div>
+            
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setEditingContact(null)}
+                className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveContact}
+                disabled={savingContact}
+                className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-violet-500 to-purple-500 rounded-lg hover:shadow-lg disabled:opacity-50"
+              >
+                {savingContact ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1023,7 +1156,7 @@ function DetailField({
 }
 
 // Beautiful Contacts Display Component
-function ContactsDisplay({ contacts }: { contacts: Contact[] }) {
+function ContactsDisplay({ contacts, onEdit }: { contacts: Contact[]; onEdit: (contact: Contact) => void }) {
   if (contacts.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 py-16">
@@ -1062,6 +1195,19 @@ function ContactsDisplay({ contacts }: { contacts: Contact[] }) {
                 </span>
               </div>
             )}
+            
+            {/* Edit button */}
+            <button
+              type="button"
+              onClick={() => onEdit(contact)}
+              className="absolute right-3 opacity-0 group-hover:opacity-100 transition-opacity p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600"
+              style={{ top: contact.is_primary ? "2.5rem" : "0.75rem" }}
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+            </button>
             
             {/* Avatar */}
             <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-500 text-lg font-bold text-white shadow-lg shadow-violet-500/25">

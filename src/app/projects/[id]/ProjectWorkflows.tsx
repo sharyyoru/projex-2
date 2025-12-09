@@ -451,7 +451,7 @@ export default function ProjectWorkflows({ projectId, projectType }: { projectId
   );
 }
 
-type InvoiceListItem = { id: string; invoice_number: string; invoice_type: "quote" | "invoice"; status: string; total: number; client_name: string };
+type InvoiceListItem = { id: string; invoice_number: string; invoice_type: "quote" | "invoice"; status: string; total: number; client_name: string; notes: string | null };
 
 // Step Card Component
 function StepCard({ step, data, users, projectId, activePickerStep, setActivePickerStep, onAssignUser, onMarkIncomplete, onComplete, onAddComment, onUpdateData, onSetReviewStatus, onFileUpload, onSetFileActive, onDeleteFile, onUpdateQuotes, onUpdateInvoices, selected, setSelected, subtypeName, setSubtypeName, needsFigma, setNeedsFigma, onCompleteStep1 }: {
@@ -493,7 +493,7 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
   
   useEffect(() => {
     if (step.id === "financials") {
-      supabaseClient.from("invoices").select("id, invoice_number, invoice_type, status, total, client_name").eq("project_id", projectId).order("created_at", { ascending: false }).then(({ data: inv }) => {
+      supabaseClient.from("invoices").select("id, invoice_number, invoice_type, status, total, client_name, notes").eq("project_id", projectId).order("created_at", { ascending: false }).then(({ data: inv }) => {
         if (inv) {
           setAvailableQuotes((inv as InvoiceListItem[]).filter(i => i.invoice_type === "quote"));
           setAvailableInvoices((inv as InvoiceListItem[]).filter(i => i.invoice_type === "invoice"));
@@ -795,8 +795,12 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
                         const newQuote: QuoteAssociation = { invoiceId: q.id, invoiceNumber: q.invoice_number, total: q.total, sentToClient: false, approvedByClient: false, revisions: [{ timestamp: new Date().toISOString(), changes: "Quote associated" }] };
                         onUpdateQuotes(step.id, [...(step.quotes || []), newQuote]);
                         setShowQuoteSearch(false); setQuoteSearch("");
-                      }} className="w-full text-left px-3 py-2 hover:bg-amber-50 rounded-lg text-sm">
-                        <span className="font-medium">{q.invoice_number}</span> — AED {q.total.toLocaleString()}
+                      }} className="w-full text-left px-3 py-2.5 hover:bg-blue-50 rounded-lg border-b border-slate-100 last:border-0">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-blue-600">{q.invoice_number}</span>
+                          <span className="text-sm font-bold text-blue-700">AED {q.total.toLocaleString()}</span>
+                        </div>
+                        {q.notes && <p className="text-xs text-slate-500 mt-1 line-clamp-1">{q.notes}</p>}
                       </button>
                     ))}
                     {availableQuotes.filter(q => !step.quotes?.some(sq => sq.invoiceId === q.id)).length === 0 && <p className="text-sm text-slate-500 p-2">No quotes available. Create one in the Invoice tab.</p>}
@@ -862,8 +866,12 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
                         const newInv: InvoiceAssociation = { invoiceId: i.id, invoiceNumber: i.invoice_number, total: i.total, paymentStatus: "unpaid", paidAmount: 0, revisions: [{ timestamp: new Date().toISOString(), changes: "Invoice associated" }] };
                         onUpdateInvoices(step.id, [...(step.invoices || []), newInv]);
                         setShowInvoiceSearch(false); setInvoiceSearch("");
-                      }} className="w-full text-left px-3 py-2 hover:bg-emerald-50 rounded-lg text-sm">
-                        <span className="font-medium">{i.invoice_number}</span> — AED {i.total.toLocaleString()}
+                      }} className="w-full text-left px-3 py-2.5 hover:bg-blue-50 rounded-lg border-b border-slate-100 last:border-0">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-blue-600">{i.invoice_number}</span>
+                          <span className="text-sm font-bold text-blue-700">AED {i.total.toLocaleString()}</span>
+                        </div>
+                        {i.notes && <p className="text-xs text-slate-500 mt-1 line-clamp-1">{i.notes}</p>}
                       </button>
                     ))}
                     {availableInvoices.filter(i => !step.invoices?.some(si => si.invoiceId === i.id)).length === 0 && <p className="text-sm text-slate-500 p-2">No invoices available. Create one in the Invoice tab.</p>}
