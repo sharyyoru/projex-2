@@ -351,7 +351,7 @@ export default async function ProjectPage({
               ) : null}
 
               {adminTab === "workflows" ? (
-                <ProjectWorkflows projectId={project.id} />
+                <ProjectWorkflows projectId={project.id} projectType={project.project_type} />
               ) : null}
             </div>
           </div>

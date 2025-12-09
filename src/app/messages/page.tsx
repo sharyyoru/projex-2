@@ -8,20 +8,22 @@ import { NoteBodyWithMentions } from "@/components/MentionTextarea";
 
 type MentionItem = {
   id: string;
-  type: "note" | "task_comment";
+  type: "note" | "task_comment" | "workflow";
   created_at: string;
   read_at: string | null;
   project_id: string | null;
   task_id?: string | null;
+  step_id?: string | null;
   source: "operations" | "admin" | null;
   body: string | null;
   author_name: string | null;
   project_name: string | null;
   task_name?: string | null;
+  step_title?: string | null;
 };
 
 type FilterStatus = "all" | "unread" | "read";
-type FilterType = "all" | "note" | "task_comment";
+type FilterType = "all" | "note" | "task_comment" | "workflow";
 
 function formatRelativeTime(dateStr: string): string {
   const date = new Date(dateStr);
@@ -89,6 +91,13 @@ export default function MessagesPage() {
           .eq("mentioned_user_id", user.id)
           .order("created_at", { ascending: false });
 
+        // Fetch workflow step mentions
+        const { data: workflowMentions } = await supabaseClient
+          .from("workflow_step_mentions")
+          .select("id, created_at, read_at, project_id, step_id, comment_body, author_name, project:projects(id, name)")
+          .eq("mentioned_user_id", user.id)
+          .order("created_at", { ascending: false });
+
         if (!isMounted) return;
 
         // Combine and normalize
@@ -124,6 +133,24 @@ export default function MessagesPage() {
               author_name: m.comment?.author_name || null,
               project_name: m.project?.name || null,
               task_name: m.task?.name || null,
+            });
+          }
+        }
+
+        if (workflowMentions) {
+          for (const m of workflowMentions as any[]) {
+            combined.push({
+              id: m.id,
+              type: "workflow",
+              created_at: m.created_at,
+              read_at: m.read_at,
+              project_id: m.project_id,
+              step_id: m.step_id,
+              source: "admin",
+              body: m.comment_body || "mentioned you in a workflow step comment",
+              author_name: m.author_name || null,
+              project_name: m.project?.name || null,
+              step_title: m.step_id?.replace(/_/g, " ") || null,
             });
           }
         }
@@ -169,8 +196,9 @@ export default function MessagesPage() {
   async function handleMarkAllRead() {
     const unreadNotes = mentions.filter((m) => !m.read_at && m.type === "note").map((m) => m.id);
     const unreadTasks = mentions.filter((m) => !m.read_at && m.type === "task_comment").map((m) => m.id);
+    const unreadWorkflows = mentions.filter((m) => !m.read_at && m.type === "workflow").map((m) => m.id);
 
-    if (unreadNotes.length === 0 && unreadTasks.length === 0) return;
+    if (unreadNotes.length === 0 && unreadTasks.length === 0 && unreadWorkflows.length === 0) return;
 
     try {
       setMarkingRead(true);
@@ -188,6 +216,13 @@ export default function MessagesPage() {
           .from("task_comment_mentions")
           .update({ read_at: nowIso })
           .in("id", unreadTasks);
+      }
+
+      if (unreadWorkflows.length > 0) {
+        await supabaseClient
+          .from("workflow_step_mentions")
+          .update({ read_at: nowIso })
+          .in("id", unreadWorkflows);
       }
 
       setMentions((prev) =>
@@ -212,7 +247,7 @@ export default function MessagesPage() {
     setUnreadCountOptimistic((prev) => Math.max(0, prev - 1));
 
     try {
-      const table = mention.type === "note" ? "project_note_mentions" : "task_comment_mentions";
+      const table = mention.type === "note" ? "project_note_mentions" : mention.type === "task_comment" ? "task_comment_mentions" : "workflow_step_mentions";
       await supabaseClient
         .from(table)
         .update({ read_at: nowIso })
@@ -240,6 +275,9 @@ export default function MessagesPage() {
   function getMentionHref(mention: MentionItem): string {
     if (!mention.project_id) return "#";
     const mode = mention.source || "operations";
+    if (mention.type === "workflow") {
+      return `/projects/${mention.project_id}?mode=admin&tab=workflows`;
+    }
     if (mention.type === "task_comment") {
       return `/projects/${mention.project_id}?mode=${mode}&tab=${mode === "admin" ? "cockpit" : "tasks"}`;
     }
@@ -334,7 +372,7 @@ export default function MessagesPage() {
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Type</span>
           <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5">
-            {([{ id: "all", label: "All" }, { id: "note", label: "Notes" }, { id: "task_comment", label: "Tasks" }] as { id: FilterType; label: string }[]).map((t) => (
+            {([{ id: "all", label: "All" }, { id: "note", label: "Notes" }, { id: "task_comment", label: "Tasks" }, { id: "workflow", label: "Workflows" }] as { id: FilterType; label: string }[]).map((t) => (
               <button
                 key={t.id}
                 type="button"
@@ -424,6 +462,7 @@ export default function MessagesPage() {
             {filteredMentions.map((mention) => {
               const isUnread = !mention.read_at;
               const isTask = mention.type === "task_comment";
+              const isWorkflow = mention.type === "workflow";
 
               return (
                 <Link
@@ -435,12 +474,19 @@ export default function MessagesPage() {
                   {/* Avatar */}
                   <div className={`relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl shadow-lg ${
                     isUnread 
-                      ? isTask 
-                        ? "bg-gradient-to-br from-emerald-500 to-teal-600 text-white" 
-                        : "bg-gradient-to-br from-violet-500 to-purple-600 text-white"
+                      ? isWorkflow
+                        ? "bg-gradient-to-br from-blue-500 to-indigo-600 text-white"
+                        : isTask 
+                          ? "bg-gradient-to-br from-emerald-500 to-teal-600 text-white" 
+                          : "bg-gradient-to-br from-violet-500 to-purple-600 text-white"
                       : "bg-slate-100 text-slate-500"
                   }`}>
-                    {isTask ? (
+                    {isWorkflow ? (
+                      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                        <polyline points="22 4 12 14.01 9 11.01" />
+                      </svg>
+                    ) : isTask ? (
                       <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M9 11l3 3L22 4" />
                         <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
@@ -463,11 +509,13 @@ export default function MessagesPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
-                        isTask 
-                          ? "bg-emerald-100 text-emerald-700" 
-                          : "bg-violet-100 text-violet-700"
+                        isWorkflow
+                          ? "bg-blue-100 text-blue-700"
+                          : isTask 
+                            ? "bg-emerald-100 text-emerald-700" 
+                            : "bg-violet-100 text-violet-700"
                       }`}>
-                        {isTask ? "Task Comment" : "Note"}
+                        {isWorkflow ? "Workflow" : isTask ? "Task Comment" : "Note"}
                       </span>
                       <span className="text-[11px] text-slate-400">
                         {formatRelativeTime(mention.created_at)}
@@ -499,6 +547,14 @@ export default function MessagesPage() {
                             <path d="M9 11l3 3L22 4" />
                           </svg>
                           {mention.task_name}
+                        </span>
+                      )}
+                      {isWorkflow && mention.step_title && (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-medium text-blue-700 capitalize">
+                          <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                          </svg>
+                          {mention.step_title}
                         </span>
                       )}
                     </div>

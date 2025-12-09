@@ -46,12 +46,19 @@ export function MessagesUnreadProvider({ children }: { children: ReactNode }) {
         .eq("mentioned_user_id", user.id)
         .is("read_at", null);
 
-      if (noteError && taskError) {
+      // Count unread workflow step mentions
+      const { count: workflowCount, error: workflowError } = await supabaseClient
+        .from("workflow_step_mentions")
+        .select("id", { count: "exact", head: true })
+        .eq("mentioned_user_id", user.id)
+        .is("read_at", null);
+
+      if (noteError && taskError && workflowError) {
         setUnreadCount(0);
         return;
       }
 
-      setUnreadCount((noteCount ?? 0) + (taskCount ?? 0));
+      setUnreadCount((noteCount ?? 0) + (taskCount ?? 0) + (workflowCount ?? 0));
     } catch {
       setUnreadCount(0);
     }
