@@ -201,9 +201,45 @@ export default function ProjectWorkflows({ projectId, projectType }: { projectId
               }
               return s;
             });
-            // Save migrated data
-            supabaseClient.from("project_workflows").upsert({ project_id: projectId, workflow_data: loaded, updated_at: new Date().toISOString() }, { onConflict: "project_id" });
           }
+        }
+
+        // Migration: Add new final steps (MVP, Revisions, Project Completion) if missing
+        if (loaded.projectSubtype && !loaded.steps.find(s => s.id === "mvp_production")) {
+          // Find the last design/scaffolding step
+          const scaffoldingIndex = loaded.steps.findIndex(s => s.id === "project_scaffolding");
+          const designIndex = loaded.steps.findIndex(s => s.id === "ui_ux_design");
+          const lastDesignStep = Math.max(scaffoldingIndex, designIndex);
+          
+          if (lastDesignStep !== -1) {
+            // Check if all prior steps (including scaffolding) are complete
+            const allPriorComplete = loaded.steps.slice(0, lastDesignStep + 1).every(s => s.status === "completed");
+            // For concurrent steps, both must be complete
+            const concurrentComplete = (!loaded.steps[scaffoldingIndex]?.concurrent || 
+              (loaded.steps[scaffoldingIndex]?.status === "completed" && loaded.steps[designIndex]?.status === "completed"));
+            const shouldUnlock = allPriorComplete && concurrentComplete;
+            
+            // Calculate step numbers
+            let nextNum = 8;
+            if (loaded.steps[lastDesignStep]?.concurrent) {
+              nextNum = 8; // After 7a/7b
+            } else {
+              nextNum = (typeof loaded.steps[lastDesignStep]?.number === "number" ? loaded.steps[lastDesignStep].number as number : 8) + 1;
+            }
+            
+            const newSteps: WorkflowStep[] = [
+              { id: "mvp_production", number: nextNum, title: "MVP Production", description: "Provide MVP preview link", status: shouldUnlock ? "pending" : "locked", assignedUserId: null, assignedUserName: null, taskId: null, completedAt: null, data: { mvpLink: "" }, comments: [] },
+              { id: "revisions", number: nextNum + 1, title: "Revisions", description: "Manage revision checklist and tasks", status: "locked", assignedUserId: null, assignedUserName: null, taskId: null, completedAt: null, revisionStatus: null, revisionChecklist: [], comments: [] },
+              { id: "project_completion", number: nextNum + 2, title: "Project Completion", description: "Upload project completion form", status: "locked", assignedUserId: null, assignedUserName: null, taskId: null, completedAt: null, files: [], comments: [] }
+            ];
+            
+            loaded = { ...loaded, steps: [...loaded.steps, ...newSteps] };
+          }
+        }
+        
+        // Save any migrations
+        if (loaded.projectSubtype) {
+          supabaseClient.from("project_workflows").upsert({ project_id: projectId, workflow_data: loaded, updated_at: new Date().toISOString() }, { onConflict: "project_id" });
         }
         
         setData(loaded);
