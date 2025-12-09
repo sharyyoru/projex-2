@@ -476,168 +476,130 @@ export default function Home() {
       {/* Tasks and Meetings Section */}
       <section className="grid gap-4 md:grid-cols-2">
         {/* Today's Meetings */}
-        <div className="rounded-xl border border-slate-200/80 bg-white/90 p-4 shadow-[0_16px_40px_rgba(15,23,42,0.08)] backdrop-blur">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <div>
-              <h2 className="text-sm font-semibold text-slate-900">Today&apos;s meetings</h2>
-              <p className="text-xs text-slate-500">Quick view of your upcoming meetings and calls.</p>
+        <div className="relative overflow-hidden rounded-2xl border border-slate-200/60 bg-gradient-to-br from-white via-white to-sky-50/30 p-5 shadow-[0_20px_50px_rgba(15,23,42,0.08)]">
+          <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-gradient-to-br from-sky-400/10 to-blue-400/5" />
+          <div className="relative">
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 shadow-lg shadow-sky-500/25">
+                  <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                </span>
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900">Today&apos;s Meetings</h2>
+                  <p className="text-[11px] text-slate-500">Upcoming meetings and calls</p>
+                </div>
+              </div>
+              <Link href="/appointments" className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-3 py-1.5 text-[11px] font-semibold text-sky-700 hover:bg-sky-100 transition-colors">
+                View all
+                <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+              </Link>
             </div>
-            <Link href="/appointments" className="inline-flex items-center rounded-full border border-slate-200/80 bg-white/80 px-3 py-1 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">
-              View all
-            </Link>
-          </div>
-          {loading ? (
-            <p className="text-xs text-slate-500">
-              Loading today&apos;s meetings...
-            </p>
-          ) : appointments.length === 0 ? (
-            <p className="text-xs text-slate-500">
-              No meetings scheduled for today.
-            </p>
-          ) : (
-            <div className="divide-y divide-slate-100 text-sm">
-              {appointments.map((appt) => {
-                const start = appt.start_time ? new Date(appt.start_time as string) : null;
-                const timeLabel =
-                  start && !Number.isNaN(start.getTime())
-                    ? start.toLocaleTimeString(undefined, {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })
-                    : "";
-                const patientName = appt.patient
-                  ? `${appt.patient.first_name ?? ""} ${
-                      appt.patient.last_name ?? ""
-                    }`
-                      .trim()
-                      .replace(/\s+/g, " ")
-                  : "Unknown patient";
-                const rawService = (appt.reason as string | null) ?? null;
-                const service = rawService
-                  ? (rawService.split("[")[0] || "Appointment").trim()
-                  : "Appointment";
-
-                let badgeLabel = "Scheduled";
-                let badgeClasses =
-                  "rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700";
-                if (appt.status === "confirmed") {
-                  badgeLabel = "Confirmed";
-                  badgeClasses =
-                    "rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700";
-                } else if (appt.status === "completed") {
-                  badgeLabel = "Completed";
-                  badgeClasses =
-                    "rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700";
-                }
-
-                return (
-                  <div
-                    key={appt.id as string}
-                    className="flex items-center justify-between py-2"
-                  >
-                    <div>
-                      <p className="font-medium text-slate-800">
-                        {timeLabel} · {service || "Appointment"}
-                      </p>
-                      <p className="text-xs text-slate-500">{patientName}</p>
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-sky-200 border-t-sky-600" />
+              </div>
+            ) : appointments.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-6 text-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 mb-3">
+                  <svg className="h-6 w-6 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
+                </div>
+                <p className="text-sm font-medium text-slate-600">No meetings today</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Enjoy your meeting-free day!</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {appointments.map((appt) => {
+                  const start = appt.start_time ? new Date(appt.start_time as string) : null;
+                  const timeLabel = start && !Number.isNaN(start.getTime()) ? start.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "";
+                  const patientName = appt.patient ? `${appt.patient.first_name ?? ""} ${appt.patient.last_name ?? ""}`.trim().replace(/\s+/g, " ") : "Unknown";
+                  const rawService = (appt.reason as string | null) ?? null;
+                  const service = rawService ? (rawService.split("[")[0] || "Meeting").trim() : "Meeting";
+                  let badgeLabel = "Scheduled";
+                  let badgeClasses = "bg-sky-100 text-sky-700";
+                  if (appt.status === "confirmed") { badgeLabel = "Confirmed"; badgeClasses = "bg-emerald-100 text-emerald-700"; }
+                  else if (appt.status === "completed") { badgeLabel = "Done"; badgeClasses = "bg-slate-100 text-slate-600"; }
+                  return (
+                    <div key={appt.id as string} className="flex items-center gap-3 rounded-xl bg-white/80 border border-slate-100 p-3 hover:shadow-md transition-all">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-50 text-sky-600 font-bold text-[11px]">{timeLabel}</div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-slate-800 truncate">{service}</p>
+                        <p className="text-[11px] text-slate-500 truncate">{patientName}</p>
+                      </div>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${badgeClasses}`}>{badgeLabel}</span>
                     </div>
-                    <span className={badgeClasses}>{badgeLabel}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200/80 bg-white/90 p-4 shadow-[0_16px_40px_rgba(15,23,42,0.08)] backdrop-blur">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <div>
-              <h2 className="text-sm font-semibold text-slate-900">Tasks</h2>
-              <p className="text-xs text-slate-500">
-                Your most important follow-ups and admin items.
-              </p>
+        {/* Tasks */}
+        <div className="relative overflow-hidden rounded-2xl border border-slate-200/60 bg-gradient-to-br from-white via-white to-rose-50/30 p-5 shadow-[0_20px_50px_rgba(15,23,42,0.08)]">
+          <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-gradient-to-br from-rose-400/10 to-pink-400/5" />
+          <div className="relative">
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-pink-600 shadow-lg shadow-rose-500/25">
+                  <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                </span>
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900">Your Tasks</h2>
+                  <p className="text-[11px] text-slate-500">Follow-ups and action items</p>
+                </div>
+              </div>
+              <Link href="/tasks" className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1.5 text-[11px] font-semibold text-rose-700 hover:bg-rose-100 transition-colors">
+                View all
+                <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+              </Link>
             </div>
-            <Link
-              href="/tasks"
-              className="inline-flex items-center rounded-full border border-slate-200/80 bg-white/80 px-3 py-1 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50"
-            >
-              View all tasks
-            </Link>
-          </div>
-          {loading ? (
-            <p className="text-xs text-slate-500">Loading your tasks...</p>
-          ) : tasks.length === 0 ? (
-            <p className="text-xs text-slate-500">
-              No open tasks assigned to you.
-            </p>
-          ) : (
-            <div className="space-y-2 text-sm">
-              {tasks.map((task) => {
-                const patient = task.patient;
-                const patientName = patient
-                  ? `${patient.first_name ?? ""} ${patient.last_name ?? ""}`
-                      .trim()
-                      .replace(/\s+/g, " ")
-                  : null;
-
-                const rawDate =
-                  (task.activity_date as string | null) ?? (task.created_at as string);
-                let badgeLabel = "Pending";
-                let badgeClasses =
-                  "rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700";
-                if (rawDate) {
-                  const today = new Date();
-                  today.setHours(0, 0, 0, 0);
-                  const d = new Date(rawDate);
-                  if (!Number.isNaN(d.getTime())) {
-                    const taskDate = new Date(
-                      d.getFullYear(),
-                      d.getMonth(),
-                      d.getDate(),
-                    );
-                    const diffMs = taskDate.getTime() - today.getTime();
-                    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
-                    if (diffDays === 0) {
-                      badgeLabel = "Today";
-                      badgeClasses =
-                        "rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700";
-                    } else if (diffDays < 0) {
-                      badgeLabel = "Overdue";
-                      badgeClasses =
-                        "rounded-full bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-700";
-                    } else if (diffDays <= 7) {
-                      badgeLabel = "This week";
-                      badgeClasses =
-                        "rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700";
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-rose-200 border-t-rose-600" />
+              </div>
+            ) : tasks.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-6 text-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 mb-3">
+                  <svg className="h-6 w-6 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                </div>
+                <p className="text-sm font-medium text-slate-600">All caught up!</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">No open tasks assigned to you</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {tasks.map((task) => {
+                  const rawDate = (task.activity_date as string | null) ?? (task.created_at as string);
+                  let badgeLabel = "Pending";
+                  let badgeClasses = "bg-slate-100 text-slate-600";
+                  if (rawDate) {
+                    const today = new Date(); today.setHours(0, 0, 0, 0);
+                    const d = new Date(rawDate);
+                    if (!Number.isNaN(d.getTime())) {
+                      const taskDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+                      const diffDays = Math.round((taskDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                      if (diffDays === 0) { badgeLabel = "Today"; badgeClasses = "bg-amber-100 text-amber-700"; }
+                      else if (diffDays < 0) { badgeLabel = "Overdue"; badgeClasses = "bg-rose-100 text-rose-700"; }
+                      else if (diffDays <= 7) { badgeLabel = "This week"; badgeClasses = "bg-sky-100 text-sky-700"; }
                     }
                   }
-                }
-
-                return (
-                  <button
-                    key={task.id as string}
-                    type="button"
-                    onClick={() => setSelectedTaskId(task.id as string)}
-                    className="flex w-full items-center justify-between rounded-lg bg-slate-50/80 px-3 py-2 text-left hover:bg-slate-100"
-                  >
-                    <div>
-                      <p className="font-medium text-slate-800">
-                        {task.name as string}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        {task.content
-                          ? (task.content as string)
-                          : patientName || "Task"}
-                      </p>
-                    </div>
-                    <span className={badgeClasses}>{badgeLabel}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+                  return (
+                    <button key={task.id as string} type="button" onClick={() => setSelectedTaskId(task.id as string)}
+                      className="flex w-full items-center gap-3 rounded-xl bg-white/80 border border-slate-100 p-3 text-left hover:shadow-md hover:border-rose-200 transition-all group">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-50 text-rose-500 group-hover:bg-rose-100 transition-colors">
+                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-slate-800 truncate">{task.name as string}</p>
+                        <p className="text-[11px] text-slate-500 truncate">{task.content ? (task.content as string) : "Task"}</p>
+                      </div>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${badgeClasses}`}>{badgeLabel}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
-
       </section>
 
       {selectedTaskId && (
