@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { supabaseClient } from "@/lib/supabaseClient";
+import { useUserRole } from "@/app/profile/hooks/useUserRole";
 
 type CompanyHit = {
   id: string;
@@ -42,8 +43,11 @@ type InvoiceHit = {
 
 export default function GlobalSearchPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const rawQuery = searchParams.get("q") ?? "";
   const trimmedQuery = rawQuery.trim();
+  const { role } = useUserRole();
+  const isAdmin = role === "admin" || role === "hr";
 
   const [companies, setCompanies] = useState<CompanyHit[]>([]);
   const [contacts, setContacts] = useState<ContactHit[]>([]);
@@ -51,6 +55,22 @@ export default function GlobalSearchPage() {
   const [invoices, setInvoices] = useState<InvoiceHit[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [accessDenied, setAccessDenied] = useState(false);
+
+  // Handle quote/invoice click - check admin access
+  const handleFinancialClick = (e: React.MouseEvent, projectId: string | null) => {
+    e.preventDefault();
+    if (!isAdmin) {
+      setAccessDenied(true);
+      setTimeout(() => setAccessDenied(false), 3000);
+      return;
+    }
+    if (projectId) {
+      router.push(`/projects/${projectId}?tab=quotes`);
+    } else {
+      router.push("/financials");
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -153,6 +173,19 @@ export default function GlobalSearchPage() {
 
   return (
     <div className="space-y-6">
+      {/* Access Denied Toast */}
+      {accessDenied && (
+        <div className="fixed top-4 right-4 z-50 flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 shadow-lg animate-in slide-in-from-top-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100">
+            <svg className="h-4 w-4 text-red-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-red-800">Access Denied</p>
+            <p className="text-[11px] text-red-600">You don&apos;t have permission to access Quotes & Invoices</p>
+          </div>
+        </div>
+      )}
+
       <header className="flex flex-col gap-1">
         <h1 className="text-lg font-semibold text-slate-900">Search</h1>
         <p className="text-xs text-slate-500">
@@ -278,9 +311,10 @@ export default function GlobalSearchPage() {
               <ul className="space-y-1.5">
                 {quotations.map((quote) => (
                   <li key={quote.id}>
-                    <Link
-                      href={quote.project_id ? `/projects/${quote.project_id}` : "/financials"}
-                      className="flex items-center justify-between rounded-lg bg-slate-50/80 px-3 py-2 text-slate-800 hover:bg-slate-100"
+                    <button
+                      type="button"
+                      onClick={(e) => handleFinancialClick(e, quote.project_id)}
+                      className="flex w-full items-center justify-between rounded-lg bg-slate-50/80 px-3 py-2 text-left text-slate-800 hover:bg-slate-100 transition-colors"
                     >
                       <div>
                         <p className="text-[11px] font-semibold text-amber-700">
@@ -290,7 +324,8 @@ export default function GlobalSearchPage() {
                           {quote.client_name || "Unknown"} • {quote.status || "draft"}
                         </p>
                       </div>
-                    </Link>
+                      <svg className="h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -308,19 +343,21 @@ export default function GlobalSearchPage() {
               <ul className="space-y-1.5">
                 {actualInvoices.map((invoice) => (
                   <li key={invoice.id}>
-                    <Link
-                      href={invoice.project_id ? `/projects/${invoice.project_id}` : "/financials"}
-                      className="flex items-center justify-between rounded-lg bg-slate-50/80 px-3 py-2 text-slate-800 hover:bg-slate-100"
+                    <button
+                      type="button"
+                      onClick={(e) => handleFinancialClick(e, invoice.project_id)}
+                      className="flex w-full items-center justify-between rounded-lg bg-slate-50/80 px-3 py-2 text-left text-slate-800 hover:bg-slate-100 transition-colors"
                     >
                       <div>
                         <p className="text-[11px] font-semibold text-rose-700">
                           {invoice.invoice_number || "Untitled invoice"}
                         </p>
                         <p className="text-[11px] text-slate-500">
-                          {invoice.client_name || "Unknown"} • {invoice.status || "draft"} {invoice.total ? `• $${invoice.total.toLocaleString()}` : ""}
+                          {invoice.client_name || "Unknown"} • {invoice.status || "draft"} {invoice.total ? `• AED ${invoice.total.toLocaleString()}` : ""}
                         </p>
                       </div>
-                    </Link>
+                      <svg className="h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
+                    </button>
                   </li>
                 ))}
               </ul>

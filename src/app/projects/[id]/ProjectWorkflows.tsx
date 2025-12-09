@@ -686,14 +686,18 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
               <p className="text-[10px] font-semibold text-slate-500 uppercase">Document Versions</p>
               {step.files.map((f, i) => (
                 <div key={i} className={`flex items-center gap-2 p-3 rounded-lg border ${f.isActive ? "bg-emerald-50 border-emerald-200" : "bg-slate-50 border-slate-200"}`}>
-                  <a href={f.url} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center gap-2 text-sm text-slate-700 hover:text-blue-600">
-                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  <div className="flex-1 flex items-center gap-2 text-sm text-slate-700 min-w-0">
+                    <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                     <span className="truncate">{f.name}</span>
-                    <span className="text-[10px] text-slate-400">v{f.version || 1}</span>
+                    <span className="text-[10px] text-slate-400 shrink-0">v{f.version || 1}</span>
+                  </div>
+                  <a href={f.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded-md text-[10px] font-semibold hover:bg-blue-200 transition-colors shrink-0">
+                    <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/></svg>
+                    Preview
                   </a>
-                  {f.isActive && <span className="text-[9px] bg-emerald-500 text-white px-1.5 py-0.5 rounded font-bold">ACTIVE</span>}
-                  {!f.isActive && <button type="button" onClick={() => onSetFileActive(step.id, i)} className="text-[10px] text-blue-600 hover:underline">Set Active</button>}
-                  <button type="button" onClick={() => onDeleteFile(step.id, i)} className="text-red-500 hover:text-red-700 p-1"><svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+                  {f.isActive && <span className="text-[9px] bg-emerald-500 text-white px-1.5 py-0.5 rounded font-bold shrink-0">ACTIVE</span>}
+                  {!f.isActive && <button type="button" onClick={() => onSetFileActive(step.id, i)} className="text-[10px] text-blue-600 hover:underline shrink-0">Set Active</button>}
+                  <button type="button" onClick={() => onDeleteFile(step.id, i)} className="text-red-500 hover:text-red-700 p-1 shrink-0"><svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
                 </div>
               ))}
             </div>
@@ -728,14 +732,18 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
                   <p className="text-[10px] font-semibold text-slate-500 uppercase">Document Versions</p>
                   {step.files.map((f, i) => (
                     <div key={i} className={`flex items-center gap-2 p-3 rounded-lg border ${f.isActive ? "bg-emerald-50 border-emerald-200" : "bg-slate-50 border-slate-200"}`}>
-                      <a href={f.url} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center gap-2 text-sm text-slate-700 hover:text-blue-600">
-                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      <div className="flex-1 flex items-center gap-2 text-sm text-slate-700 min-w-0">
+                        <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                         <span className="truncate">{f.name}</span>
-                        <span className="text-[10px] text-slate-400">v{f.version || 1}</span>
+                        <span className="text-[10px] text-slate-400 shrink-0">v{f.version || 1}</span>
+                      </div>
+                      <a href={f.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded-md text-[10px] font-semibold hover:bg-blue-200 transition-colors shrink-0">
+                        <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/></svg>
+                        Preview
                       </a>
-                      {f.isActive && <span className="text-[9px] bg-emerald-500 text-white px-1.5 py-0.5 rounded font-bold">ACTIVE</span>}
-                      {!f.isActive && <button type="button" onClick={() => onSetFileActive(step.id, i)} className="text-[10px] text-blue-600 hover:underline">Set Active</button>}
-                      <button type="button" onClick={() => onDeleteFile(step.id, i)} className="text-red-500 hover:text-red-700 p-1"><svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+                      {f.isActive && <span className="text-[9px] bg-emerald-500 text-white px-1.5 py-0.5 rounded font-bold shrink-0">ACTIVE</span>}
+                      {!f.isActive && <button type="button" onClick={() => onSetFileActive(step.id, i)} className="text-[10px] text-blue-600 hover:underline shrink-0">Set Active</button>}
+                      <button type="button" onClick={() => onDeleteFile(step.id, i)} className="text-red-500 hover:text-red-700 p-1 shrink-0"><svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
                     </div>
                   ))}
                 </div>
@@ -1092,14 +1100,18 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
               <p className="text-[10px] font-semibold text-slate-500 uppercase">Uploaded Documents</p>
               {step.files.map((f, i) => (
                 <div key={i} className={`flex items-center gap-2 p-3 rounded-lg border ${f.isActive ? "bg-emerald-50 border-emerald-200" : "bg-slate-50 border-slate-200"}`}>
-                  <a href={f.url} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center gap-2 text-sm text-slate-700 hover:text-blue-600">
-                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  <div className="flex-1 flex items-center gap-2 text-sm text-slate-700 min-w-0">
+                    <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                     <span className="truncate">{f.name}</span>
-                    <span className="text-[10px] text-slate-400">v{f.version || 1}</span>
+                    <span className="text-[10px] text-slate-400 shrink-0">v{f.version || 1}</span>
+                  </div>
+                  <a href={f.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 px-2 py-1 bg-emerald-100 text-emerald-700 rounded-md text-[10px] font-semibold hover:bg-emerald-200 transition-colors shrink-0">
+                    <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/></svg>
+                    Preview
                   </a>
-                  {f.isActive && <span className="text-[9px] bg-emerald-500 text-white px-1.5 py-0.5 rounded font-bold">ACTIVE</span>}
-                  {!f.isActive && <button type="button" onClick={() => onSetFileActive(step.id, i)} className="text-[10px] text-blue-600 hover:underline">Set Active</button>}
-                  <button type="button" onClick={() => onDeleteFile(step.id, i)} className="text-red-500 hover:text-red-700 p-1"><svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+                  {f.isActive && <span className="text-[9px] bg-emerald-500 text-white px-1.5 py-0.5 rounded font-bold shrink-0">ACTIVE</span>}
+                  {!f.isActive && <button type="button" onClick={() => onSetFileActive(step.id, i)} className="text-[10px] text-blue-600 hover:underline shrink-0">Set Active</button>}
+                  <button type="button" onClick={() => onDeleteFile(step.id, i)} className="text-red-500 hover:text-red-700 p-1 shrink-0"><svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
                 </div>
               ))}
             </div>
