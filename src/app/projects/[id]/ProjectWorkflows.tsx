@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { supabaseClient } from "@/lib/supabaseClient";
 import MentionTextarea, { NoteBodyWithMentions, extractMentionedUserIds } from "@/components/MentionTextarea";
 
@@ -568,9 +568,9 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
     }
   }, [step.id, projectId]);
 
-  const isLocked = step.status === "locked";
-  const isDone = step.status === "completed";
-  const isActive = step.status === "pending" || step.status === "in_progress";
+  const isLocked: boolean = step.status === "locked";
+  const isDone: boolean = step.status === "completed";
+  const isActive: boolean = step.status === "pending" || step.status === "in_progress";
   const isStep1 = step.id === "website_type";
   const isReviewStep = step.id === "technical_review" || step.id === "ui_ux_design" || step.id === "project_scaffolding";
 
@@ -639,7 +639,7 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
       </div>
 
       {/* Step 1 Content */}
-      {isStep1 && isActive && (
+      {isStep1 && isActive ? (
         <div className="mt-5 space-y-4">
           <p className="text-[11px] font-semibold text-slate-600 uppercase">Select Website Project Type</p>
           {SUBTYPES.map(t => (
@@ -666,16 +666,16 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
           <button type="button" onClick={onCompleteStep1} disabled={!selected || !step.assignedUserId || ((selected === "template" || selected === "saas") && !subtypeName.trim()) || (selected === "template" && needsFigma === undefined)} className="w-full mt-4 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">Complete Step & Continue</button>
           {!step.assignedUserId && <p className="text-[11px] text-amber-600 text-center">Please assign a user first</p>}
         </div>
-      )}
-      {isStep1 && isDone && (
+      ) : null}
+      {isStep1 && isDone ? (
         <div className="mt-4 p-4 rounded-xl bg-emerald-100 text-emerald-800 text-sm">
           <strong>Selected:</strong> {SUBTYPES.find(t => t.value === data.projectSubtype)?.label}{data.subtypeName && ` — ${data.subtypeName}`}
           {data.needsFigma !== undefined && <span className="ml-2">| Figma: {data.needsFigma ? "Yes" : "No"}</span>}
         </div>
-      )}
+      ) : null}
 
       {/* File Upload Steps */}
-      {["project_brief", "brand_guidelines"].includes(step.id) && isActive && (
+      {["project_brief", "brand_guidelines"].includes(step.id) && isActive ? (
         <div className="mt-5 space-y-4">
           <input ref={fileRef} type="file" accept=".pdf,.doc,.docx" onChange={handleUpload} className="hidden" />
           <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} className="flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 px-4 py-6 w-full hover:border-blue-400 hover:bg-blue-50/50 disabled:opacity-50">
@@ -704,10 +704,10 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
           )}
           <button type="button" onClick={() => onComplete(step.id)} disabled={!step.assignedUserId || !step.files?.some(f => f.isActive)} className="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed">Complete Step</button>
         </div>
-      )}
+      ) : null}
 
       {/* Technical Scope Step */}
-      {step.id === "technical_scope" && isActive && (
+      {step.id === "technical_scope" && isActive ? (
         <div className="mt-5 space-y-4">
           <div className="flex gap-2 p-1 bg-slate-100 rounded-lg">
             <button type="button" onClick={() => { setScopeMode("ai"); onUpdateData(step.id, "scopeMode", "ai"); }} className={`flex-1 py-2 rounded-md text-sm font-medium ${scopeMode === "ai" ? "bg-white shadow text-slate-900" : "text-slate-600"}`}>Generate with AI</button>
@@ -752,10 +752,10 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
           )}
           <button type="button" onClick={() => onComplete(step.id)} disabled={!step.assignedUserId || (!scopeText.trim() && !step.files?.some(f => f.isActive))} className="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">Complete Step</button>
         </div>
-      )}
+      ) : null}
 
       {/* Review Steps */}
-      {isReviewStep && isActive && (
+      {isReviewStep && isActive ? (
         <div className="mt-5 space-y-4">
           {step.id === "ui_ux_design" && (
             <div>
@@ -810,10 +810,10 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
           </div>
           {step.reviewStatus && step.reviewStatus !== "passed" && <p className="text-sm text-amber-600">Status: {REVIEW_OPTIONS.find(o => o.value === step.reviewStatus)?.label}. Update and mark as Passed to continue.</p>}
         </div>
-      )}
+      ) : null}
 
       {/* Financials Step */}
-      {step.id === "financials" && isActive && (
+      {step.id === "financials" && isActive ? (
         <div className="mt-5 space-y-6">
           {/* Part 1: Quotes */}
           <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
@@ -964,7 +964,7 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
           </div>
 
           {/* Complete Button */}
-          {(() => {
+          {((): React.ReactNode => {
             const hasQuote = step.quotes && step.quotes.length > 0 && step.quotes.some(q => q.approvedByClient);
             const hasInvoice = step.invoices && step.invoices.length > 0;
             const invoicePaidOrPartial = step.invoices?.some(i => i.paymentStatus === "paid" || i.paymentStatus === "partially_paid");
@@ -977,10 +977,10 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
             );
           })()}
         </div>
-      )}
+      ) : null}
 
       {/* MVP Production Step */}
-      {step.id === "mvp_production" && isActive && (
+      {step.id === "mvp_production" && isActive ? (
         <div className="mt-5 space-y-4">
           <div>
             <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-2">MVP Preview Link</label>
@@ -996,10 +996,10 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
           </div>
           <button type="button" onClick={() => onComplete(step.id)} disabled={!step.assignedUserId || !mvpLink} className="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed">Complete MVP Production Step</button>
         </div>
-      )}
+      ) : null}
 
       {/* Revisions Step */}
-      {step.id === "revisions" && isActive && (
+      {step.id === "revisions" && isActive ? (
         <div className="mt-5 space-y-4">
           {/* Status Marker */}
           <div>
@@ -1082,10 +1082,10 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
           <button type="button" onClick={() => onComplete(step.id)} disabled={!step.assignedUserId || step.revisionStatus !== "approved"} className="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed">Complete Revisions Step</button>
           {step.revisionStatus !== "approved" && <p className="text-[11px] text-amber-600 text-center">Status must be "Approved" to proceed</p>}
         </div>
-      )}
+      ) : null}
 
       {/* Project Completion Step */}
-      {step.id === "project_completion" && isActive && (
+      {step.id === "project_completion" && isActive ? (
         <div className="mt-5 space-y-4">
           <div>
             <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-2">Project Completion Form</label>
@@ -1118,10 +1118,10 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
           )}
           <button type="button" onClick={() => onComplete(step.id)} disabled={!step.assignedUserId || !step.files?.length} className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed">Complete Project!</button>
         </div>
-      )}
+      ) : null}
 
       {/* Completed content display */}
-      {isDone && step.id === "technical_scope" && (step.data?.scopeText || step.files?.length) && (
+      {isDone && step.id === "technical_scope" && (step.data?.scopeText || step.files?.length) ? (
         <div className="mt-4 p-3 rounded-xl bg-emerald-50 border border-emerald-100 text-sm">
           {typeof step.data?.scopeText === "string" && step.data.scopeText && <p className="text-emerald-800 whitespace-pre-wrap line-clamp-3">{step.data.scopeText}</p>}
           {step.files?.filter(f => f.isActive).map((f, i) => (
@@ -1131,8 +1131,8 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
             </a>
           ))}
         </div>
-      )}
-      {isDone && step.files && step.files.length > 0 && !["technical_scope"].includes(step.id) && (
+      ) : null}
+      {isDone && step.files && step.files.length > 0 && !["technical_scope"].includes(step.id) ? (
         <div className="mt-4 p-3 rounded-xl bg-emerald-50 border border-emerald-100">
           {step.files.filter(f => f.isActive).map((f, i) => (
             <a key={i} href={f.url} target="_blank" className="flex items-center gap-2 text-emerald-700 text-sm hover:underline">
@@ -1142,9 +1142,9 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
           ))}
           {step.files.length > 1 && <p className="text-[10px] text-slate-400 mt-2">+{step.files.length - 1} more version(s)</p>}
         </div>
-      )}
+      ) : null}
       {/* Completed Figma link display */}
-      {isDone && step.id === "ui_ux_design" && step.data?.figmaLink && (
+      {isDone && step.id === "ui_ux_design" && step.data?.figmaLink ? (
         <div className="mt-4 p-3 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-between">
           <span className="text-sm text-emerald-700 truncate flex-1">{step.data.figmaLink as string}</span>
           <a href={step.data.figmaLink as string} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 text-white text-xs font-medium rounded-lg hover:bg-emerald-700 ml-2">
@@ -1152,9 +1152,9 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
             Preview
           </a>
         </div>
-      )}
+      ) : null}
       {/* Completed MVP link display */}
-      {isDone && step.id === "mvp_production" && step.data?.mvpLink && (
+      {isDone && step.id === "mvp_production" && step.data?.mvpLink ? (
         <div className="mt-4 p-3 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-between">
           <span className="text-sm text-emerald-700 truncate flex-1">{step.data.mvpLink as string}</span>
           <a href={step.data.mvpLink as string} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 text-white text-xs font-medium rounded-lg hover:bg-emerald-700 ml-2">
@@ -1162,9 +1162,9 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
             Preview
           </a>
         </div>
-      )}
+      ) : null}
       {/* Completed Revisions display */}
-      {isDone && step.id === "revisions" && (
+      {isDone && step.id === "revisions" ? (
         <div className="mt-4 p-3 rounded-xl bg-emerald-50 border border-emerald-100">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-xs font-semibold text-emerald-700">Status:</span>
@@ -1181,7 +1181,7 @@ function StepCard({ step, data, users, projectId, activePickerStep, setActivePic
             </div>
           )}
         </div>
-      )}
+      ) : null}
 
       {/* Comments Section */}
       {!isLocked && (
