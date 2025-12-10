@@ -207,7 +207,8 @@ export default function DanoteComments({
       .single();
 
     if (error || !comment) {
-      console.error("Error creating comment:", error);
+      console.error("Error creating comment:", error?.message || error);
+      alert("Failed to post comment. Please make sure you're logged in and try again.");
       return;
     }
 
@@ -429,7 +430,7 @@ export default function DanoteComments({
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
               placeholder="Add a comment... Use @ to mention someone"
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent resize-none"
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent resize-none"
               rows={3}
             />
 
