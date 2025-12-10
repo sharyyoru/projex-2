@@ -82,6 +82,13 @@ export default function DanoteCanvas({ boardId }: { boardId: string }) {
   const [drawingMode, setDrawingMode] = useState<ElementType | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawStart, setDrawStart] = useState({ x: 0, y: 0 });
+  
+  // Resize state
+  const [resizingId, setResizingId] = useState<string | null>(null);
+  const [resizeHandle, setResizeHandle] = useState<string | null>(null);
+  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0, elX: 0, elY: 0 });
+  const replaceImageInputRef = useRef<HTMLInputElement>(null);
+  const [replacingImageId, setReplacingImageId] = useState<string | null>(null);
 
   useEffect(() => {
     supabaseClient.from("danote_elements").select("*").eq("board_id", boardId).order("z_index")
@@ -235,7 +242,24 @@ export default function DanoteCanvas({ boardId }: { boardId: string }) {
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (isPanning) setOffset({ x: e.clientX - panStart.x, y: e.clientY - panStart.y });
-    else if (draggingId) {
+    else if (resizingId && resizeHandle) {
+      const pos = screenToCanvas(e.clientX, e.clientY);
+      const dx = pos.x - resizeStart.x;
+      const dy = pos.y - resizeStart.y;
+      
+      setElements((prev) => prev.map((el) => {
+        if (el.id !== resizingId) return el;
+        let newX = resizeStart.elX, newY = resizeStart.elY;
+        let newW = resizeStart.width, newH = resizeStart.height;
+        
+        if (resizeHandle.includes('e')) newW = Math.max(20, resizeStart.width + dx);
+        if (resizeHandle.includes('w')) { newW = Math.max(20, resizeStart.width - dx); newX = resizeStart.elX + dx; }
+        if (resizeHandle.includes('s')) newH = Math.max(20, resizeStart.height + dy);
+        if (resizeHandle.includes('n')) { newH = Math.max(20, resizeStart.height - dy); newY = resizeStart.elY + dy; }
+        
+        return { ...el, x: newX, y: newY, width: newW, height: newH };
+      }));
+    } else if (draggingId) {
       const pos = screenToCanvas(e.clientX, e.clientY);
       setElements((prev) => prev.map((el) => {
         if ((selectedIds.has(el.id) || el.id === draggingId) && !el.locked)
@@ -244,7 +268,7 @@ export default function DanoteCanvas({ boardId }: { boardId: string }) {
       }));
       setDragOffset(pos);
     }
-  }, [isPanning, panStart, draggingId, dragOffset, selectedIds, screenToCanvas]);
+  }, [isPanning, panStart, draggingId, dragOffset, selectedIds, screenToCanvas, resizingId, resizeHandle, resizeStart]);
 
   const handleCanvasMouseUp = useCallback(async (e: React.MouseEvent) => {
     if (isDrawing && drawingMode) {
@@ -289,13 +313,28 @@ export default function DanoteCanvas({ boardId }: { boardId: string }) {
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
     setIsPanning(false);
+    if (resizingId) {
+      const el = elements.find((e) => e.id === resizingId);
+      if (el) saveElement({ id: el.id, x: el.x, y: el.y, width: el.width, height: el.height });
+      setResizingId(null);
+      setResizeHandle(null);
+    }
     if (draggingId) {
       elements.forEach((el) => { if (selectedIds.has(el.id) || el.id === draggingId) saveElement({ id: el.id, x: el.x, y: el.y }); });
       setDraggingId(null);
     }
     setSidebarDragType(null);
     if (isDrawing) handleCanvasMouseUp(e);
-  }, [draggingId, selectedIds, elements, isDrawing, handleCanvasMouseUp]);
+  }, [draggingId, selectedIds, elements, isDrawing, handleCanvasMouseUp, resizingId]);
+
+  const handleResizeStart = useCallback((e: React.MouseEvent, el: BoardElement, handle: string) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const pos = screenToCanvas(e.clientX, e.clientY);
+    setResizingId(el.id);
+    setResizeHandle(handle);
+    setResizeStart({ x: pos.x, y: pos.y, width: el.width, height: el.height, elX: el.x, elY: el.y });
+  }, [screenToCanvas]);
 
   const handleElementMouseDown = useCallback((e: React.MouseEvent, el: BoardElement) => {
     e.stopPropagation();
@@ -315,6 +354,27 @@ export default function DanoteCanvas({ boardId }: { boardId: string }) {
     e.preventDefault();
     if (sidebarDragType) { const pos = screenToCanvas(e.clientX, e.clientY); addElement(sidebarDragType, pos.x, pos.y); setSidebarDragType(null); }
   }, [sidebarDragType, screenToCanvas]);
+
+  async function handleReplaceImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !replacingImageId) return;
+    setUploading(true);
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      setElements((p) => p.map((el) => el.id === replacingImageId ? { ...el, content: ev.target?.result as string } : el));
+      await saveElement({ id: replacingImageId, content: ev.target?.result as string });
+      setUploading(false);
+      setReplacingImageId(null);
+    };
+    reader.onerror = () => { setUploading(false); setReplacingImageId(null); };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
+
+  function clearImage(id: string) {
+    setElements((p) => p.map((el) => el.id === id ? { ...el, content: "" } : el));
+    saveElement({ id, content: "" });
+  }
 
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -435,13 +495,30 @@ export default function DanoteCanvas({ boardId }: { boardId: string }) {
       <div ref={canvasRef} className={`relative flex-1 overflow-hidden ${drawingMode ? 'cursor-crosshair' : ''}`} style={{ background: showGrid ? "repeating-linear-gradient(0deg, transparent, transparent 19px, #e2e8f0 19px, #e2e8f0 20px), repeating-linear-gradient(90deg, transparent, transparent 19px, #e2e8f0 19px, #e2e8f0 20px)" : "#f8fafc" }}
         onMouseDown={handleCanvasMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} onWheel={handleWheel} onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
         <div style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`, transformOrigin: "0 0" }}>
-          {elements.map((el) => <CanvasElement key={el.id} element={el} isSelected={selectedIds.has(el.id)} isEditing={editingId === el.id} onMouseDown={(e) => handleElementMouseDown(e, el)} onDoubleClick={() => !el.locked && setEditingId(el.id)} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, elementId: el.id }); }} onContentChange={async (c) => { setElements((p) => p.map((e) => e.id === el.id ? { ...e, content: c } : e)); await saveElement({ id: el.id, content: c }); }} onEditEnd={() => setEditingId(null)} onColorChange={async (c) => { setElements((p) => p.map((e) => e.id === el.id ? { ...e, color: c } : e)); await saveElement({ id: el.id, color: c }); }} onMetadataChange={async (meta) => { setElements((p) => p.map((e) => e.id === el.id ? { ...e, metadata: { ...e.metadata, ...meta } } : e)); await saveElement({ id: el.id, metadata: { ...el.metadata, ...meta } }); }} />)}
+          {elements.map((el) => <CanvasElement key={el.id} element={el} isSelected={selectedIds.has(el.id)} isEditing={editingId === el.id} onMouseDown={(e) => handleElementMouseDown(e, el)} onDoubleClick={() => !el.locked && setEditingId(el.id)} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, elementId: el.id }); }} onContentChange={async (c) => { setElements((p) => p.map((e) => e.id === el.id ? { ...e, content: c } : e)); await saveElement({ id: el.id, content: c }); }} onEditEnd={() => setEditingId(null)} onColorChange={async (c) => { setElements((p) => p.map((e) => e.id === el.id ? { ...e, color: c } : e)); await saveElement({ id: el.id, color: c }); }} onMetadataChange={async (meta) => { setElements((p) => p.map((e) => e.id === el.id ? { ...e, metadata: { ...e.metadata, ...meta } } : e)); await saveElement({ id: el.id, metadata: { ...el.metadata, ...meta } }); }} onResizeStart={(e, handle) => handleResizeStart(e, el, handle)} />)}
         </div>
-        {contextMenu && <div className="fixed z-50 w-44 rounded-lg border border-slate-200 bg-white py-1 shadow-lg" style={{ left: contextMenu.x, top: contextMenu.y }}>
-          <button onClick={() => { const el = elements.find((e) => e.id === contextMenu.elementId); if (el) duplicateElement(el); setContextMenu(null); }} className="w-full px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100">Duplicate</button>
-          <button onClick={async () => { const el = elements.find((e) => e.id === contextMenu.elementId); if (el) { setElements((p) => p.map((e) => e.id === el.id ? { ...e, locked: !e.locked } : e)); await saveElement({ id: el.id, locked: !el.locked }); } setContextMenu(null); }} className="w-full px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100">Lock/Unlock</button>
-          <div className="my-1 border-t border-slate-100" />
-          <p className="px-3 py-1 text-xs font-medium text-slate-400">Arrange</p>
+        <input ref={replaceImageInputRef} type="file" accept="image/*" className="hidden" onChange={handleReplaceImage} />
+        {contextMenu && (() => {
+          const el = elements.find((e) => e.id === contextMenu.elementId);
+          const isImage = el?.type === 'image';
+          return <div className="fixed z-50 w-44 rounded-lg border border-slate-200 bg-white py-1 shadow-lg" style={{ left: contextMenu.x, top: contextMenu.y }}>
+            {isImage && (
+              <>
+                <button onClick={() => { setReplacingImageId(contextMenu.elementId); replaceImageInputRef.current?.click(); setContextMenu(null); }} className="w-full px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2">
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                  Replace Image
+                </button>
+                <button onClick={() => { clearImage(contextMenu.elementId); setContextMenu(null); }} className="w-full px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2">
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 18L18 6M6 6l12 12" /></svg>
+                  Clear Image
+                </button>
+                <div className="my-1 border-t border-slate-100" />
+              </>
+            )}
+            <button onClick={() => { if (el) duplicateElement(el); setContextMenu(null); }} className="w-full px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100">Duplicate</button>
+            <button onClick={async () => { if (el) { setElements((p) => p.map((e) => e.id === el.id ? { ...e, locked: !e.locked } : e)); await saveElement({ id: el.id, locked: !el.locked }); } setContextMenu(null); }} className="w-full px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100">Lock/Unlock</button>
+            <div className="my-1 border-t border-slate-100" />
+            <p className="px-3 py-1 text-xs font-medium text-slate-400">Arrange</p>
           <button onClick={() => { bringToFront(contextMenu.elementId); setContextMenu(null); }} className="w-full px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2">
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 11V5h14v6M12 5v14M8 19h8" /></svg>
             Bring to Front
@@ -460,13 +537,32 @@ export default function DanoteCanvas({ boardId }: { boardId: string }) {
           </button>
           <div className="my-1 border-t border-slate-100" />
           <button onClick={() => { deleteElement(contextMenu.elementId); setContextMenu(null); }} className="w-full px-3 py-1.5 text-left text-sm text-red-600 hover:bg-red-50">Delete</button>
-        </div>}
+          </div>;
+        })()}
       </div>
     </div>
   );
 }
 
-function CanvasElement({ element, isSelected, isEditing, onMouseDown, onDoubleClick, onContextMenu, onContentChange, onEditEnd, onColorChange, onMetadataChange }: { element: BoardElement; isSelected: boolean; isEditing: boolean; onMouseDown: (e: React.MouseEvent) => void; onDoubleClick: () => void; onContextMenu: (e: React.MouseEvent) => void; onContentChange: (c: string) => void; onEditEnd: () => void; onColorChange: (c: string) => void; onMetadataChange: (meta: Record<string, any>) => void; }) {
+function CanvasElement({ element, isSelected, isEditing, onMouseDown, onDoubleClick, onContextMenu, onContentChange, onEditEnd, onColorChange, onMetadataChange, onResizeStart }: { element: BoardElement; isSelected: boolean; isEditing: boolean; onMouseDown: (e: React.MouseEvent) => void; onDoubleClick: () => void; onContextMenu: (e: React.MouseEvent) => void; onContentChange: (c: string) => void; onEditEnd: () => void; onColorChange: (c: string) => void; onMetadataChange: (meta: Record<string, any>) => void; onResizeStart: (e: React.MouseEvent, handle: string) => void; }) {
+  
+  // Resize handles component
+  const ResizeHandles = () => {
+    if (!isSelected || element.locked) return null;
+    const handles = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+    const cursorMap: Record<string, string> = { nw: 'nwse-resize', n: 'ns-resize', ne: 'nesw-resize', e: 'ew-resize', se: 'nwse-resize', s: 'ns-resize', sw: 'nesw-resize', w: 'ew-resize' };
+    const posMap: Record<string, React.CSSProperties> = {
+      nw: { top: -4, left: -4 }, n: { top: -4, left: '50%', transform: 'translateX(-50%)' },
+      ne: { top: -4, right: -4 }, e: { top: '50%', right: -4, transform: 'translateY(-50%)' },
+      se: { bottom: -4, right: -4 }, s: { bottom: -4, left: '50%', transform: 'translateX(-50%)' },
+      sw: { bottom: -4, left: -4 }, w: { top: '50%', left: -4, transform: 'translateY(-50%)' }
+    };
+    return <>
+      {handles.map((h) => (
+        <div key={h} className="absolute w-2 h-2 bg-white border-2 border-cyan-500 rounded-sm z-50" style={{ ...posMap[h], cursor: cursorMap[h] }} onMouseDown={(e) => onResizeStart(e, h)} />
+      ))}
+    </>;
+  };
   const base: React.CSSProperties = { position: "absolute", left: element.x, top: element.y, width: element.width, height: element.height, zIndex: element.z_index, cursor: element.locked ? "not-allowed" : "grab" };
   const sel = isSelected ? "ring-2 ring-cyan-500 ring-offset-2" : "";
 
@@ -476,6 +572,7 @@ function CanvasElement({ element, isSelected, isEditing, onMouseDown, onDoubleCl
       {isEditing ? <textarea autoFocus defaultValue={element.content} onBlur={(e) => { onContentChange(e.target.value); onEditEnd(); }} onKeyDown={(e) => e.key === "Escape" && onEditEnd()} className="h-full w-full resize-none bg-transparent p-3 text-sm text-slate-700 focus:outline-none" placeholder="Type your note..." />
         : <div className="h-full w-full overflow-auto p-3 text-sm text-slate-700 whitespace-pre-wrap">{element.content || <span className="text-slate-400">Double-click to edit...</span>}</div>}
       {isSelected && <div className="absolute -bottom-8 left-0 flex gap-1">{NOTE_COLORS.map((c) => <button key={c.value} onClick={() => onColorChange(c.value)} className="h-5 w-5 rounded-full border-2 border-white shadow" style={{ backgroundColor: c.value }} />)}</div>}
+      <ResizeHandles />
     </div>;
   }
 
@@ -517,8 +614,25 @@ function CanvasElement({ element, isSelected, isEditing, onMouseDown, onDoubleCl
   }
 
   if (element.type === "image") {
-    return <div style={base} className={`overflow-hidden rounded-lg shadow-lg ${sel}`} onMouseDown={onMouseDown} onContextMenu={onContextMenu}>
-      <img src={element.content} alt="Uploaded" className="h-full w-full object-cover" draggable={false} /></div>;
+    return (
+      <div style={base} className={`overflow-hidden rounded-lg shadow-lg ${sel}`} onMouseDown={onMouseDown} onContextMenu={onContextMenu}>
+        {element.content ? (
+          <img src={element.content} alt="Uploaded" className="h-full w-full object-cover" draggable={false} />
+        ) : (
+          <div className="h-full w-full bg-slate-100 flex items-center justify-center">
+            <div className="text-center text-slate-400">
+              <svg className="h-10 w-10 mx-auto mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <path d="M21 15l-5-5L5 21" />
+              </svg>
+              <p className="text-xs">Right-click to add image</p>
+            </div>
+          </div>
+        )}
+        <ResizeHandles />
+      </div>
+    );
   }
 
   if (element.type === "color-swatch") {
@@ -530,7 +644,9 @@ function CanvasElement({ element, isSelected, isEditing, onMouseDown, onDoubleCl
     return <div style={{ ...base, backgroundColor: element.color }} className={`rounded-2xl border-2 border-dashed border-slate-300 ${sel}`} onMouseDown={onMouseDown} onDoubleClick={onDoubleClick} onContextMenu={onContextMenu}>
       <div className="border-b border-slate-200 px-4 py-3">{isEditing ? <input autoFocus type="text" defaultValue={element.content} onBlur={(e) => { onContentChange(e.target.value); onEditEnd(); }} className="w-full bg-transparent font-semibold text-slate-700 focus:outline-none" />
         : <h3 className="font-semibold text-slate-700">{element.content || "Untitled Column"}</h3>}</div>
-      <div className="p-2 text-center text-xs text-slate-400">Drop cards here</div></div>;
+      <div className="p-2 text-center text-xs text-slate-400">Drop cards here</div>
+      <ResizeHandles />
+    </div>;
   }
 
   // Container (Scene/Reel card with header and content area)
@@ -597,6 +713,7 @@ function CanvasElement({ element, isSelected, isEditing, onMouseDown, onDoubleCl
             </p>
           )}
         </div>
+        <ResizeHandles />
       </div>
     );
   }
