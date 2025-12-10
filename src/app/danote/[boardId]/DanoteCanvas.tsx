@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { supabaseClient } from "@/lib/supabaseClient";
 import DanoteComments from "./DanoteComments";
 
-type ElementType = "note" | "text-header" | "text-paragraph" | "text-sentence" | "image" | "todo" | "color-swatch" | "column" | "rectangle" | "circle" | "line" | "arrow" | "container" | "audio";
+type ElementType = "note" | "text-header" | "text-paragraph" | "text-sentence" | "image" | "todo" | "color-swatch" | "column" | "rectangle" | "circle" | "line" | "arrow" | "container" | "audio" | "video" | "table";
 
 type BoardElement = {
   id: string;
@@ -51,6 +51,8 @@ const ELEMENT_DEFAULTS: Record<ElementType, { width: number; height: number; col
   arrow: { width: 200, height: 4, color: "#1e293b", metadata: { strokeColor: "#1e293b", strokeWidth: 3 } },
   container: { width: 320, height: 450, color: "#ffffff" },
   audio: { width: 280, height: 100, color: "#1e293b" },
+  video: { width: 320, height: 200, color: "#1e293b" },
+  table: { width: 500, height: 300, color: "#ffffff" },
 };
 
 const SHAPE_COLORS = [
@@ -198,11 +200,141 @@ export default function DanoteCanvas({ boardId }: { boardId: string }) {
     await saveElement({ id, z_index: newZ });
   }
 
+  // Helper to detect URL type
+  function detectUrlType(url: string): { type: 'music' | 'video' | 'image' | null; platform?: string; embedUrl?: string } {
+    const lowerUrl = url.toLowerCase();
+    
+    // Spotify
+    if (lowerUrl.includes('spotify.com') || lowerUrl.includes('open.spotify')) {
+      const match = url.match(/(?:spotify\.com\/|open\.spotify\.com\/)(track|album|playlist|artist)\/([a-zA-Z0-9]+)/);
+      if (match) {
+        return { type: 'music', platform: 'spotify', embedUrl: `https://open.spotify.com/embed/${match[1]}/${match[2]}` };
+      }
+      return { type: 'music', platform: 'spotify' };
+    }
+    
+    // Apple Music
+    if (lowerUrl.includes('music.apple.com')) {
+      return { type: 'music', platform: 'apple-music' };
+    }
+    
+    // SoundCloud
+    if (lowerUrl.includes('soundcloud.com')) {
+      return { type: 'music', platform: 'soundcloud' };
+    }
+    
+    // YouTube
+    if (lowerUrl.includes('youtube.com') || lowerUrl.includes('youtu.be')) {
+      let videoId = '';
+      if (lowerUrl.includes('youtu.be/')) {
+        videoId = url.split('youtu.be/')[1]?.split(/[?&#]/)[0] || '';
+      } else if (lowerUrl.includes('youtube.com/watch')) {
+        const urlParams = new URLSearchParams(url.split('?')[1]);
+        videoId = urlParams.get('v') || '';
+      } else if (lowerUrl.includes('youtube.com/embed/')) {
+        videoId = url.split('embed/')[1]?.split(/[?&#]/)[0] || '';
+      }
+      if (videoId) {
+        return { type: 'video', platform: 'youtube', embedUrl: `https://www.youtube.com/embed/${videoId}` };
+      }
+      return { type: 'video', platform: 'youtube' };
+    }
+    
+    // Vimeo
+    if (lowerUrl.includes('vimeo.com')) {
+      const match = url.match(/vimeo\.com\/(\d+)/);
+      if (match) {
+        return { type: 'video', platform: 'vimeo', embedUrl: `https://player.vimeo.com/video/${match[1]}` };
+      }
+      return { type: 'video', platform: 'vimeo' };
+    }
+    
+    // Image URLs
+    if (lowerUrl.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?|$)/i)) {
+      return { type: 'image' };
+    }
+    
+    return { type: null };
+  }
+
   // Clipboard paste handler
   async function handlePaste(e: ClipboardEvent) {
     if (editingId) return; // Don't interfere with text editing
     const items = e.clipboardData?.items;
     if (!items) return;
+    
+    // Check for text first (URLs)
+    const textItem = Array.from(items).find(item => item.type === 'text/plain');
+    if (textItem) {
+      textItem.getAsString(async (text) => {
+        const trimmed = text.trim();
+        if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) return;
+        
+        const detected = detectUrlType(trimmed);
+        const pos = screenToCanvas(window.innerWidth / 2, window.innerHeight / 2);
+        const maxZ = elements.length > 0 ? Math.max(...elements.map((e) => e.z_index)) + 1 : 1;
+        
+        if (detected.type === 'music') {
+          e.preventDefault();
+          const defaults = ELEMENT_DEFAULTS.audio;
+          const { data, error } = await supabaseClient.from("danote_elements")
+            .insert({ 
+              board_id: boardId, 
+              type: "audio", 
+              x: pos.x - defaults.width / 2, 
+              y: pos.y - defaults.height / 2, 
+              width: defaults.width, 
+              height: defaults.height, 
+              content: trimmed.split('/').pop()?.split('?')[0] || 'Music Track', 
+              color: defaults.color, 
+              locked: false, 
+              z_index: maxZ, 
+              metadata: { url: trimmed, platform: detected.platform, embedUrl: detected.embedUrl } 
+            })
+            .select().single();
+          if (!error && data) setElements((prev) => [...prev, data as BoardElement]);
+        } else if (detected.type === 'video') {
+          e.preventDefault();
+          const defaults = ELEMENT_DEFAULTS.video;
+          const { data, error } = await supabaseClient.from("danote_elements")
+            .insert({ 
+              board_id: boardId, 
+              type: "video", 
+              x: pos.x - defaults.width / 2, 
+              y: pos.y - defaults.height / 2, 
+              width: defaults.width, 
+              height: defaults.height, 
+              content: trimmed, 
+              color: defaults.color, 
+              locked: false, 
+              z_index: maxZ, 
+              metadata: { url: trimmed, platform: detected.platform, embedUrl: detected.embedUrl } 
+            })
+            .select().single();
+          if (!error && data) setElements((prev) => [...prev, data as BoardElement]);
+        } else if (detected.type === 'image') {
+          e.preventDefault();
+          const defaults = ELEMENT_DEFAULTS.image;
+          const { data, error } = await supabaseClient.from("danote_elements")
+            .insert({ 
+              board_id: boardId, 
+              type: "image", 
+              x: pos.x - defaults.width / 2, 
+              y: pos.y - defaults.height / 2, 
+              width: defaults.width, 
+              height: defaults.height, 
+              content: trimmed, 
+              color: "transparent", 
+              locked: false, 
+              z_index: maxZ, 
+              metadata: {} 
+            })
+            .select().single();
+          if (!error && data) setElements((prev) => [...prev, data as BoardElement]);
+        }
+      });
+      return;
+    }
     
     for (const item of items) {
       if (item.type.startsWith('image/')) {
@@ -584,6 +716,8 @@ export default function DanoteCanvas({ boardId }: { boardId: string }) {
     { type: "note" as ElementType, icon: "M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2zM7 7h10M7 11h10M7 15h4", label: "Note Card" },
     { type: "container" as ElementType, icon: "M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z", label: "Container" },
     { type: "audio" as ElementType, icon: "M9 18V5l12-2v13M9 18a3 3 0 11-6 0 3 3 0 016 0zM21 16a3 3 0 11-6 0 3 3 0 016 0z", label: "Audio" },
+    { type: "video" as ElementType, icon: "M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z", label: "Video" },
+    { type: "table" as ElementType, icon: "M3 10h18M3 14h18M10 3v18M14 3v18M3 6a2 2 0 012-2h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6z", label: "Table" },
     { type: "todo" as ElementType, icon: "M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11", label: "To-Do List" },
     { type: "column" as ElementType, icon: "M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18", label: "Column" },
     { type: "color-swatch" as ElementType, icon: "M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01", label: "Color Swatch" },
@@ -968,8 +1102,149 @@ function CanvasElement({ element, isSelected, isEditing, onMouseDown, onDoubleCl
   }
 
   if (element.type === "color-swatch") {
-    return <div style={{ ...base, backgroundColor: element.color }} className={`rounded-xl shadow-lg ${sel}`} onMouseDown={onMouseDown} onContextMenu={onContextMenu}>
-      <div className="absolute bottom-1 left-1 right-1 rounded bg-black/50 px-2 py-0.5 text-center text-[10px] font-mono text-white">{element.color.toUpperCase()}</div></div>;
+    const [showPicker, setShowPicker] = useState(false);
+    const [hexInput, setHexInput] = useState(element.color);
+    const [pickerPos, setPickerPos] = useState({ saturation: 100, brightness: 50 });
+    const [hue, setHue] = useState(0);
+    
+    // Convert hex to RGB for display
+    const hexToRgb = (hex: string) => {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+      } : { r: 0, g: 0, b: 0 };
+    };
+    
+    const rgb = hexToRgb(element.color);
+    
+    return (
+      <div style={{ ...base, backgroundColor: element.color }} className={`rounded-xl shadow-lg ${sel} group`} onMouseDown={onMouseDown} onContextMenu={onContextMenu} onDoubleClick={(e) => { e.stopPropagation(); setShowPicker(true); }}>
+        {/* Color display with hex */}
+        <div className="absolute bottom-1 left-1 right-1 rounded bg-black/50 px-2 py-0.5 text-center text-[10px] font-mono text-white">{element.color.toUpperCase()}</div>
+        
+        {/* Color name label (optional) */}
+        {element.content && (
+          <div className="absolute top-1 left-1 right-1 rounded bg-white/90 px-2 py-0.5 text-center text-[10px] font-medium text-slate-700 truncate">{element.content}</div>
+        )}
+        
+        {/* Color picker modal */}
+        {(isSelected || showPicker) && (
+          <div className="absolute -bottom-48 left-0 bg-white rounded-xl shadow-xl border border-slate-200 p-3 z-50 w-56" onClick={(e) => e.stopPropagation()}>
+            {/* Gradient picker area */}
+            <div 
+              className="w-full h-32 rounded-lg mb-3 relative cursor-crosshair"
+              style={{
+                background: `linear-gradient(to right, white, hsl(${hue}, 100%, 50%))`,
+              }}
+              onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+                const y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
+                setPickerPos({ saturation: x, brightness: 100 - y });
+              }}
+            >
+              <div className="absolute inset-0 rounded-lg" style={{ background: 'linear-gradient(to bottom, transparent, black)' }} />
+              <div 
+                className="absolute w-4 h-4 border-2 border-white rounded-full shadow-md -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                style={{ left: `${pickerPos.saturation}%`, top: `${100 - pickerPos.brightness}%` }}
+              />
+            </div>
+            
+            {/* Hue slider */}
+            <div className="flex items-center gap-2 mb-3">
+              <div 
+                className="w-8 h-8 rounded-full border-2 border-slate-200 flex-shrink-0"
+                style={{ backgroundColor: element.color }}
+              />
+              <input 
+                type="range" 
+                min="0" 
+                max="360" 
+                value={hue}
+                onChange={(e) => setHue(Number(e.target.value))}
+                className="flex-1 h-3 rounded-full appearance-none cursor-pointer"
+                style={{
+                  background: 'linear-gradient(to right, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)'
+                }}
+              />
+            </div>
+            
+            {/* RGB values */}
+            <div className="flex gap-2 mb-3">
+              <div className="flex-1 text-center">
+                <input type="text" value={rgb.r} readOnly className="w-full text-center text-sm font-mono border border-slate-200 rounded py-1 bg-slate-50 text-black" />
+                <span className="text-[10px] text-slate-500">R</span>
+              </div>
+              <div className="flex-1 text-center">
+                <input type="text" value={rgb.g} readOnly className="w-full text-center text-sm font-mono border border-slate-200 rounded py-1 bg-slate-50 text-black" />
+                <span className="text-[10px] text-slate-500">G</span>
+              </div>
+              <div className="flex-1 text-center">
+                <input type="text" value={rgb.b} readOnly className="w-full text-center text-sm font-mono border border-slate-200 rounded py-1 bg-slate-50 text-black" />
+                <span className="text-[10px] text-slate-500">B</span>
+              </div>
+            </div>
+            
+            {/* Hex input */}
+            <div className="flex gap-2">
+              <input 
+                type="text" 
+                value={hexInput}
+                onChange={(e) => setHexInput(e.target.value)}
+                onBlur={() => {
+                  if (/^#[0-9A-Fa-f]{6}$/.test(hexInput)) {
+                    onColorChange(hexInput);
+                  } else {
+                    setHexInput(element.color);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && /^#[0-9A-Fa-f]{6}$/.test(hexInput)) {
+                    onColorChange(hexInput);
+                  }
+                }}
+                className="flex-1 text-sm font-mono border border-slate-200 rounded px-2 py-1 text-black"
+                placeholder="#000000"
+              />
+              <button 
+                onClick={() => {
+                  if (/^#[0-9A-Fa-f]{6}$/.test(hexInput)) {
+                    onColorChange(hexInput);
+                  }
+                }}
+                className="px-3 py-1 bg-cyan-500 text-white rounded text-xs hover:bg-cyan-600"
+              >
+                Apply
+              </button>
+            </div>
+            
+            {/* Quick colors */}
+            <div className="flex gap-1 mt-3 flex-wrap">
+              {['#ef4444', '#f97316', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#1e293b', '#ffffff'].map((c) => (
+                <button
+                  key={c}
+                  onClick={() => { onColorChange(c); setHexInput(c); }}
+                  className={`w-6 h-6 rounded-full border-2 ${element.color === c ? 'border-cyan-500' : 'border-slate-200'}`}
+                  style={{ backgroundColor: c }}
+                />
+              ))}
+            </div>
+            
+            {/* Color name input */}
+            <input 
+              type="text"
+              value={element.content}
+              onChange={(e) => onContentChange(e.target.value)}
+              placeholder="Color name (e.g. Glacier)"
+              className="w-full mt-3 text-sm border border-slate-200 rounded px-2 py-1 text-black"
+            />
+          </div>
+        )}
+        <ResizeHandles />
+      </div>
+    );
   }
 
   if (element.type === "column") {
@@ -1156,6 +1431,198 @@ function CanvasElement({ element, isSelected, isEditing, onMouseDown, onDoubleCl
             </svg>
           </button>
         </div>
+      </div>
+    );
+  }
+
+  // Video element (YouTube/Vimeo embed)
+  if (element.type === "video") {
+    const meta = element.metadata || {};
+    const embedUrl = meta.embedUrl || "";
+    const platform = meta.platform || "";
+    const videoUrl = meta.url || element.content || "";
+    
+    return (
+      <div 
+        style={{ ...base, backgroundColor: element.color }} 
+        className={`rounded-xl shadow-lg overflow-hidden ${sel}`} 
+        onMouseDown={onMouseDown} 
+        onDoubleClick={onDoubleClick}
+        onContextMenu={onContextMenu}
+      >
+        {embedUrl ? (
+          <iframe 
+            src={embedUrl}
+            className="w-full h-full border-0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            title="Video embed"
+          />
+        ) : (
+          <div className="h-full flex flex-col items-center justify-center bg-slate-900 p-4">
+            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-3 ${platform === 'youtube' ? 'bg-red-500' : platform === 'vimeo' ? 'bg-blue-400' : 'bg-slate-700'}`}>
+              {platform === 'youtube' ? (
+                <svg className="h-8 w-8 text-white" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                </svg>
+              ) : platform === 'vimeo' ? (
+                <svg className="h-8 w-8 text-white" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M23.977 6.416c-.105 2.338-1.739 5.543-4.894 9.609-3.268 4.247-6.026 6.37-8.29 6.37-1.409 0-2.578-1.294-3.553-3.881L5.322 11.4C4.603 8.816 3.834 7.522 3.01 7.522c-.179 0-.806.378-1.881 1.132L0 7.197c1.185-1.044 2.351-2.084 3.501-3.128C5.08 2.701 6.266 1.984 7.055 1.91c1.867-.18 3.016 1.1 3.447 3.838.465 2.953.789 4.789.971 5.507.539 2.45 1.131 3.674 1.776 3.674.502 0 1.256-.796 2.265-2.385 1.004-1.589 1.54-2.797 1.612-3.628.144-1.371-.395-2.061-1.614-2.061-.574 0-1.167.121-1.777.391 1.186-3.868 3.434-5.757 6.762-5.637 2.473.06 3.628 1.664 3.493 4.797l-.013.01z"/>
+                </svg>
+              ) : (
+                <svg className="h-8 w-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polygon points="5 3 19 12 5 21 5 3" />
+                </svg>
+              )}
+            </div>
+            
+            <div className="text-center">
+              {isEditing ? (
+                <input 
+                  autoFocus 
+                  type="text" 
+                  defaultValue={element.content} 
+                  onBlur={(e) => { onContentChange(e.target.value); onEditEnd(); }} 
+                  className="w-full bg-transparent text-sm font-semibold text-white focus:outline-none text-center" 
+                  placeholder="Paste video URL..."
+                />
+              ) : (
+                <p className="text-sm font-semibold text-white">{element.content || "Double-click to add video URL"}</p>
+              )}
+              {platform && <p className="text-xs text-slate-400 mt-1 capitalize">{platform}</p>}
+              {videoUrl && (
+                <a href={videoUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-cyan-400 hover:underline truncate block mt-2 max-w-full">
+                  Open in new tab →
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+        <ResizeHandles />
+      </div>
+    );
+  }
+
+  // Table element (Schedule/Sheet)
+  if (element.type === "table") {
+    // Parse table data from content or use default
+    let tableData: { headers: string[]; rows: string[][] } = {
+      headers: ['Time', 'Activity', 'Person', 'Notes'],
+      rows: [
+        ['9:00 AM', '', '', ''],
+        ['10:00 AM', '', '', ''],
+        ['11:00 AM', '', '', ''],
+      ]
+    };
+    
+    try {
+      if (element.content) {
+        tableData = JSON.parse(element.content);
+      }
+    } catch {}
+    
+    const updateCell = (rowIdx: number, colIdx: number, value: string) => {
+      const newRows = [...tableData.rows];
+      newRows[rowIdx] = [...newRows[rowIdx]];
+      newRows[rowIdx][colIdx] = value;
+      onContentChange(JSON.stringify({ ...tableData, rows: newRows }));
+    };
+    
+    const updateHeader = (colIdx: number, value: string) => {
+      const newHeaders = [...tableData.headers];
+      newHeaders[colIdx] = value;
+      onContentChange(JSON.stringify({ ...tableData, headers: newHeaders }));
+    };
+    
+    const addRow = () => {
+      const newRow = tableData.headers.map(() => '');
+      onContentChange(JSON.stringify({ ...tableData, rows: [...tableData.rows, newRow] }));
+    };
+    
+    const addColumn = () => {
+      const newHeaders = [...tableData.headers, `Column ${tableData.headers.length + 1}`];
+      const newRows = tableData.rows.map(row => [...row, '']);
+      onContentChange(JSON.stringify({ headers: newHeaders, rows: newRows }));
+    };
+    
+    const deleteRow = (idx: number) => {
+      if (tableData.rows.length <= 1) return;
+      const newRows = tableData.rows.filter((_, i) => i !== idx);
+      onContentChange(JSON.stringify({ ...tableData, rows: newRows }));
+    };
+    
+    return (
+      <div 
+        style={{ ...base, backgroundColor: element.color }} 
+        className={`rounded-xl shadow-lg overflow-hidden border border-slate-200 ${sel}`} 
+        onMouseDown={onMouseDown}
+        onContextMenu={onContextMenu}
+      >
+        {/* Table header */}
+        <div className="bg-slate-50 border-b border-slate-200 px-3 py-2 flex items-center justify-between">
+          <span className="text-xs font-semibold text-slate-600">📊 Table / Schedule</span>
+          <div className="flex gap-1">
+            <button 
+              onClick={(e) => { e.stopPropagation(); addColumn(); }}
+              className="text-[10px] px-2 py-0.5 bg-slate-200 hover:bg-slate-300 rounded text-slate-600"
+            >
+              + Column
+            </button>
+            <button 
+              onClick={(e) => { e.stopPropagation(); addRow(); }}
+              className="text-[10px] px-2 py-0.5 bg-cyan-100 hover:bg-cyan-200 rounded text-cyan-700"
+            >
+              + Row
+            </button>
+          </div>
+        </div>
+        
+        {/* Table content */}
+        <div className="overflow-auto" style={{ maxHeight: element.height - 40 }}>
+          <table className="w-full border-collapse text-xs">
+            <thead>
+              <tr className="bg-slate-100">
+                {tableData.headers.map((header, idx) => (
+                  <th key={idx} className="border-b border-r border-slate-200 px-2 py-1.5 text-left font-semibold text-slate-700">
+                    <input 
+                      type="text" 
+                      value={header}
+                      onChange={(e) => updateHeader(idx, e.target.value)}
+                      className="w-full bg-transparent focus:outline-none focus:bg-white focus:ring-1 focus:ring-cyan-300 rounded px-1 text-black"
+                    />
+                  </th>
+                ))}
+                <th className="w-6 border-b border-slate-200" />
+              </tr>
+            </thead>
+            <tbody>
+              {tableData.rows.map((row, rowIdx) => (
+                <tr key={rowIdx} className="hover:bg-slate-50 group">
+                  {row.map((cell, colIdx) => (
+                    <td key={colIdx} className="border-b border-r border-slate-200 px-2 py-1">
+                      <input 
+                        type="text" 
+                        value={cell}
+                        onChange={(e) => updateCell(rowIdx, colIdx, e.target.value)}
+                        placeholder={colIdx === 0 ? '9:00 AM' : ''}
+                        className="w-full bg-transparent focus:outline-none focus:bg-white focus:ring-1 focus:ring-cyan-300 rounded px-1 text-black placeholder:text-slate-300"
+                      />
+                    </td>
+                  ))}
+                  <td className="border-b border-slate-200 w-6 text-center">
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); deleteRow(rowIdx); }}
+                      className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-opacity"
+                    >
+                      ×
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <ResizeHandles />
       </div>
     );
   }
