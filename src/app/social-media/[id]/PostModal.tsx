@@ -88,6 +88,9 @@ export default function PostModal({ post, projectId, availablePlatforms, onClose
   // Danote board association
   const [danoteBoardId, setDanoteBoardId] = useState(post?.danote_board_id || "");
   const [danoteBoards, setDanoteBoards] = useState<DanoteBoard[]>([]);
+  const [boardSearch, setBoardSearch] = useState("");
+  const [showBoardDropdown, setShowBoardDropdown] = useState(false);
+  const [selectedBoardName, setSelectedBoardName] = useState("");
   
   // UI state
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -101,10 +104,17 @@ export default function PostModal({ post, projectId, availablePlatforms, onClose
   useEffect(() => {
     async function fetchBoards() {
       const { data } = await supabaseClient.from("danote_boards").select("id, name").order("name");
-      if (data) setDanoteBoards(data);
+      if (data) {
+        setDanoteBoards(data);
+        // Set initial selected board name if editing
+        if (post?.danote_board_id) {
+          const board = data.find(b => b.id === post.danote_board_id);
+          if (board) setSelectedBoardName(board.name);
+        }
+      }
     }
     fetchBoards();
-  }, []);
+  }, [post?.danote_board_id]);
 
   const hashtagCount = (caption.match(/#\w+/g) || []).length + (hashtags.match(/#?\w+/g) || []).length;
 
@@ -369,14 +379,66 @@ export default function PostModal({ post, projectId, availablePlatforms, onClose
                 </div>
               </div>
 
-              {/* Danote Board Association */}
-              <div>
+              {/* Danote Board Association - Searchable */}
+              <div className="relative">
                 <label className="mb-1.5 block text-xs font-medium text-slate-600">📋 Link to Danote Board</label>
-                <select value={danoteBoardId} onChange={(e) => setDanoteBoardId(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-purple-300 focus:outline-none">
-                  <option value="">None</option>
-                  {danoteBoards.map(board => <option key={board.id} value={board.id}>{board.name}</option>)}
-                </select>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={showBoardDropdown ? boardSearch : selectedBoardName}
+                    onChange={(e) => {
+                      setBoardSearch(e.target.value);
+                      setShowBoardDropdown(true);
+                    }}
+                    onFocus={() => setShowBoardDropdown(true)}
+                    placeholder="Search boards..."
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-purple-300 focus:outline-none pr-8"
+                  />
+                  {selectedBoardName && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDanoteBoardId("");
+                        setSelectedBoardName("");
+                        setBoardSearch("");
+                      }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600"
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                    </button>
+                  )}
+                </div>
+                {showBoardDropdown && (
+                  <div className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                    {danoteBoards
+                      .filter(board => board.name.toLowerCase().includes(boardSearch.toLowerCase()))
+                      .slice(0, 10)
+                      .map(board => (
+                        <button
+                          key={board.id}
+                          type="button"
+                          onClick={() => {
+                            setDanoteBoardId(board.id);
+                            setSelectedBoardName(board.name);
+                            setBoardSearch("");
+                            setShowBoardDropdown(false);
+                          }}
+                          className={`w-full px-3 py-2 text-left text-sm hover:bg-purple-50 flex items-center gap-2 ${
+                            danoteBoardId === board.id ? "bg-purple-50 text-purple-700" : "text-slate-700"
+                          }`}
+                        >
+                          <svg className="w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+                          {board.name}
+                        </button>
+                      ))}
+                    {danoteBoards.filter(board => board.name.toLowerCase().includes(boardSearch.toLowerCase())).length === 0 && (
+                      <div className="px-3 py-2 text-sm text-slate-400">No boards found</div>
+                    )}
+                  </div>
+                )}
+                {showBoardDropdown && (
+                  <div className="fixed inset-0 z-10" onClick={() => setShowBoardDropdown(false)} />
+                )}
               </div>
             </div>
 
