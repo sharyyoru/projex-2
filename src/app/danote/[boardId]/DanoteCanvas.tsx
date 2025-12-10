@@ -17,10 +17,12 @@ type BoardElement = {
   color: string;
   locked: boolean;
   z_index: number;
+  parent_id: string | null; // For column parent-child relationships
   metadata: {
     fillColor?: string;
     strokeColor?: string;
     strokeWidth?: number;
+    childIndex?: number; // Position in parent's children list
     [key: string]: any;
   };
 };
@@ -89,6 +91,26 @@ export default function DanoteCanvas({ boardId }: { boardId: string }) {
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0, elX: 0, elY: 0 });
   const replaceImageInputRef = useRef<HTMLInputElement>(null);
   const [replacingImageId, setReplacingImageId] = useState<string | null>(null);
+  
+  // Rotation state
+  const [rotatingId, setRotatingId] = useState<string | null>(null);
+  const [rotateStart, setRotateStart] = useState({ angle: 0, centerX: 0, centerY: 0 });
+  
+  // Column drop zone state
+  const [hoveredColumnId, setHoveredColumnId] = useState<string | null>(null);
+  const [dropInsertIndex, setDropInsertIndex] = useState<number>(0);
+
+  // Get children of a column sorted by childIndex
+  const getColumnChildren = useCallback((columnId: string) => {
+    return elements
+      .filter(el => el.parent_id === columnId)
+      .sort((a, b) => (a.metadata?.childIndex ?? 0) - (b.metadata?.childIndex ?? 0));
+  }, [elements]);
+
+  // Check if point is inside element bounds
+  const isPointInElement = useCallback((x: number, y: number, el: BoardElement) => {
+    return x >= el.x && x <= el.x + el.width && y >= el.y && y <= el.y + el.height;
+  }, []);
 
   useEffect(() => {
     supabaseClient.from("danote_elements").select("*").eq("board_id", boardId).order("z_index")
@@ -110,7 +132,7 @@ export default function DanoteCanvas({ boardId }: { boardId: string }) {
     const maxZ = elements.length > 0 ? Math.max(...elements.map((e) => e.z_index)) + 1 : 1;
     const content = type === "todo" ? JSON.stringify([{ id: crypto.randomUUID(), text: "", checked: false }]) : "";
     const { data, error } = await supabaseClient.from("danote_elements")
-      .insert({ board_id: boardId, type, x, y, width: defaults.width, height: defaults.height, content, color: defaults.color, locked: false, z_index: maxZ, metadata: {} })
+      .insert({ board_id: boardId, type, x, y, width: defaults.width, height: defaults.height, content, color: defaults.color, locked: false, z_index: maxZ, parent_id: null, metadata: {} })
       .select().single();
     if (!error && data) {
       setElements((prev) => [...prev, data as BoardElement]);
@@ -242,7 +264,14 @@ export default function DanoteCanvas({ boardId }: { boardId: string }) {
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (isPanning) setOffset({ x: e.clientX - panStart.x, y: e.clientY - panStart.y });
-    else if (resizingId && resizeHandle) {
+    else if (rotatingId) {
+      const pos = screenToCanvas(e.clientX, e.clientY);
+      const angle = Math.atan2(pos.y - rotateStart.centerY, pos.x - rotateStart.centerX) * (180 / Math.PI) + 90;
+      setElements((prev) => prev.map((el) => {
+        if (el.id !== rotatingId) return el;
+        return { ...el, metadata: { ...el.metadata, rotation: angle } };
+      }));
+    } else if (resizingId && resizeHandle) {
       const pos = screenToCanvas(e.clientX, e.clientY);
       const dx = pos.x - resizeStart.x;
       const dy = pos.y - resizeStart.y;
@@ -261,14 +290,80 @@ export default function DanoteCanvas({ boardId }: { boardId: string }) {
       }));
     } else if (draggingId) {
       const pos = screenToCanvas(e.clientX, e.clientY);
+      const dx = pos.x - dragOffset.x;
+      const dy = pos.y - dragOffset.y;
+      
+      // Get all elements being dragged (including children if dragging a column)
+      const draggedElement = elements.find(el => el.id === draggingId);
+      const childIds = draggedElement?.type === 'column' 
+        ? elements.filter(el => el.parent_id === draggingId).map(el => el.id)
+        : [];
+      
       setElements((prev) => prev.map((el) => {
-        if ((selectedIds.has(el.id) || el.id === draggingId) && !el.locked)
-          return { ...el, x: el.x + pos.x - dragOffset.x, y: el.y + pos.y - dragOffset.y };
+        const isDragged = (selectedIds.has(el.id) || el.id === draggingId) && !el.locked;
+        const isChild = childIds.includes(el.id);
+        
+        if (isDragged || isChild) {
+          // For lines and arrows, also update the metadata coordinates
+          if (el.type === 'line' || el.type === 'arrow') {
+            const meta = el.metadata || {};
+            return { 
+              ...el, 
+              x: el.x + dx, 
+              y: el.y + dy,
+              metadata: {
+                ...meta,
+                startX: (meta.startX ?? el.x) + dx,
+                startY: (meta.startY ?? el.y) + dy,
+                endX: (meta.endX ?? el.x + el.width) + dx,
+                endY: (meta.endY ?? el.y) + dy
+              }
+            };
+          }
+          return { ...el, x: el.x + dx, y: el.y + dy };
+        }
         return el;
       }));
       setDragOffset(pos);
+      
+      // Detect if dragging over a column for drop zone highlighting
+      const draggedEl = elements.find(el => el.id === draggingId);
+      if (draggedEl && draggedEl.type !== 'column') {
+        const columns = elements.filter(el => el.type === 'column' && el.id !== draggingId);
+        const dragCenterX = draggedEl.x + draggedEl.width / 2;
+        const dragCenterY = draggedEl.y + draggedEl.height / 2;
+        
+        let foundColumn: BoardElement | null = null;
+        for (const col of columns) {
+          if (isPointInElement(dragCenterX, dragCenterY, col)) {
+            foundColumn = col;
+            break;
+          }
+        }
+        
+        if (foundColumn) {
+          setHoveredColumnId(foundColumn.id);
+          // Calculate insert index based on Y position
+          const children = getColumnChildren(foundColumn.id);
+          const headerHeight = 48; // Approximate header height
+          const padding = 8;
+          let insertIdx = children.length;
+          let cumulativeY = foundColumn.y + headerHeight + padding;
+          
+          for (let i = 0; i < children.length; i++) {
+            if (dragCenterY < cumulativeY + children[i].height / 2) {
+              insertIdx = i;
+              break;
+            }
+            cumulativeY += children[i].height + padding;
+          }
+          setDropInsertIndex(insertIdx);
+        } else {
+          setHoveredColumnId(null);
+        }
+      }
     }
-  }, [isPanning, panStart, draggingId, dragOffset, selectedIds, screenToCanvas, resizingId, resizeHandle, resizeStart]);
+  }, [isPanning, panStart, draggingId, dragOffset, selectedIds, screenToCanvas, resizingId, resizeHandle, resizeStart, rotatingId, rotateStart, elements, isPointInElement, getColumnChildren]);
 
   const handleCanvasMouseUp = useCallback(async (e: React.MouseEvent) => {
     if (isDrawing && drawingMode) {
@@ -313,6 +408,11 @@ export default function DanoteCanvas({ boardId }: { boardId: string }) {
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
     setIsPanning(false);
+    if (rotatingId) {
+      const el = elements.find((e) => e.id === rotatingId);
+      if (el) saveElement({ id: el.id, metadata: el.metadata });
+      setRotatingId(null);
+    }
     if (resizingId) {
       const el = elements.find((e) => e.id === resizingId);
       if (el) saveElement({ id: el.id, x: el.x, y: el.y, width: el.width, height: el.height });
@@ -320,12 +420,81 @@ export default function DanoteCanvas({ boardId }: { boardId: string }) {
       setResizeHandle(null);
     }
     if (draggingId) {
-      elements.forEach((el) => { if (selectedIds.has(el.id) || el.id === draggingId) saveElement({ id: el.id, x: el.x, y: el.y }); });
+      const draggedEl = elements.find(el => el.id === draggingId);
+      
+      // Check if dropped on a column - reparent the element
+      if (hoveredColumnId && draggedEl && draggedEl.type !== 'column') {
+        const parentCol = elements.find(el => el.id === hoveredColumnId);
+        if (parentCol) {
+          // Update childIndex for all children and insert at dropInsertIndex
+          const children = getColumnChildren(hoveredColumnId);
+          const updatedChildren = children.map((child, idx) => {
+            const newIndex = idx >= dropInsertIndex ? idx + 1 : idx;
+            return { ...child, metadata: { ...child.metadata, childIndex: newIndex } };
+          });
+          
+          // Calculate position inside column
+          const headerHeight = 48;
+          const padding = 8;
+          let newY = parentCol.y + headerHeight + padding;
+          for (let i = 0; i < dropInsertIndex; i++) {
+            if (children[i]) newY += children[i].height + padding;
+          }
+          
+          // Update the dragged element with parent_id and position
+          const updatedEl = {
+            ...draggedEl,
+            parent_id: hoveredColumnId,
+            x: parentCol.x + padding,
+            y: newY,
+            width: parentCol.width - padding * 2,
+            metadata: { ...draggedEl.metadata, childIndex: dropInsertIndex }
+          };
+          
+          setElements(prev => prev.map(el => {
+            if (el.id === draggingId) return updatedEl;
+            const updatedChild = updatedChildren.find(c => c.id === el.id);
+            return updatedChild || el;
+          }));
+          
+          // Save all changes
+          saveElement({ id: updatedEl.id, parent_id: updatedEl.parent_id, x: updatedEl.x, y: updatedEl.y, width: updatedEl.width, metadata: updatedEl.metadata });
+          updatedChildren.forEach(child => saveElement({ id: child.id, metadata: child.metadata }));
+        }
+      } else {
+        // Normal drag - just save position
+        const draggedEl = elements.find(el => el.id === draggingId);
+        const childIds = draggedEl?.type === 'column' 
+          ? elements.filter(el => el.parent_id === draggingId).map(el => el.id)
+          : [];
+        
+        elements.forEach((el) => { 
+          if (selectedIds.has(el.id) || el.id === draggingId || childIds.includes(el.id)) {
+            // For lines/arrows, also save the updated metadata coordinates
+            if (el.type === 'line' || el.type === 'arrow') {
+              saveElement({ id: el.id, x: el.x, y: el.y, metadata: el.metadata });
+            } else {
+              saveElement({ id: el.id, x: el.x, y: el.y });
+            }
+          }
+        });
+      }
+      
       setDraggingId(null);
+      setHoveredColumnId(null);
     }
     setSidebarDragType(null);
     if (isDrawing) handleCanvasMouseUp(e);
-  }, [draggingId, selectedIds, elements, isDrawing, handleCanvasMouseUp, resizingId]);
+  }, [draggingId, selectedIds, elements, isDrawing, handleCanvasMouseUp, resizingId, rotatingId, hoveredColumnId, dropInsertIndex, getColumnChildren]);
+
+  const handleRotateStart = useCallback((e: React.MouseEvent, el: BoardElement) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const centerX = el.x + el.width / 2;
+    const centerY = el.y + el.height / 2;
+    setRotatingId(el.id);
+    setRotateStart({ angle: el.metadata?.rotation ?? 0, centerX, centerY });
+  }, []);
 
   const handleResizeStart = useCallback((e: React.MouseEvent, el: BoardElement, handle: string) => {
     e.stopPropagation();
@@ -495,7 +664,7 @@ export default function DanoteCanvas({ boardId }: { boardId: string }) {
       <div ref={canvasRef} className={`relative flex-1 overflow-hidden ${drawingMode ? 'cursor-crosshair' : ''}`} style={{ background: showGrid ? "repeating-linear-gradient(0deg, transparent, transparent 19px, #e2e8f0 19px, #e2e8f0 20px), repeating-linear-gradient(90deg, transparent, transparent 19px, #e2e8f0 19px, #e2e8f0 20px)" : "#f8fafc" }}
         onMouseDown={handleCanvasMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} onWheel={handleWheel} onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
         <div style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`, transformOrigin: "0 0" }}>
-          {elements.map((el) => <CanvasElement key={el.id} element={el} isSelected={selectedIds.has(el.id)} isEditing={editingId === el.id} onMouseDown={(e) => handleElementMouseDown(e, el)} onDoubleClick={() => !el.locked && setEditingId(el.id)} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, elementId: el.id }); }} onContentChange={async (c) => { setElements((p) => p.map((e) => e.id === el.id ? { ...e, content: c } : e)); await saveElement({ id: el.id, content: c }); }} onEditEnd={() => setEditingId(null)} onColorChange={async (c) => { setElements((p) => p.map((e) => e.id === el.id ? { ...e, color: c } : e)); await saveElement({ id: el.id, color: c }); }} onMetadataChange={async (meta) => { setElements((p) => p.map((e) => e.id === el.id ? { ...e, metadata: { ...e.metadata, ...meta } } : e)); await saveElement({ id: el.id, metadata: { ...el.metadata, ...meta } }); }} onResizeStart={(e, handle) => handleResizeStart(e, el, handle)} />)}
+          {elements.filter(el => !el.parent_id).map((el) => <CanvasElement key={el.id} element={el} isSelected={selectedIds.has(el.id)} isEditing={editingId === el.id} onMouseDown={(e) => handleElementMouseDown(e, el)} onDoubleClick={() => !el.locked && setEditingId(el.id)} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, elementId: el.id }); }} onContentChange={async (c) => { setElements((p) => p.map((e) => e.id === el.id ? { ...e, content: c } : e)); await saveElement({ id: el.id, content: c }); }} onEditEnd={() => setEditingId(null)} onColorChange={async (c) => { setElements((p) => p.map((e) => e.id === el.id ? { ...e, color: c } : e)); await saveElement({ id: el.id, color: c }); }} onMetadataChange={async (meta) => { setElements((p) => p.map((e) => e.id === el.id ? { ...e, metadata: { ...e.metadata, ...meta } } : e)); await saveElement({ id: el.id, metadata: { ...el.metadata, ...meta } }); }} onResizeStart={(e, handle) => handleResizeStart(e, el, handle)} onRotateStart={(e) => handleRotateStart(e, el)} isColumnHovered={el.type === 'column' && hoveredColumnId === el.id} dropInsertIndex={el.type === 'column' && hoveredColumnId === el.id ? dropInsertIndex : undefined} columnChildren={el.type === 'column' ? getColumnChildren(el.id) : undefined} />)}
         </div>
         <input ref={replaceImageInputRef} type="file" accept="image/*" className="hidden" onChange={handleReplaceImage} />
         {contextMenu && (() => {
@@ -544,9 +713,12 @@ export default function DanoteCanvas({ boardId }: { boardId: string }) {
   );
 }
 
-function CanvasElement({ element, isSelected, isEditing, onMouseDown, onDoubleClick, onContextMenu, onContentChange, onEditEnd, onColorChange, onMetadataChange, onResizeStart }: { element: BoardElement; isSelected: boolean; isEditing: boolean; onMouseDown: (e: React.MouseEvent) => void; onDoubleClick: () => void; onContextMenu: (e: React.MouseEvent) => void; onContentChange: (c: string) => void; onEditEnd: () => void; onColorChange: (c: string) => void; onMetadataChange: (meta: Record<string, any>) => void; onResizeStart: (e: React.MouseEvent, handle: string) => void; }) {
+function CanvasElement({ element, isSelected, isEditing, onMouseDown, onDoubleClick, onContextMenu, onContentChange, onEditEnd, onColorChange, onMetadataChange, onResizeStart, onRotateStart, isColumnHovered, dropInsertIndex, columnChildren }: { element: BoardElement; isSelected: boolean; isEditing: boolean; onMouseDown: (e: React.MouseEvent) => void; onDoubleClick: () => void; onContextMenu: (e: React.MouseEvent) => void; onContentChange: (c: string) => void; onEditEnd: () => void; onColorChange: (c: string) => void; onMetadataChange: (meta: Record<string, any>) => void; onResizeStart: (e: React.MouseEvent, handle: string) => void; onRotateStart: (e: React.MouseEvent) => void; isColumnHovered?: boolean; dropInsertIndex?: number; columnChildren?: BoardElement[]; }) {
   
-  // Resize handles component
+  const rotation = element.metadata?.rotation ?? 0;
+  const isRotatable = ['rectangle', 'circle', 'line', 'arrow', 'image', 'container'].includes(element.type);
+  
+  // Resize and rotate handles component
   const ResizeHandles = () => {
     if (!isSelected || element.locked) return null;
     const handles = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
@@ -561,9 +733,31 @@ function CanvasElement({ element, isSelected, isEditing, onMouseDown, onDoubleCl
       {handles.map((h) => (
         <div key={h} className="absolute w-2 h-2 bg-white border-2 border-cyan-500 rounded-sm z-50" style={{ ...posMap[h], cursor: cursorMap[h] }} onMouseDown={(e) => onResizeStart(e, h)} />
       ))}
+      {/* Rotation handle - appears above the element */}
+      {isRotatable && (
+        <div 
+          className="absolute left-1/2 -translate-x-1/2 w-3 h-3 bg-cyan-500 border-2 border-white rounded-full z-50 cursor-grab" 
+          style={{ top: -24 }} 
+          onMouseDown={onRotateStart}
+          title="Rotate"
+        >
+          <div className="absolute left-1/2 -translate-x-1/2 w-px h-4 bg-cyan-500" style={{ top: 10 }} />
+        </div>
+      )}
     </>;
   };
-  const base: React.CSSProperties = { position: "absolute", left: element.x, top: element.y, width: element.width, height: element.height, zIndex: element.z_index, cursor: element.locked ? "not-allowed" : "grab" };
+  
+  const base: React.CSSProperties = { 
+    position: "absolute", 
+    left: element.x, 
+    top: element.y, 
+    width: element.width, 
+    height: element.height, 
+    zIndex: element.z_index, 
+    cursor: element.locked ? "not-allowed" : "grab",
+    transform: rotation ? `rotate(${rotation}deg)` : undefined,
+    transformOrigin: 'center center'
+  };
   const sel = isSelected ? "ring-2 ring-cyan-500 ring-offset-2" : "";
 
   if (element.type === "note") {
@@ -641,12 +835,66 @@ function CanvasElement({ element, isSelected, isEditing, onMouseDown, onDoubleCl
   }
 
   if (element.type === "column") {
-    return <div style={{ ...base, backgroundColor: element.color }} className={`rounded-2xl border-2 border-dashed border-slate-300 ${sel}`} onMouseDown={onMouseDown} onDoubleClick={onDoubleClick} onContextMenu={onContextMenu}>
-      <div className="border-b border-slate-200 px-4 py-3">{isEditing ? <input autoFocus type="text" defaultValue={element.content} onBlur={(e) => { onContentChange(e.target.value); onEditEnd(); }} className="w-full bg-transparent font-semibold text-slate-700 focus:outline-none" />
-        : <h3 className="font-semibold text-slate-700">{element.content || "Untitled Column"}</h3>}</div>
-      <div className="p-2 text-center text-xs text-slate-400">Drop cards here</div>
-      <ResizeHandles />
-    </div>;
+    const children = columnChildren || [];
+    const headerHeight = 48;
+    const padding = 8;
+    const childrenHeight = children.reduce((sum, child) => sum + child.height + padding, 0);
+    const dynamicHeight = Math.max(element.height, headerHeight + childrenHeight + padding * 2 + 60); // +60 for empty space
+    
+    return (
+      <div 
+        style={{ 
+          ...base, 
+          height: dynamicHeight, 
+          backgroundColor: element.color,
+          transition: isColumnHovered ? 'border-color 0.2s, box-shadow 0.2s' : undefined
+        }} 
+        className={`rounded-2xl border-2 ${isColumnHovered ? 'border-cyan-400 shadow-lg shadow-cyan-100' : 'border-dashed border-slate-300'} ${sel}`} 
+        onMouseDown={onMouseDown} 
+        onDoubleClick={onDoubleClick} 
+        onContextMenu={onContextMenu}
+      >
+        {/* Header */}
+        <div className="border-b border-slate-200 px-4 py-3">
+          {isEditing ? (
+            <input autoFocus type="text" defaultValue={element.content} onBlur={(e) => { onContentChange(e.target.value); onEditEnd(); }} className="w-full bg-transparent font-semibold text-slate-700 focus:outline-none" />
+          ) : (
+            <h3 className="font-semibold text-slate-700">{element.content || "Untitled Column"}</h3>
+          )}
+        </div>
+        
+        {/* Children area with flex layout */}
+        <div className="p-2 flex flex-col gap-2 min-h-[60px]">
+          {children.length === 0 ? (
+            <div className="text-center text-xs text-slate-400 py-4">
+              {isColumnHovered ? '📥 Drop here' : 'Drop cards here'}
+            </div>
+          ) : (
+            children.map((child, idx) => (
+              <div key={child.id}>
+                {/* Insert indicator */}
+                {isColumnHovered && dropInsertIndex === idx && (
+                  <div className="h-1 bg-cyan-400 rounded-full mb-2 animate-pulse" />
+                )}
+                {/* Child element preview */}
+                <div 
+                  className="bg-white rounded-lg shadow-sm border border-slate-200 p-2 text-xs text-slate-600 overflow-hidden"
+                  style={{ height: child.height, maxHeight: 120 }}
+                >
+                  <div className="font-medium truncate">{child.type}</div>
+                  <div className="text-slate-400 truncate">{child.content || 'No content'}</div>
+                </div>
+              </div>
+            ))
+          )}
+          {/* Insert indicator at end */}
+          {isColumnHovered && dropInsertIndex === children.length && (
+            <div className="h-1 bg-cyan-400 rounded-full animate-pulse" />
+          )}
+        </div>
+        <ResizeHandles />
+      </div>
+    );
   }
 
   // Container (Scene/Reel card with header and content area)
