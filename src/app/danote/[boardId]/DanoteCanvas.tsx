@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabaseClient } from "@/lib/supabaseClient";
 
-type ElementType = "note" | "text" | "image" | "todo" | "color-swatch" | "column";
+type ElementType = "note" | "text-header" | "text-paragraph" | "text-sentence" | "image" | "todo" | "color-swatch" | "column" | "rectangle" | "circle" | "line" | "arrow";
 
 type BoardElement = {
   id: string;
@@ -17,7 +17,12 @@ type BoardElement = {
   color: string;
   locked: boolean;
   z_index: number;
-  metadata: Record<string, any>;
+  metadata: {
+    fillColor?: string;
+    strokeColor?: string;
+    strokeWidth?: number;
+    [key: string]: any;
+  };
 };
 
 const NOTE_COLORS = [
@@ -28,14 +33,33 @@ const NOTE_COLORS = [
   { name: "Purple", value: "#f3e8ff" },
 ];
 
-const ELEMENT_DEFAULTS: Record<ElementType, { width: number; height: number; color: string }> = {
+const ELEMENT_DEFAULTS: Record<ElementType, { width: number; height: number; color: string; metadata?: Record<string, any> }> = {
   note: { width: 240, height: 160, color: "#fef3c7" },
-  text: { width: 200, height: 40, color: "transparent" },
+  "text-header": { width: 300, height: 50, color: "transparent" },
+  "text-paragraph": { width: 300, height: 100, color: "transparent" },
+  "text-sentence": { width: 200, height: 30, color: "transparent" },
   image: { width: 300, height: 200, color: "transparent" },
   todo: { width: 260, height: 180, color: "#f1f5f9" },
   column: { width: 280, height: 400, color: "#f8fafc" },
   "color-swatch": { width: 80, height: 80, color: "#6366f1" },
+  rectangle: { width: 150, height: 100, color: "#1e293b", metadata: { fillColor: "#1e293b", strokeColor: "transparent", strokeWidth: 2 } },
+  circle: { width: 100, height: 100, color: "#1e293b", metadata: { fillColor: "#1e293b", strokeColor: "transparent", strokeWidth: 2 } },
+  line: { width: 200, height: 4, color: "#1e293b", metadata: { strokeColor: "#1e293b", strokeWidth: 3 } },
+  arrow: { width: 200, height: 4, color: "#1e293b", metadata: { strokeColor: "#1e293b", strokeWidth: 3 } },
 };
+
+const SHAPE_COLORS = [
+  { name: "None", value: "transparent" },
+  { name: "Black", value: "#1e293b" },
+  { name: "White", value: "#ffffff" },
+  { name: "Gray", value: "#64748b" },
+  { name: "Red", value: "#ef4444" },
+  { name: "Orange", value: "#f97316" },
+  { name: "Yellow", value: "#f59e0b" },
+  { name: "Green", value: "#10b981" },
+  { name: "Blue", value: "#3b82f6" },
+  { name: "Purple", value: "#8b5cf6" },
+];
 
 export default function DanoteCanvas({ boardId }: { boardId: string }) {
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -53,6 +77,9 @@ export default function DanoteCanvas({ boardId }: { boardId: string }) {
   const [sidebarDragType, setSidebarDragType] = useState<ElementType | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; elementId: string } | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [drawingMode, setDrawingMode] = useState<ElementType | null>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [drawStart, setDrawStart] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
     supabaseClient.from("danote_elements").select("*").eq("board_id", boardId).order("z_index")
@@ -78,7 +105,7 @@ export default function DanoteCanvas({ boardId }: { boardId: string }) {
       .select().single();
     if (!error && data) {
       setElements((prev) => [...prev, data as BoardElement]);
-      if (type === "note" || type === "text") setEditingId(data.id);
+      if (type === "note" || type.startsWith("text-")) setEditingId(data.id);
     }
   }
 
@@ -96,6 +123,81 @@ export default function DanoteCanvas({ boardId }: { boardId: string }) {
     if (!error && data) setElements((prev) => [...prev, data as BoardElement]);
   }
 
+  // Z-index arrangement functions
+  async function bringForward(id: string) {
+    const el = elements.find(e => e.id === id);
+    if (!el) return;
+    const sorted = [...elements].sort((a, b) => a.z_index - b.z_index);
+    const idx = sorted.findIndex(e => e.id === id);
+    if (idx < sorted.length - 1) {
+      const nextEl = sorted[idx + 1];
+      const newZ = nextEl.z_index + 1;
+      setElements(prev => prev.map(e => e.id === id ? { ...e, z_index: newZ } : e));
+      await saveElement({ id, z_index: newZ });
+    }
+  }
+
+  async function sendBackward(id: string) {
+    const el = elements.find(e => e.id === id);
+    if (!el) return;
+    const sorted = [...elements].sort((a, b) => a.z_index - b.z_index);
+    const idx = sorted.findIndex(e => e.id === id);
+    if (idx > 0) {
+      const prevEl = sorted[idx - 1];
+      const newZ = Math.max(0, prevEl.z_index - 1);
+      setElements(prev => prev.map(e => e.id === id ? { ...e, z_index: newZ } : e));
+      await saveElement({ id, z_index: newZ });
+    }
+  }
+
+  async function bringToFront(id: string) {
+    const maxZ = Math.max(...elements.map(e => e.z_index)) + 1;
+    setElements(prev => prev.map(e => e.id === id ? { ...e, z_index: maxZ } : e));
+    await saveElement({ id, z_index: maxZ });
+  }
+
+  async function sendToBack(id: string) {
+    const minZ = Math.min(...elements.map(e => e.z_index));
+    const newZ = Math.max(0, minZ - 1);
+    setElements(prev => prev.map(e => e.id === id ? { ...e, z_index: newZ } : e));
+    await saveElement({ id, z_index: newZ });
+  }
+
+  // Clipboard paste handler
+  async function handlePaste(e: ClipboardEvent) {
+    if (editingId) return; // Don't interfere with text editing
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const blob = item.getAsFile();
+        if (!blob) continue;
+        
+        setUploading(true);
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+          const pos = screenToCanvas(window.innerWidth / 2, window.innerHeight / 2);
+          const maxZ = elements.length > 0 ? Math.max(...elements.map((e) => e.z_index)) + 1 : 1;
+          const { data, error } = await supabaseClient.from("danote_elements")
+            .insert({ board_id: boardId, type: "image", x: pos.x - 150, y: pos.y - 100, width: 300, height: 200, content: ev.target?.result as string, color: "transparent", locked: false, z_index: maxZ, metadata: {} })
+            .select().single();
+          if (!error && data) setElements((prev) => [...prev, data as BoardElement]);
+          setUploading(false);
+        };
+        reader.onerror = () => setUploading(false);
+        reader.readAsDataURL(blob);
+        break;
+      }
+    }
+  }
+
+  useEffect(() => {
+    document.addEventListener('paste', handlePaste);
+    return () => document.removeEventListener('paste', handlePaste);
+  }, [editingId, elements, screenToCanvas]);
+
   const handleWheel = useCallback((e: React.WheelEvent) => {
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
@@ -111,13 +213,23 @@ export default function DanoteCanvas({ boardId }: { boardId: string }) {
   }, [scale, offset]);
 
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent) => {
+    // Allow drawing mode to work even if clicking on inner elements
+    if (drawingMode && e.button === 0 && !e.shiftKey) {
+      e.preventDefault();
+      const pos = screenToCanvas(e.clientX, e.clientY);
+      setIsDrawing(true);
+      setDrawStart(pos);
+      setContextMenu(null);
+      return;
+    }
+    
     if (e.target !== canvasRef.current) return;
     setContextMenu(null);
     if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
       setIsPanning(true);
       setPanStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
     } else if (e.button === 0 && !e.ctrlKey && !e.metaKey) setSelectedIds(new Set());
-  }, [offset]);
+  }, [offset, drawingMode, screenToCanvas]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (isPanning) setOffset({ x: e.clientX - panStart.x, y: e.clientY - panStart.y });
@@ -132,14 +244,56 @@ export default function DanoteCanvas({ boardId }: { boardId: string }) {
     }
   }, [isPanning, panStart, draggingId, dragOffset, selectedIds, screenToCanvas]);
 
-  const handleMouseUp = useCallback(() => {
+  const handleCanvasMouseUp = useCallback(async (e: React.MouseEvent) => {
+    if (isDrawing && drawingMode) {
+      const pos = screenToCanvas(e.clientX, e.clientY);
+      const x = Math.min(drawStart.x, pos.x);
+      const y = Math.min(drawStart.y, pos.y);
+      const width = Math.max(Math.abs(pos.x - drawStart.x), 20);
+      const height = Math.max(Math.abs(pos.y - drawStart.y), 20);
+      
+      const defaults = ELEMENT_DEFAULTS[drawingMode];
+      const maxZ = elements.length > 0 ? Math.max(...elements.map((e) => e.z_index)) + 1 : 1;
+      
+      // For lines and arrows, store start/end points in metadata
+      const metadata = (drawingMode === 'line' || drawingMode === 'arrow') 
+        ? { startX: drawStart.x, startY: drawStart.y, endX: pos.x, endY: pos.y }
+        : {};
+      
+      // Merge default metadata with line/arrow specific metadata
+      const finalMetadata = { ...(defaults.metadata || {}), ...metadata };
+      
+      const { data, error } = await supabaseClient.from("danote_elements")
+        .insert({ 
+          board_id: boardId, 
+          type: drawingMode, 
+          x: drawingMode === 'line' || drawingMode === 'arrow' ? Math.min(drawStart.x, pos.x) : x, 
+          y: drawingMode === 'line' || drawingMode === 'arrow' ? Math.min(drawStart.y, pos.y) : y, 
+          width: drawingMode === 'line' || drawingMode === 'arrow' ? Math.abs(pos.x - drawStart.x) : width, 
+          height: drawingMode === 'line' || drawingMode === 'arrow' ? Math.abs(pos.y - drawStart.y) : height, 
+          content: '', 
+          color: defaults.color, 
+          locked: false, 
+          z_index: maxZ, 
+          metadata: finalMetadata 
+        })
+        .select().single();
+      
+      if (!error && data) setElements((prev) => [...prev, data as BoardElement]);
+      setIsDrawing(false);
+      setDrawingMode(null);
+    }
+  }, [isDrawing, drawingMode, drawStart, screenToCanvas, elements, boardId]);
+
+  const handleMouseUp = useCallback((e: React.MouseEvent) => {
     setIsPanning(false);
     if (draggingId) {
       elements.forEach((el) => { if (selectedIds.has(el.id) || el.id === draggingId) saveElement({ id: el.id, x: el.x, y: el.y }); });
       setDraggingId(null);
     }
     setSidebarDragType(null);
-  }, [draggingId, selectedIds, elements]);
+    if (isDrawing) handleCanvasMouseUp(e);
+  }, [draggingId, selectedIds, elements, isDrawing, handleCanvasMouseUp]);
 
   const handleElementMouseDown = useCallback((e: React.MouseEvent, el: BoardElement) => {
     e.stopPropagation();
@@ -193,10 +347,22 @@ export default function DanoteCanvas({ boardId }: { boardId: string }) {
 
   const sidebarItems = [
     { type: "note" as ElementType, icon: "M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2zM7 7h10M7 11h10M7 15h4", label: "Note Card" },
-    { type: "text" as ElementType, icon: "M4 7V4h16v3M9 20h6M12 4v16", label: "Text Block" },
     { type: "todo" as ElementType, icon: "M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11", label: "To-Do List" },
     { type: "column" as ElementType, icon: "M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18", label: "Column" },
     { type: "color-swatch" as ElementType, icon: "M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01", label: "Color Swatch" },
+  ];
+
+  const textItems = [
+    { type: "text-header" as ElementType, icon: "M4 7V4h16v3M9 20h6M12 4v16", label: "Header" },
+    { type: "text-paragraph" as ElementType, icon: "M4 6h16M4 10h16M4 14h10", label: "Paragraph" },
+    { type: "text-sentence" as ElementType, icon: "M4 12h12", label: "Sentence" },
+  ];
+
+  const shapeItems = [
+    { type: "rectangle" as ElementType, icon: "M3 3h18v18H3z", label: "Rectangle" },
+    { type: "circle" as ElementType, icon: "M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z", label: "Circle" },
+    { type: "line" as ElementType, icon: "M5 19L19 5", label: "Line" },
+    { type: "arrow" as ElementType, icon: "M5 19L19 5M19 5v10M19 5H9", label: "Arrow" },
   ];
 
   return (
@@ -220,6 +386,35 @@ export default function DanoteCanvas({ boardId }: { boardId: string }) {
           </button>
           <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
         </div>
+        <div className="mt-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Text</p>
+          <div className="grid grid-cols-3 gap-1">
+            {textItems.map((item) => (
+              <div key={item.type} draggable onDragStart={() => setSidebarDragType(item.type)} className="flex cursor-grab flex-col items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-[10px] text-slate-600 transition-all hover:border-cyan-300 hover:bg-cyan-50 active:cursor-grabbing">
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={item.icon} /></svg>
+                {item.label}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="mt-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Shapes & Arrows</p>
+          <div className="grid grid-cols-2 gap-2">
+            {shapeItems.map((item) => (
+              <button
+                key={item.type}
+                onClick={() => setDrawingMode(drawingMode === item.type ? null : item.type)}
+                className={`flex flex-col items-center gap-1 rounded-lg border px-2 py-2 text-xs transition-all ${drawingMode === item.type ? 'border-cyan-500 bg-cyan-50 text-cyan-700' : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-cyan-300 hover:bg-cyan-50'}`}
+              >
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={item.icon} /></svg>
+                {item.label}
+              </button>
+            ))}
+          </div>
+          {drawingMode && (
+            <p className="mt-2 text-xs text-cyan-600">Click and drag on canvas to draw</p>
+          )}
+        </div>
         <div className="mt-6">
           <label className="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={showGrid} onChange={(e) => setShowGrid(e.target.checked)} className="rounded border-slate-300" />Show Grid</label>
           <p className="mt-3 text-xs text-slate-400">Zoom: {Math.round(scale * 100)}%</p>
@@ -230,17 +425,36 @@ export default function DanoteCanvas({ boardId }: { boardId: string }) {
           </div>
         </div>
         <div className="mt-6 border-t border-slate-200 pt-4 text-xs text-slate-400">
-          <strong>Shortcuts:</strong><br />Shift+Drag: Pan<br />Ctrl+A: Select all<br />Ctrl+D: Duplicate<br />Delete: Remove
+          <strong>Shortcuts:</strong><br />Shift+Drag: Pan<br />Ctrl+A: Select all<br />Ctrl+D: Duplicate<br />Ctrl+V: Paste Image<br />Delete: Remove
         </div>
       </div>
-      <div ref={canvasRef} className="relative flex-1 overflow-hidden" style={{ background: showGrid ? "repeating-linear-gradient(0deg, transparent, transparent 19px, #e2e8f0 19px, #e2e8f0 20px), repeating-linear-gradient(90deg, transparent, transparent 19px, #e2e8f0 19px, #e2e8f0 20px)" : "#f8fafc" }}
+      <div ref={canvasRef} className={`relative flex-1 overflow-hidden ${drawingMode ? 'cursor-crosshair' : ''}`} style={{ background: showGrid ? "repeating-linear-gradient(0deg, transparent, transparent 19px, #e2e8f0 19px, #e2e8f0 20px), repeating-linear-gradient(90deg, transparent, transparent 19px, #e2e8f0 19px, #e2e8f0 20px)" : "#f8fafc" }}
         onMouseDown={handleCanvasMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} onWheel={handleWheel} onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
         <div style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`, transformOrigin: "0 0" }}>
-          {elements.map((el) => <CanvasElement key={el.id} element={el} isSelected={selectedIds.has(el.id)} isEditing={editingId === el.id} onMouseDown={(e) => handleElementMouseDown(e, el)} onDoubleClick={() => !el.locked && setEditingId(el.id)} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, elementId: el.id }); }} onContentChange={async (c) => { setElements((p) => p.map((e) => e.id === el.id ? { ...e, content: c } : e)); await saveElement({ id: el.id, content: c }); }} onEditEnd={() => setEditingId(null)} onColorChange={async (c) => { setElements((p) => p.map((e) => e.id === el.id ? { ...e, color: c } : e)); await saveElement({ id: el.id, color: c }); }} />)}
+          {elements.map((el) => <CanvasElement key={el.id} element={el} isSelected={selectedIds.has(el.id)} isEditing={editingId === el.id} onMouseDown={(e) => handleElementMouseDown(e, el)} onDoubleClick={() => !el.locked && setEditingId(el.id)} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, elementId: el.id }); }} onContentChange={async (c) => { setElements((p) => p.map((e) => e.id === el.id ? { ...e, content: c } : e)); await saveElement({ id: el.id, content: c }); }} onEditEnd={() => setEditingId(null)} onColorChange={async (c) => { setElements((p) => p.map((e) => e.id === el.id ? { ...e, color: c } : e)); await saveElement({ id: el.id, color: c }); }} onMetadataChange={async (meta) => { setElements((p) => p.map((e) => e.id === el.id ? { ...e, metadata: { ...e.metadata, ...meta } } : e)); await saveElement({ id: el.id, metadata: { ...el.metadata, ...meta } }); }} />)}
         </div>
-        {contextMenu && <div className="fixed z-50 w-40 rounded-lg border border-slate-200 bg-white py-1 shadow-lg" style={{ left: contextMenu.x, top: contextMenu.y }}>
+        {contextMenu && <div className="fixed z-50 w-44 rounded-lg border border-slate-200 bg-white py-1 shadow-lg" style={{ left: contextMenu.x, top: contextMenu.y }}>
           <button onClick={() => { const el = elements.find((e) => e.id === contextMenu.elementId); if (el) duplicateElement(el); setContextMenu(null); }} className="w-full px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100">Duplicate</button>
           <button onClick={async () => { const el = elements.find((e) => e.id === contextMenu.elementId); if (el) { setElements((p) => p.map((e) => e.id === el.id ? { ...e, locked: !e.locked } : e)); await saveElement({ id: el.id, locked: !el.locked }); } setContextMenu(null); }} className="w-full px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100">Lock/Unlock</button>
+          <div className="my-1 border-t border-slate-100" />
+          <p className="px-3 py-1 text-xs font-medium text-slate-400">Arrange</p>
+          <button onClick={() => { bringToFront(contextMenu.elementId); setContextMenu(null); }} className="w-full px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2">
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 11V5h14v6M12 5v14M8 19h8" /></svg>
+            Bring to Front
+          </button>
+          <button onClick={() => { bringForward(contextMenu.elementId); setContextMenu(null); }} className="w-full px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2">
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
+            Bring Forward
+          </button>
+          <button onClick={() => { sendBackward(contextMenu.elementId); setContextMenu(null); }} className="w-full px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2">
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12l7 7 7-7" /></svg>
+            Send Backward
+          </button>
+          <button onClick={() => { sendToBack(contextMenu.elementId); setContextMenu(null); }} className="w-full px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2">
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 13v6h14v-6M12 19V5M8 5h8" /></svg>
+            Send to Back
+          </button>
+          <div className="my-1 border-t border-slate-100" />
           <button onClick={() => { deleteElement(contextMenu.elementId); setContextMenu(null); }} className="w-full px-3 py-1.5 text-left text-sm text-red-600 hover:bg-red-50">Delete</button>
         </div>}
       </div>
@@ -248,7 +462,7 @@ export default function DanoteCanvas({ boardId }: { boardId: string }) {
   );
 }
 
-function CanvasElement({ element, isSelected, isEditing, onMouseDown, onDoubleClick, onContextMenu, onContentChange, onEditEnd, onColorChange }: { element: BoardElement; isSelected: boolean; isEditing: boolean; onMouseDown: (e: React.MouseEvent) => void; onDoubleClick: () => void; onContextMenu: (e: React.MouseEvent) => void; onContentChange: (c: string) => void; onEditEnd: () => void; onColorChange: (c: string) => void; }) {
+function CanvasElement({ element, isSelected, isEditing, onMouseDown, onDoubleClick, onContextMenu, onContentChange, onEditEnd, onColorChange, onMetadataChange }: { element: BoardElement; isSelected: boolean; isEditing: boolean; onMouseDown: (e: React.MouseEvent) => void; onDoubleClick: () => void; onContextMenu: (e: React.MouseEvent) => void; onContentChange: (c: string) => void; onEditEnd: () => void; onColorChange: (c: string) => void; onMetadataChange: (meta: Record<string, any>) => void; }) {
   const base: React.CSSProperties = { position: "absolute", left: element.x, top: element.y, width: element.width, height: element.height, zIndex: element.z_index, cursor: element.locked ? "not-allowed" : "grab" };
   const sel = isSelected ? "ring-2 ring-cyan-500 ring-offset-2" : "";
 
@@ -261,10 +475,27 @@ function CanvasElement({ element, isSelected, isEditing, onMouseDown, onDoubleCl
     </div>;
   }
 
-  if (element.type === "text") {
+  // Text: Header
+  if (element.type === "text-header") {
     return <div style={base} className={sel} onMouseDown={onMouseDown} onDoubleClick={onDoubleClick} onContextMenu={onContextMenu}>
-      {isEditing ? <input autoFocus type="text" defaultValue={element.content} onBlur={(e) => { onContentChange(e.target.value); onEditEnd(); }} onKeyDown={(e) => (e.key === "Enter" || e.key === "Escape") && onEditEnd()} className="h-full w-full bg-transparent text-lg font-semibold text-slate-800 focus:outline-none" placeholder="Add heading..." />
-        : <div className="text-lg font-semibold text-slate-800">{element.content || <span className="text-slate-400">Double-click to add text...</span>}</div>}
+      {isEditing ? <input autoFocus type="text" defaultValue={element.content} onBlur={(e) => { onContentChange(e.target.value); onEditEnd(); }} onKeyDown={(e) => (e.key === "Enter" || e.key === "Escape") && onEditEnd()} className="h-full w-full bg-transparent text-2xl font-bold text-black focus:outline-none" placeholder="Add header..." />
+        : <div className="text-2xl font-bold text-slate-900">{element.content || <span className="text-slate-400">Double-click to add header...</span>}</div>}
+    </div>;
+  }
+
+  // Text: Paragraph
+  if (element.type === "text-paragraph") {
+    return <div style={base} className={sel} onMouseDown={onMouseDown} onDoubleClick={onDoubleClick} onContextMenu={onContextMenu}>
+      {isEditing ? <textarea autoFocus defaultValue={element.content} onBlur={(e) => { onContentChange(e.target.value); onEditEnd(); }} onKeyDown={(e) => e.key === "Escape" && onEditEnd()} className="h-full w-full resize-none bg-transparent text-sm leading-relaxed text-black focus:outline-none" placeholder="Add paragraph text..." />
+        : <div className="text-sm leading-relaxed text-slate-700 whitespace-pre-wrap">{element.content || <span className="text-slate-400">Double-click to add paragraph...</span>}</div>}
+    </div>;
+  }
+
+  // Text: Sentence
+  if (element.type === "text-sentence") {
+    return <div style={base} className={sel} onMouseDown={onMouseDown} onDoubleClick={onDoubleClick} onContextMenu={onContextMenu}>
+      {isEditing ? <input autoFocus type="text" defaultValue={element.content} onBlur={(e) => { onContentChange(e.target.value); onEditEnd(); }} onKeyDown={(e) => (e.key === "Enter" || e.key === "Escape") && onEditEnd()} className="h-full w-full bg-transparent text-sm text-black focus:outline-none" placeholder="Add sentence..." />
+        : <div className="text-sm text-slate-700">{element.content || <span className="text-slate-400">Double-click to add sentence...</span>}</div>}
     </div>;
   }
 
@@ -296,6 +527,224 @@ function CanvasElement({ element, isSelected, isEditing, onMouseDown, onDoubleCl
       <div className="border-b border-slate-200 px-4 py-3">{isEditing ? <input autoFocus type="text" defaultValue={element.content} onBlur={(e) => { onContentChange(e.target.value); onEditEnd(); }} className="w-full bg-transparent font-semibold text-slate-700 focus:outline-none" />
         : <h3 className="font-semibold text-slate-700">{element.content || "Untitled Column"}</h3>}</div>
       <div className="p-2 text-center text-xs text-slate-400">Drop cards here</div></div>;
+  }
+
+  // Shape: Rectangle
+  if (element.type === "rectangle") {
+    const fillColor = element.metadata?.fillColor ?? element.color;
+    const strokeColor = element.metadata?.strokeColor ?? 'transparent';
+    const strokeWidth = element.metadata?.strokeWidth ?? 2;
+    
+    return (
+      <div 
+        style={{ 
+          ...base, 
+          backgroundColor: fillColor,
+          border: strokeColor !== 'transparent' ? `${strokeWidth}px solid ${strokeColor}` : 'none',
+          boxSizing: 'border-box'
+        }} 
+        className={`rounded-md ${sel}`} 
+        onMouseDown={onMouseDown} 
+        onContextMenu={onContextMenu}
+      >
+        {isSelected && (
+          <div className="absolute -bottom-16 left-0 bg-white rounded-lg shadow-lg border border-slate-200 p-2 z-50">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[10px] font-medium text-slate-500 w-10">Fill:</span>
+              <div className="flex gap-1">
+                {SHAPE_COLORS.map((c) => (
+                  <button key={c.value} onClick={() => onMetadataChange({ fillColor: c.value })} className={`h-4 w-4 rounded-full border ${fillColor === c.value ? 'ring-2 ring-cyan-500 ring-offset-1' : 'border-slate-300'}`} style={{ backgroundColor: c.value === 'transparent' ? 'white' : c.value, backgroundImage: c.value === 'transparent' ? 'linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)' : 'none', backgroundSize: '6px 6px', backgroundPosition: '0 0, 0 3px, 3px -3px, -3px 0px' }} />
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-medium text-slate-500 w-10">Stroke:</span>
+              <div className="flex gap-1">
+                {SHAPE_COLORS.map((c) => (
+                  <button key={c.value} onClick={() => onMetadataChange({ strokeColor: c.value })} className={`h-4 w-4 rounded-full border ${strokeColor === c.value ? 'ring-2 ring-cyan-500 ring-offset-1' : 'border-slate-300'}`} style={{ backgroundColor: c.value === 'transparent' ? 'white' : c.value, backgroundImage: c.value === 'transparent' ? 'linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)' : 'none', backgroundSize: '6px 6px', backgroundPosition: '0 0, 0 3px, 3px -3px, -3px 0px' }} />
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Shape: Circle
+  if (element.type === "circle") {
+    const fillColor = element.metadata?.fillColor ?? element.color;
+    const strokeColor = element.metadata?.strokeColor ?? 'transparent';
+    const strokeWidth = element.metadata?.strokeWidth ?? 2;
+    
+    return (
+      <div 
+        style={{ 
+          ...base, 
+          backgroundColor: fillColor, 
+          borderRadius: '50%',
+          border: strokeColor !== 'transparent' ? `${strokeWidth}px solid ${strokeColor}` : 'none',
+          boxSizing: 'border-box'
+        }} 
+        className={sel} 
+        onMouseDown={onMouseDown} 
+        onContextMenu={onContextMenu}
+      >
+        {isSelected && (
+          <div className="absolute -bottom-16 left-0 bg-white rounded-lg shadow-lg border border-slate-200 p-2 z-50">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[10px] font-medium text-slate-500 w-10">Fill:</span>
+              <div className="flex gap-1">
+                {SHAPE_COLORS.map((c) => (
+                  <button key={c.value} onClick={() => onMetadataChange({ fillColor: c.value })} className={`h-4 w-4 rounded-full border ${fillColor === c.value ? 'ring-2 ring-cyan-500 ring-offset-1' : 'border-slate-300'}`} style={{ backgroundColor: c.value === 'transparent' ? 'white' : c.value, backgroundImage: c.value === 'transparent' ? 'linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)' : 'none', backgroundSize: '6px 6px', backgroundPosition: '0 0, 0 3px, 3px -3px, -3px 0px' }} />
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-medium text-slate-500 w-10">Stroke:</span>
+              <div className="flex gap-1">
+                {SHAPE_COLORS.map((c) => (
+                  <button key={c.value} onClick={() => onMetadataChange({ strokeColor: c.value })} className={`h-4 w-4 rounded-full border ${strokeColor === c.value ? 'ring-2 ring-cyan-500 ring-offset-1' : 'border-slate-300'}`} style={{ backgroundColor: c.value === 'transparent' ? 'white' : c.value, backgroundImage: c.value === 'transparent' ? 'linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)' : 'none', backgroundSize: '6px 6px', backgroundPosition: '0 0, 0 3px, 3px -3px, -3px 0px' }} />
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Shape: Line
+  if (element.type === "line") {
+    const meta = element.metadata || {};
+    const startX = meta.startX ?? element.x;
+    const startY = meta.startY ?? element.y;
+    const endX = meta.endX ?? (element.x + element.width);
+    const endY = meta.endY ?? element.y;
+    const strokeColor = meta.strokeColor ?? element.color;
+    const strokeWidth = meta.strokeWidth ?? 3;
+    
+    // Calculate SVG viewport
+    const minX = Math.min(startX, endX);
+    const minY = Math.min(startY, endY);
+    const svgWidth = Math.max(Math.abs(endX - startX), 10);
+    const svgHeight = Math.max(Math.abs(endY - startY), 10);
+    
+    return (
+      <div 
+        style={{ 
+          position: 'absolute', 
+          left: minX, 
+          top: minY, 
+          width: svgWidth, 
+          height: svgHeight, 
+          zIndex: element.z_index,
+          cursor: element.locked ? "not-allowed" : "grab",
+          padding: 8,
+          margin: -8
+        }} 
+        className={sel}
+        onMouseDown={onMouseDown} 
+        onContextMenu={onContextMenu}
+      >
+        <svg width={svgWidth} height={svgHeight} style={{ overflow: 'visible' }}>
+          <line 
+            x1={startX - minX} 
+            y1={startY - minY} 
+            x2={endX - minX} 
+            y2={endY - minY} 
+            stroke={strokeColor} 
+            strokeWidth={strokeWidth} 
+            strokeLinecap="round"
+          />
+        </svg>
+        {isSelected && (
+          <div className="absolute -bottom-12 left-0 bg-white rounded-lg shadow-lg border border-slate-200 p-2 z-50">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-medium text-slate-500 w-10">Color:</span>
+              <div className="flex gap-1">
+                {SHAPE_COLORS.filter(c => c.value !== 'transparent').map((c) => (
+                  <button key={c.value} onClick={() => onMetadataChange({ strokeColor: c.value })} className={`h-4 w-4 rounded-full border ${strokeColor === c.value ? 'ring-2 ring-cyan-500 ring-offset-1' : 'border-slate-300'}`} style={{ backgroundColor: c.value }} />
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Shape: Arrow
+  if (element.type === "arrow") {
+    const meta = element.metadata || {};
+    const startX = meta.startX ?? element.x;
+    const startY = meta.startY ?? element.y;
+    const endX = meta.endX ?? (element.x + element.width);
+    const endY = meta.endY ?? element.y;
+    const strokeColor = meta.strokeColor ?? element.color;
+    const strokeWidth = meta.strokeWidth ?? 3;
+    
+    // Calculate SVG viewport with padding for arrowhead
+    const padding = 16;
+    const minX = Math.min(startX, endX) - padding;
+    const minY = Math.min(startY, endY) - padding;
+    const svgWidth = Math.abs(endX - startX) + padding * 2;
+    const svgHeight = Math.abs(endY - startY) + padding * 2;
+    
+    // Calculate arrowhead points
+    const angle = Math.atan2(endY - startY, endX - startX);
+    const arrowLength = 12;
+    const arrowAngle = Math.PI / 6;
+    
+    const arrow1X = endX - arrowLength * Math.cos(angle - arrowAngle);
+    const arrow1Y = endY - arrowLength * Math.sin(angle - arrowAngle);
+    const arrow2X = endX - arrowLength * Math.cos(angle + arrowAngle);
+    const arrow2Y = endY - arrowLength * Math.sin(angle + arrowAngle);
+    
+    return (
+      <div 
+        style={{ 
+          position: 'absolute', 
+          left: minX, 
+          top: minY, 
+          width: svgWidth, 
+          height: svgHeight, 
+          zIndex: element.z_index,
+          cursor: element.locked ? "not-allowed" : "grab"
+        }} 
+        className={sel}
+        onMouseDown={onMouseDown} 
+        onContextMenu={onContextMenu}
+      >
+        <svg width={svgWidth} height={svgHeight} style={{ overflow: 'visible' }}>
+          <line 
+            x1={startX - minX + padding} 
+            y1={startY - minY + padding} 
+            x2={endX - minX + padding} 
+            y2={endY - minY + padding} 
+            stroke={strokeColor} 
+            strokeWidth={strokeWidth} 
+            strokeLinecap="round"
+          />
+          <polygon 
+            points={`${endX - minX + padding},${endY - minY + padding} ${arrow1X - minX + padding},${arrow1Y - minY + padding} ${arrow2X - minX + padding},${arrow2Y - minY + padding}`}
+            fill={strokeColor}
+          />
+        </svg>
+        {isSelected && (
+          <div className="absolute -bottom-12 left-0 bg-white rounded-lg shadow-lg border border-slate-200 p-2 z-50">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-medium text-slate-500 w-10">Color:</span>
+              <div className="flex gap-1">
+                {SHAPE_COLORS.filter(c => c.value !== 'transparent').map((c) => (
+                  <button key={c.value} onClick={() => onMetadataChange({ strokeColor: c.value })} className={`h-4 w-4 rounded-full border ${strokeColor === c.value ? 'ring-2 ring-cyan-500 ring-offset-1' : 'border-slate-300'}`} style={{ backgroundColor: c.value }} />
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
   }
 
   return null;
