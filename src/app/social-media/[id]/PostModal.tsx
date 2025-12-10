@@ -1,8 +1,12 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { supabaseClient } from "@/lib/supabaseClient";
 import { PLATFORM_ICONS, EMOJI_LIST } from "./socialMediaUtils";
+
+type WorkflowStatus = "new" | "creatives_approval" | "captions" | "client_approval" | "approved" | "posted";
+type PostType = "organic" | "boosted";
+type ShootStatus = "pending" | "scheduled" | "completed" | "cancelled";
 
 type Post = {
   id: string;
@@ -10,8 +14,28 @@ type Post = {
   caption: string | null;
   media_urls: { url: string; type: "image" | "video" }[];
   scheduled_date: string | null;
+  scheduled_time: string | null;
   status: "draft" | "pending" | "approved" | "published";
+  workflow_status: WorkflowStatus;
   hashtags: string[];
+  post_type: PostType;
+  content_type: string | null;
+  image_asset_url: string | null;
+  video_url: string | null;
+  first_comment: string | null;
+  shoot_status: ShootStatus;
+  shoot_date: string | null;
+  shoot_time: string | null;
+  shoot_count: number;
+  shoot_notes: string | null;
+  creative_notes: string | null;
+  danote_board_id: string | null;
+  platform_budgets: Record<string, number>;
+};
+
+type DanoteBoard = {
+  id: string;
+  name: string;
 };
 
 type Props = {
@@ -22,16 +46,65 @@ type Props = {
   onSaved: () => void;
 };
 
+const WORKFLOW_STEPS: { key: WorkflowStatus; label: string }[] = [
+  { key: "new", label: "New" },
+  { key: "creatives_approval", label: "Creatives Approval" },
+  { key: "captions", label: "Captions" },
+  { key: "client_approval", label: "Client Approval" },
+  { key: "approved", label: "Approved" },
+  { key: "posted", label: "Posted" },
+];
+
+const CONTENT_TYPES = ["Reel", "Carousel", "Story", "Post", "Video", "Live"];
+
 export default function PostModal({ post, projectId, availablePlatforms, onClose, onSaved }: Props) {
+  // Basic fields
   const [platforms, setPlatforms] = useState<string[]>(post?.platforms || []);
   const [caption, setCaption] = useState(post?.caption || "");
-  const [scheduledDate, setScheduledDate] = useState(post?.scheduled_date ? post.scheduled_date.slice(0, 16) : "");
+  const [scheduledDate, setScheduledDate] = useState(post?.scheduled_date ? post.scheduled_date.slice(0, 10) : "");
+  const [scheduledTime, setScheduledTime] = useState(post?.scheduled_time || "12:00");
   const [status, setStatus] = useState<Post["status"]>(post?.status || "draft");
+  const [workflowStatus, setWorkflowStatus] = useState<WorkflowStatus>(post?.workflow_status || "new");
   const [hashtags, setHashtags] = useState(post?.hashtags?.join(" ") || "");
+  
+  // New fields
+  const [postType, setPostType] = useState<PostType>(post?.post_type || "organic");
+  const [contentType, setContentType] = useState(post?.content_type || "");
+  const [imageAssetUrl, setImageAssetUrl] = useState(post?.image_asset_url || "");
+  const [videoUrl, setVideoUrl] = useState(post?.video_url || "");
+  const [firstComment, setFirstComment] = useState(post?.first_comment || "");
+  const [platformBudgets, setPlatformBudgets] = useState<Record<string, number>>(post?.platform_budgets || {});
+  
+  // Shoot details
+  const [shootStatus, setShootStatus] = useState<ShootStatus>(post?.shoot_status || "pending");
+  const [shootDate, setShootDate] = useState(post?.shoot_date || "");
+  const [shootTime, setShootTime] = useState(post?.shoot_time || "");
+  const [shootCount, setShootCount] = useState(post?.shoot_count || 0);
+  const [shootNotes, setShootNotes] = useState(post?.shoot_notes || "");
+  
+  // Creatives
+  const [creativeNotes, setCreativeNotes] = useState(post?.creative_notes || "");
+  
+  // Danote board association
+  const [danoteBoardId, setDanoteBoardId] = useState(post?.danote_board_id || "");
+  const [danoteBoards, setDanoteBoards] = useState<DanoteBoard[]>([]);
+  
+  // UI state
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
+  const [showVideoPreview, setShowVideoPreview] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const captionRef = useRef<HTMLTextAreaElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch Danote boards
+  useEffect(() => {
+    async function fetchBoards() {
+      const { data } = await supabaseClient.from("danote_boards").select("id, name").order("name");
+      if (data) setDanoteBoards(data);
+    }
+    fetchBoards();
+  }, []);
 
   const hashtagCount = (caption.match(/#\w+/g) || []).length + (hashtags.match(/#?\w+/g) || []).length;
 
@@ -44,6 +117,27 @@ export default function PostModal({ post, projectId, availablePlatforms, onClose
     setShowEmojiPicker(false);
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setUploadingImage(true);
+    const fileExt = file.name.split(".").pop();
+    const fileName = `${Date.now()}.${fileExt}`;
+    const filePath = `social-posts/${projectId}/${fileName}`;
+    
+    const { error } = await supabaseClient.storage.from("social-media").upload(filePath, file);
+    if (!error) {
+      const { data: { publicUrl } } = supabaseClient.storage.from("social-media").getPublicUrl(filePath);
+      setImageAssetUrl(publicUrl);
+    }
+    setUploadingImage(false);
+  };
+
+  const updatePlatformBudget = (platform: string, budget: number) => {
+    setPlatformBudgets(prev => ({ ...prev, [platform]: budget }));
+  };
+
   async function handleSubmit() {
     setSaving(true);
     const postData = {
@@ -51,8 +145,23 @@ export default function PostModal({ post, projectId, availablePlatforms, onClose
       platforms,
       caption,
       scheduled_date: scheduledDate ? new Date(scheduledDate).toISOString() : null,
+      scheduled_time: scheduledTime || null,
       status,
+      workflow_status: workflowStatus,
       hashtags: hashtags.split(/\s+/).filter(Boolean).map((h) => h.replace(/^#/, "")),
+      post_type: postType,
+      content_type: contentType || null,
+      image_asset_url: imageAssetUrl || null,
+      video_url: videoUrl || null,
+      first_comment: firstComment || null,
+      shoot_status: shootStatus,
+      shoot_date: shootDate || null,
+      shoot_time: shootTime || null,
+      shoot_count: shootCount,
+      shoot_notes: shootNotes || null,
+      creative_notes: creativeNotes || null,
+      danote_board_id: danoteBoardId || null,
+      platform_budgets: platformBudgets,
     };
 
     if (post) {
@@ -71,133 +180,303 @@ export default function PostModal({ post, projectId, availablePlatforms, onClose
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl">
-        {/* Editor */}
-        <div className="flex-1 overflow-y-auto p-6">
-          <div className="mb-6 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-slate-900">{post ? "Edit Post" : "Create Post"}</h2>
-            <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
-              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 overflow-y-auto py-4">
+      <div className="flex w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl my-auto">
+        {/* Left: Image/Video Preview Area */}
+        <div className="w-48 bg-slate-100 flex-shrink-0 flex flex-col items-center justify-center p-4 border-r border-slate-200">
+          {imageAssetUrl ? (
+            <div className="relative w-full aspect-square rounded-lg overflow-hidden bg-white shadow">
+              <img src={imageAssetUrl} alt="Post asset" className="w-full h-full object-cover" />
+              <div className="absolute top-2 right-2 flex gap-1">
+                <button onClick={() => imageInputRef.current?.click()} className="p-1.5 bg-white rounded-lg shadow hover:bg-slate-50" title="Replace">
+                  <svg className="w-4 h-4 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14"/></svg>
+                </button>
+                <button onClick={() => setImageAssetUrl("")} className="p-1.5 bg-white rounded-lg shadow hover:bg-red-50" title="Delete">
+                  <svg className="w-4 h-4 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => imageInputRef.current?.click()} disabled={uploadingImage}
+              className="w-full aspect-square rounded-lg border-2 border-dashed border-slate-300 flex flex-col items-center justify-center gap-2 hover:border-purple-400 hover:bg-purple-50/50 transition-colors">
+              {uploadingImage ? (
+                <div className="animate-spin rounded-full h-8 w-8 border-2 border-purple-500 border-t-transparent" />
+              ) : (
+                <>
+                  <svg className="w-10 h-10 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                  <span className="text-xs text-slate-500">Upload Image</span>
+                </>
+              )}
             </button>
-          </div>
+          )}
+          <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+          
+          {/* Video URL */}
+          {videoUrl && (
+            <button onClick={() => setShowVideoPreview(true)} className="mt-3 w-full py-2 px-3 bg-purple-100 text-purple-700 rounded-lg text-xs font-medium hover:bg-purple-200 flex items-center justify-center gap-1">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              Preview Video
+            </button>
+          )}
+        </div>
 
-          {/* Platforms */}
-          <div className="mb-5">
-            <label className="mb-2 block text-sm font-medium text-slate-700">Platforms</label>
-            <div className="flex flex-wrap gap-2">
-              {availablePlatforms.map((p) => (
-                <button key={p} type="button" onClick={() => togglePlatform(p)}
-                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-all ${platforms.includes(p) ? "border-pink-300 bg-pink-50 text-pink-700" : "border-slate-200 text-slate-600 hover:border-slate-300"}`}>
-                  {PLATFORM_ICONS[p.toLowerCase()]}
-                  <span className="capitalize">{p}</span>
+        {/* Main Editor */}
+        <div className="flex-1 overflow-y-auto max-h-[85vh]">
+          {/* Header with workflow tabs */}
+          <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-3 z-10">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold text-slate-900">{post ? "Edit Post" : "Create Post"}</h2>
+              <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+              </button>
+            </div>
+            
+            {/* Workflow Status Tabs */}
+            <div className="flex gap-1 overflow-x-auto pb-1">
+              {WORKFLOW_STEPS.map((step) => (
+                <button key={step.key} onClick={() => setWorkflowStatus(step.key)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-all ${
+                    workflowStatus === step.key 
+                      ? "bg-purple-600 text-white" 
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}>
+                  {step.label}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Caption */}
-          <div className="mb-5">
-            <div className="mb-2 flex items-center justify-between">
-              <label className="text-sm font-medium text-slate-700">Caption</label>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-500">{caption.length} chars</span>
-                <span className="text-xs text-slate-500">#{hashtagCount} hashtags</span>
+          <div className="p-6 space-y-5">
+            {/* Post Details Section */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                <svg className="w-4 h-4 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                Post Details
+              </h3>
+              
+              {/* Date & Time Row */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-slate-600">📅 Date</label>
+                  <input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-purple-300 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-slate-600">🕐 Time</label>
+                  <input type="time" value={scheduledTime} onChange={(e) => setScheduledTime(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-purple-300 focus:outline-none" />
+                </div>
               </div>
-            </div>
-            <div className="relative">
-              <textarea ref={captionRef} value={caption} onChange={(e) => setCaption(e.target.value)} rows={6}
-                placeholder="Write your caption here..."
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-pink-300 focus:outline-none focus:ring-2 focus:ring-pink-500/20 resize-none" />
-              <div className="absolute bottom-3 right-3 flex items-center gap-1">
+
+              {/* Content Type */}
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-600">🎬 Content Type</label>
+                <select value={contentType} onChange={(e) => setContentType(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-purple-300 focus:outline-none">
+                  <option value="">Select type...</option>
+                  {CONTENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+
+              {/* Organic/Boosted */}
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-600">💰 Post Type</label>
+                <select value={postType} onChange={(e) => setPostType(e.target.value as PostType)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-purple-300 focus:outline-none">
+                  <option value="organic">Organic</option>
+                  <option value="boosted">Boosted</option>
+                </select>
+              </div>
+
+              {/* Platform budgets for boosted posts */}
+              {postType === "boosted" && platforms.length > 0 && (
+                <div className="bg-amber-50 rounded-lg p-3 space-y-2">
+                  <label className="block text-xs font-medium text-amber-800">Platform Budgets</label>
+                  {platforms.map(p => (
+                    <div key={p} className="flex items-center gap-2">
+                      <span className="text-xs text-slate-600 w-20 capitalize">{p}</span>
+                      <input type="number" value={platformBudgets[p] || 0} onChange={(e) => updatePlatformBudget(p, Number(e.target.value))}
+                        className="flex-1 rounded border border-amber-200 bg-white px-2 py-1 text-sm" placeholder="0" />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Platforms with budget */}
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-600">📱 Platforms</label>
+                <div className="flex flex-wrap gap-2">
+                  {availablePlatforms.map((p) => (
+                    <button key={p} type="button" onClick={() => togglePlatform(p)}
+                      className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all ${
+                        platforms.includes(p) 
+                          ? "border-purple-300 bg-purple-50 text-purple-700" 
+                          : "border-slate-200 text-slate-500 hover:border-slate-300"
+                      }`}>
+                      {platforms.includes(p) && <span className="text-green-500">✓</span>}
+                      {PLATFORM_ICONS[p.toLowerCase()]}
+                      <span className="capitalize">{p}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Caption */}
+              <div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <label className="text-xs font-medium text-slate-600">✏️ Caption</label>
+                  <span className="text-xs text-slate-400">{caption.length} chars</span>
+                </div>
                 <div className="relative">
+                  <textarea ref={captionRef} value={caption} onChange={(e) => setCaption(e.target.value)} rows={4}
+                    placeholder="Write your caption here..."
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-purple-300 focus:outline-none resize-none" />
                   <button type="button" onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600">😀</button>
+                    className="absolute bottom-2 right-2 p-1.5 rounded hover:bg-slate-100 text-lg">😀</button>
                   {showEmojiPicker && (
-                    <div className="absolute bottom-full right-0 mb-2 w-64 rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
+                    <div className="absolute bottom-10 right-0 w-64 rounded-lg border border-slate-200 bg-white p-2 shadow-xl z-20">
                       <div className="grid grid-cols-8 gap-1">
                         {EMOJI_LIST.map((emoji) => (
                           <button key={emoji} type="button" onClick={() => insertEmoji(emoji)}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-slate-100">{emoji}</button>
+                            className="flex h-7 w-7 items-center justify-center rounded hover:bg-slate-100">{emoji}</button>
                         ))}
                       </div>
                     </div>
                   )}
                 </div>
               </div>
+
+              {/* First Comment */}
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-600">💬 First Comment</label>
+                <input type="text" value={firstComment} onChange={(e) => setFirstComment(e.target.value)}
+                  placeholder="First comment after posting..."
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-purple-300 focus:outline-none" />
+              </div>
+
+              {/* Video URL */}
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-600">🎥 Video URL</label>
+                <div className="flex gap-2">
+                  <input type="url" value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)}
+                    placeholder="https://..."
+                    className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-purple-300 focus:outline-none" />
+                  {videoUrl && (
+                    <button onClick={() => setShowVideoPreview(true)} className="px-3 py-2 bg-purple-100 text-purple-700 rounded-lg text-sm font-medium hover:bg-purple-200">
+                      Preview
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Danote Board Association */}
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-600">📋 Link to Danote Board</label>
+                <select value={danoteBoardId} onChange={(e) => setDanoteBoardId(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-purple-300 focus:outline-none">
+                  <option value="">None</option>
+                  {danoteBoards.map(board => <option key={board.id} value={board.id}>{board.name}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Shoot Details Section */}
+            <div className="border-t border-slate-200 pt-5 space-y-4">
+              <h3 className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                <svg className="w-4 h-4 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                Shoot Details
+              </h3>
+              
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-600">📋 Status</label>
+                <select value={shootStatus} onChange={(e) => setShootStatus(e.target.value as ShootStatus)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-purple-300 focus:outline-none">
+                  <option value="pending">Pending</option>
+                  <option value="scheduled">Scheduled</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-slate-600">📅 Shoot Date</label>
+                  <input type="date" value={shootDate} onChange={(e) => setShootDate(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-purple-300 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-slate-600">🕐 Shoot Time</label>
+                  <input type="time" value={shootTime} onChange={(e) => setShootTime(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-purple-300 focus:outline-none" />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-600">📸 Shot Count</label>
+                <input type="number" value={shootCount} onChange={(e) => setShootCount(Number(e.target.value))}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-purple-300 focus:outline-none" />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-600">📝 Shoot Notes</label>
+                <textarea value={shootNotes} onChange={(e) => setShootNotes(e.target.value)} rows={3}
+                  placeholder="Notes about the shoot..."
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-purple-300 focus:outline-none resize-none" />
+              </div>
+            </div>
+
+            {/* Creatives Section */}
+            <div className="border-t border-slate-200 pt-5 space-y-4">
+              <h3 className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                <svg className="w-4 h-4 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+                Creatives
+              </h3>
+              
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-600">📝 Creative Notes</label>
+                <textarea value={creativeNotes} onChange={(e) => setCreativeNotes(e.target.value)} rows={3}
+                  placeholder="Notes for the creative team..."
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-purple-300 focus:outline-none resize-none" />
+              </div>
             </div>
           </div>
 
-          {/* Hashtags */}
-          <div className="mb-5">
-            <label className="mb-2 block text-sm font-medium text-slate-700">Additional Hashtags</label>
-            <input type="text" value={hashtags} onChange={(e) => setHashtags(e.target.value)} placeholder="#marketing #socialmedia"
-              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-pink-300 focus:outline-none focus:ring-2 focus:ring-pink-500/20" />
-          </div>
-
-          {/* Schedule */}
-          <div className="mb-5">
-            <label className="mb-2 block text-sm font-medium text-slate-700">Schedule Date & Time</label>
-            <input type="datetime-local" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 focus:border-pink-300 focus:outline-none focus:ring-2 focus:ring-pink-500/20" />
-          </div>
-
-          {/* Status */}
-          <div className="mb-6">
-            <label className="mb-2 block text-sm font-medium text-slate-700">Status</label>
-            <div className="flex flex-wrap gap-2">
-              {(["draft", "pending", "approved", "published"] as const).map((s) => (
-                <button key={s} type="button" onClick={() => setStatus(s)}
-                  className={`rounded-lg border px-3 py-2 text-sm font-medium transition-all capitalize ${status === s ? "border-pink-300 bg-pink-50 text-pink-700" : "border-slate-200 text-slate-600 hover:border-slate-300"}`}>{s}</button>
-              ))}
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="flex items-center justify-between">
+          {/* Footer Actions */}
+          <div className="sticky bottom-0 bg-white border-t border-slate-200 px-6 py-4 flex items-center justify-between">
             {post && (
-              <button type="button" onClick={handleDelete} className="text-sm text-red-600 hover:text-red-700">Delete Post</button>
+              <button type="button" onClick={handleDelete} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg">
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+              </button>
             )}
             <div className="ml-auto flex items-center gap-3">
-              <button type="button" onClick={() => setShowPreview(!showPreview)} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
-                {showPreview ? "Hide Preview" : "Preview"}
+              <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg">
+                Cancel
               </button>
               <button type="button" onClick={handleSubmit} disabled={saving}
-                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-pink-500 to-fuchsia-600 px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-pink-500/25 hover:shadow-xl disabled:opacity-50">
-                {saving ? "Saving..." : post ? "Update Post" : "Create Post"}
+                className="px-5 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 disabled:opacity-50 shadow-lg shadow-purple-500/25">
+                {saving ? "Saving..." : "Save"}
               </button>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Preview */}
-        {showPreview && (
-          <div className="w-80 border-l border-slate-200 bg-slate-50 p-6">
-            <h3 className="mb-4 text-sm font-medium text-slate-700">Mobile Preview</h3>
-            <div className="mx-auto w-[240px] rounded-[2rem] border-4 border-slate-800 bg-white p-2 shadow-xl">
-              <div className="h-[420px] overflow-hidden rounded-[1.5rem] bg-white">
-                <div className="border-b border-slate-100 p-3">
-                  <div className="flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-full bg-gradient-to-br from-pink-500 to-fuchsia-600" />
-                    <span className="text-xs font-medium">your_brand</span>
-                  </div>
-                </div>
-                <div className="aspect-square bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center">
-                  <svg className="h-12 w-12 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <rect x="3" y="3" width="18" height="18" rx="2" />
-                    <circle cx="8.5" cy="8.5" r="1.5" />
-                    <path d="M21 15l-5-5L5 21" />
-                  </svg>
-                </div>
-                <div className="p-3">
-                  <p className="text-xs text-slate-900 line-clamp-4">{caption || "Your caption will appear here..."}</p>
-                  {hashtags && <p className="mt-1 text-xs text-blue-600">{hashtags}</p>}
-                </div>
-              </div>
+      {/* Video Preview Modal */}
+      {showVideoPreview && videoUrl && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/70" onClick={() => setShowVideoPreview(false)}>
+          <div className="bg-white rounded-xl p-4 max-w-2xl w-full mx-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-medium text-slate-900">Video Preview</h3>
+              <button onClick={() => setShowVideoPreview(false)} className="text-slate-400 hover:text-slate-600">
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <div className="aspect-video bg-slate-900 rounded-lg overflow-hidden">
+              <iframe src={videoUrl} className="w-full h-full" allowFullScreen />
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
