@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabaseClient } from "@/lib/supabaseClient";
 import DanoteComments from "./DanoteComments";
-import DanoteNotifications, { useNotificationCount } from "./DanoteNotifications";
 
 type ElementType = "note" | "text-header" | "text-paragraph" | "text-sentence" | "image" | "todo" | "color-swatch" | "column" | "rectangle" | "circle" | "line" | "arrow" | "container" | "audio";
 
@@ -101,10 +100,8 @@ export default function DanoteCanvas({ boardId }: { boardId: string }) {
   // Column drop zone state
   const [hoveredColumnId, setHoveredColumnId] = useState<string | null>(null);
   
-  // Comments and notifications state
+  // Comments state
   const [showComments, setShowComments] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
-  const notificationCount = useNotificationCount();
   const [dropInsertIndex, setDropInsertIndex] = useState<number>(0);
 
   // Get children of a column sorted by childIndex
@@ -716,39 +713,20 @@ export default function DanoteCanvas({ boardId }: { boardId: string }) {
           </div>;
         })()}
         
-        {/* Floating toolbar for comments and notifications */}
-        <div className="fixed top-4 right-4 flex items-center gap-2 z-40">
-          <button
-            onClick={() => { setShowNotifications(!showNotifications); setShowComments(false); }}
-            className="relative p-2.5 bg-white rounded-xl shadow-lg border border-slate-200 hover:bg-slate-50 transition-colors"
-            title="Notifications"
-          >
-            <svg className="w-5 h-5 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" />
-            </svg>
-            {notificationCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-medium">
-                {notificationCount > 9 ? '9+' : notificationCount}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => { setShowComments(!showComments); setShowNotifications(false); }}
-            className="p-2.5 bg-white rounded-xl shadow-lg border border-slate-200 hover:bg-slate-50 transition-colors"
-            title="Comments"
-          >
-            <svg className="w-5 h-5 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-            </svg>
-          </button>
-        </div>
+        {/* Floating comments button */}
+        <button
+          onClick={() => setShowComments(!showComments)}
+          className="fixed top-20 right-6 p-3 bg-gradient-to-br from-cyan-500 to-teal-500 text-white rounded-full shadow-lg hover:shadow-xl hover:scale-105 transition-all z-40"
+          title="Comments"
+        >
+          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+          </svg>
+        </button>
       </div>
       
       {/* Comments Panel */}
       <DanoteComments boardId={boardId} isOpen={showComments} onClose={() => setShowComments(false)} />
-      
-      {/* Notifications Panel */}
-      <DanoteNotifications isOpen={showNotifications} onClose={() => setShowNotifications(false)} />
     </div>
   );
 }
