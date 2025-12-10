@@ -138,3 +138,67 @@ create policy "Users can update unsorted" on danote_unsorted
 
 create policy "Users can delete unsorted" on danote_unsorted
   for delete using (true);
+
+-- ============================================
+-- DANOTE COMMENTS & MENTIONS SYSTEM
+-- ============================================
+
+-- Comments on Danote boards
+create table if not exists danote_comments (
+  id uuid primary key default gen_random_uuid(),
+  board_id uuid not null references danote_boards(id) on delete cascade,
+  user_id uuid not null references users(id) on delete cascade,
+  content text not null,
+  parent_id uuid references danote_comments(id) on delete cascade,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- Mentions in comments
+create table if not exists danote_mentions (
+  id uuid primary key default gen_random_uuid(),
+  comment_id uuid not null references danote_comments(id) on delete cascade,
+  mentioned_user_id uuid not null references users(id) on delete cascade,
+  created_at timestamptz default now()
+);
+
+-- Notifications for mentions
+create table if not exists danote_notifications (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  from_user_id uuid references users(id) on delete set null,
+  board_id uuid not null references danote_boards(id) on delete cascade,
+  comment_id uuid references danote_comments(id) on delete cascade,
+  type text not null default 'mention' check (type in ('mention', 'comment', 'reply')),
+  message text not null,
+  is_read boolean default false,
+  created_at timestamptz default now()
+);
+
+-- Indexes for comments system
+create index if not exists danote_comments_board_id_idx on danote_comments(board_id);
+create index if not exists danote_comments_user_id_idx on danote_comments(user_id);
+create index if not exists danote_comments_parent_id_idx on danote_comments(parent_id);
+create index if not exists danote_mentions_comment_id_idx on danote_mentions(comment_id);
+create index if not exists danote_mentions_user_id_idx on danote_mentions(mentioned_user_id);
+create index if not exists danote_notifications_user_id_idx on danote_notifications(user_id);
+create index if not exists danote_notifications_board_id_idx on danote_notifications(board_id);
+create index if not exists danote_notifications_is_read_idx on danote_notifications(is_read);
+
+-- RLS for comments system
+alter table danote_comments enable row level security;
+alter table danote_mentions enable row level security;
+alter table danote_notifications enable row level security;
+
+create policy "Anyone can view comments" on danote_comments for select using (true);
+create policy "Authenticated users can create comments" on danote_comments for insert with check (auth.uid() = user_id);
+create policy "Users can update their own comments" on danote_comments for update using (auth.uid() = user_id);
+create policy "Users can delete their own comments" on danote_comments for delete using (auth.uid() = user_id);
+
+create policy "Anyone can view mentions" on danote_mentions for select using (true);
+create policy "Authenticated users can create mentions" on danote_mentions for insert with check (true);
+
+create policy "Users can view their own notifications" on danote_notifications for select using (auth.uid() = user_id);
+create policy "System can create notifications" on danote_notifications for insert with check (true);
+create policy "Users can update their own notifications" on danote_notifications for update using (auth.uid() = user_id);
+create policy "Users can delete their own notifications" on danote_notifications for delete using (auth.uid() = user_id);
