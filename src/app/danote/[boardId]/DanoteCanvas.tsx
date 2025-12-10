@@ -664,7 +664,7 @@ export default function DanoteCanvas({ boardId }: { boardId: string }) {
       <div ref={canvasRef} className={`relative flex-1 overflow-hidden ${drawingMode ? 'cursor-crosshair' : ''}`} style={{ background: showGrid ? "repeating-linear-gradient(0deg, transparent, transparent 19px, #e2e8f0 19px, #e2e8f0 20px), repeating-linear-gradient(90deg, transparent, transparent 19px, #e2e8f0 19px, #e2e8f0 20px)" : "#f8fafc" }}
         onMouseDown={handleCanvasMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} onWheel={handleWheel} onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
         <div style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`, transformOrigin: "0 0" }}>
-          {elements.filter(el => !el.parent_id).map((el) => <CanvasElement key={el.id} element={el} isSelected={selectedIds.has(el.id)} isEditing={editingId === el.id} onMouseDown={(e) => handleElementMouseDown(e, el)} onDoubleClick={() => !el.locked && setEditingId(el.id)} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, elementId: el.id }); }} onContentChange={async (c) => { setElements((p) => p.map((e) => e.id === el.id ? { ...e, content: c } : e)); await saveElement({ id: el.id, content: c }); }} onEditEnd={() => setEditingId(null)} onColorChange={async (c) => { setElements((p) => p.map((e) => e.id === el.id ? { ...e, color: c } : e)); await saveElement({ id: el.id, color: c }); }} onMetadataChange={async (meta) => { setElements((p) => p.map((e) => e.id === el.id ? { ...e, metadata: { ...e.metadata, ...meta } } : e)); await saveElement({ id: el.id, metadata: { ...el.metadata, ...meta } }); }} onResizeStart={(e, handle) => handleResizeStart(e, el, handle)} onRotateStart={(e) => handleRotateStart(e, el)} isColumnHovered={el.type === 'column' && hoveredColumnId === el.id} dropInsertIndex={el.type === 'column' && hoveredColumnId === el.id ? dropInsertIndex : undefined} columnChildren={el.type === 'column' ? getColumnChildren(el.id) : undefined} />)}
+          {elements.filter(el => !el.parent_id).map((el) => <CanvasElement key={el.id} element={el} isSelected={selectedIds.has(el.id)} isEditing={editingId === el.id} onMouseDown={(e) => handleElementMouseDown(e, el)} onDoubleClick={() => !el.locked && setEditingId(el.id)} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, elementId: el.id }); }} onContentChange={async (c) => { setElements((p) => p.map((e) => e.id === el.id ? { ...e, content: c } : e)); await saveElement({ id: el.id, content: c }); }} onEditEnd={() => setEditingId(null)} onColorChange={async (c) => { setElements((p) => p.map((e) => e.id === el.id ? { ...e, color: c } : e)); await saveElement({ id: el.id, color: c }); }} onMetadataChange={async (meta) => { setElements((p) => p.map((e) => e.id === el.id ? { ...e, metadata: { ...e.metadata, ...meta } } : e)); await saveElement({ id: el.id, metadata: { ...el.metadata, ...meta } }); }} onResizeStart={(e, handle) => handleResizeStart(e, el, handle)} onRotateStart={(e) => handleRotateStart(e, el)} isColumnHovered={el.type === 'column' && hoveredColumnId === el.id} dropInsertIndex={el.type === 'column' && hoveredColumnId === el.id ? dropInsertIndex : undefined} columnChildren={el.type === 'column' ? getColumnChildren(el.id) : undefined} onChildContentChange={async (childId, content) => { setElements((p) => p.map((e) => e.id === childId ? { ...e, content } : e)); await saveElement({ id: childId, content }); }} onChildContextMenu={(e, childId) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, elementId: childId }); }} />)}
         </div>
         <input ref={replaceImageInputRef} type="file" accept="image/*" className="hidden" onChange={handleReplaceImage} />
         {contextMenu && (() => {
@@ -713,7 +713,127 @@ export default function DanoteCanvas({ boardId }: { boardId: string }) {
   );
 }
 
-function CanvasElement({ element, isSelected, isEditing, onMouseDown, onDoubleClick, onContextMenu, onContentChange, onEditEnd, onColorChange, onMetadataChange, onResizeStart, onRotateStart, isColumnHovered, dropInsertIndex, columnChildren }: { element: BoardElement; isSelected: boolean; isEditing: boolean; onMouseDown: (e: React.MouseEvent) => void; onDoubleClick: () => void; onContextMenu: (e: React.MouseEvent) => void; onContentChange: (c: string) => void; onEditEnd: () => void; onColorChange: (c: string) => void; onMetadataChange: (meta: Record<string, any>) => void; onResizeStart: (e: React.MouseEvent, handle: string) => void; onRotateStart: (e: React.MouseEvent) => void; isColumnHovered?: boolean; dropInsertIndex?: number; columnChildren?: BoardElement[]; }) {
+// Component for rendering children inside columns with proper styling
+function ColumnChildElement({ child, onContentChange, onMetadataChange, onContextMenu }: { 
+  child: BoardElement; 
+  onContentChange: (c: string) => void; 
+  onMetadataChange: (meta: Record<string, any>) => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
+}) {
+  const [isChildEditing, setIsChildEditing] = useState(false);
+  
+  // Image element
+  if (child.type === 'image') {
+    return (
+      <div className="relative bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden group cursor-pointer hover:ring-2 hover:ring-cyan-300" style={{ minHeight: 80 }} onContextMenu={onContextMenu}>
+        {child.content ? (
+          <img src={child.content} alt="" className="w-full h-auto object-cover" style={{ maxHeight: 200 }} />
+        ) : (
+          <div className="flex items-center justify-center h-20 bg-slate-50 text-slate-400 text-xs">No image</div>
+        )}
+      </div>
+    );
+  }
+  
+  // Text header
+  if (child.type === 'text-header') {
+    return (
+      <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-3 cursor-pointer hover:ring-2 hover:ring-cyan-300" onDoubleClick={() => setIsChildEditing(true)} onContextMenu={onContextMenu}>
+        {isChildEditing ? (
+          <input autoFocus type="text" defaultValue={child.content} onBlur={(e) => { onContentChange(e.target.value); setIsChildEditing(false); }} onKeyDown={(e) => e.key === 'Enter' && setIsChildEditing(false)} className="w-full bg-transparent text-xl font-bold text-slate-900 focus:outline-none" />
+        ) : (
+          <h3 className="text-xl font-bold text-slate-900">{child.content || <span className="text-slate-400">Add header...</span>}</h3>
+        )}
+      </div>
+    );
+  }
+  
+  // Text paragraph
+  if (child.type === 'text-paragraph') {
+    return (
+      <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-3 cursor-pointer hover:ring-2 hover:ring-cyan-300" onDoubleClick={() => setIsChildEditing(true)} onContextMenu={onContextMenu}>
+        {isChildEditing ? (
+          <textarea autoFocus defaultValue={child.content} onBlur={(e) => { onContentChange(e.target.value); setIsChildEditing(false); }} className="w-full bg-transparent text-sm text-slate-700 focus:outline-none resize-none min-h-[60px]" />
+        ) : (
+          <p className="text-sm text-slate-700 whitespace-pre-wrap">{child.content || <span className="text-slate-400">Add paragraph...</span>}</p>
+        )}
+      </div>
+    );
+  }
+  
+  // Text sentence
+  if (child.type === 'text-sentence') {
+    return (
+      <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-2 cursor-pointer hover:ring-2 hover:ring-cyan-300" onDoubleClick={() => setIsChildEditing(true)} onContextMenu={onContextMenu}>
+        {isChildEditing ? (
+          <input autoFocus type="text" defaultValue={child.content} onBlur={(e) => { onContentChange(e.target.value); setIsChildEditing(false); }} onKeyDown={(e) => e.key === 'Enter' && setIsChildEditing(false)} className="w-full bg-transparent text-sm text-slate-600 focus:outline-none" />
+        ) : (
+          <span className="text-sm text-slate-600">{child.content || <span className="text-slate-400">Add text...</span>}</span>
+        )}
+      </div>
+    );
+  }
+  
+  // Audio element
+  if (child.type === 'audio') {
+    const meta = child.metadata || {};
+    return (
+      <div className="bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg shadow-sm p-3 text-white cursor-pointer hover:ring-2 hover:ring-cyan-300" onContextMenu={onContextMenu}>
+        <div className="flex items-center gap-2 mb-2">
+          <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-medium text-sm truncate">{child.content || 'Audio Track'}</div>
+            <div className="text-xs text-white/70">{meta.duration || '0:00'}</div>
+          </div>
+        </div>
+        <div className="h-1 bg-white/20 rounded-full">
+          <div className="h-full w-1/3 bg-white rounded-full" />
+        </div>
+      </div>
+    );
+  }
+  
+  // Note element
+  if (child.type === 'note') {
+    return (
+      <div className="rounded-lg shadow-sm p-3 cursor-pointer hover:ring-2 hover:ring-cyan-300" style={{ backgroundColor: child.color }} onDoubleClick={() => setIsChildEditing(true)} onContextMenu={onContextMenu}>
+        {isChildEditing ? (
+          <textarea autoFocus defaultValue={child.content} onBlur={(e) => { onContentChange(e.target.value); setIsChildEditing(false); }} className="w-full bg-transparent text-sm text-slate-700 focus:outline-none resize-none min-h-[40px]" />
+        ) : (
+          <p className="text-sm text-slate-700 whitespace-pre-wrap">{child.content || <span className="text-slate-400">Note...</span>}</p>
+        )}
+      </div>
+    );
+  }
+  
+  // Container element
+  if (child.type === 'container') {
+    const meta = child.metadata || {};
+    return (
+      <div className="bg-slate-800 rounded-lg shadow-sm overflow-hidden cursor-pointer hover:ring-2 hover:ring-cyan-300" onContextMenu={onContextMenu}>
+        <div className="px-3 py-2 border-b border-slate-700">
+          <div className="text-white font-medium text-sm">{child.content || 'Scene'}</div>
+          {meta.subtitle && <div className="text-slate-400 text-xs">{meta.subtitle}</div>}
+        </div>
+        <div className="h-16 bg-slate-700 flex items-center justify-center">
+          <svg className="w-6 h-6 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></svg>
+        </div>
+      </div>
+    );
+  }
+  
+  // Default fallback
+  return (
+    <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-2 text-xs text-slate-600">
+      <div className="font-medium">{child.type}</div>
+      <div className="text-slate-400 truncate">{child.content || 'No content'}</div>
+    </div>
+  );
+}
+
+function CanvasElement({ element, isSelected, isEditing, onMouseDown, onDoubleClick, onContextMenu, onContentChange, onEditEnd, onColorChange, onMetadataChange, onResizeStart, onRotateStart, isColumnHovered, dropInsertIndex, columnChildren, onChildContentChange, onChildContextMenu }: { element: BoardElement; isSelected: boolean; isEditing: boolean; onMouseDown: (e: React.MouseEvent) => void; onDoubleClick: () => void; onContextMenu: (e: React.MouseEvent) => void; onContentChange: (c: string) => void; onEditEnd: () => void; onColorChange: (c: string) => void; onMetadataChange: (meta: Record<string, any>) => void; onResizeStart: (e: React.MouseEvent, handle: string) => void; onRotateStart: (e: React.MouseEvent) => void; isColumnHovered?: boolean; dropInsertIndex?: number; columnChildren?: BoardElement[]; onChildContentChange?: (childId: string, content: string) => void; onChildContextMenu?: (e: React.MouseEvent, childId: string) => void; }) {
   
   const rotation = element.metadata?.rotation ?? 0;
   const isRotatable = ['rectangle', 'circle', 'line', 'arrow', 'image', 'container'].includes(element.type);
@@ -838,8 +958,10 @@ function CanvasElement({ element, isSelected, isEditing, onMouseDown, onDoubleCl
     const children = columnChildren || [];
     const headerHeight = 48;
     const padding = 8;
-    const childrenHeight = children.reduce((sum, child) => sum + child.height + padding, 0);
-    const dynamicHeight = Math.max(element.height, headerHeight + childrenHeight + padding * 2 + 60); // +60 for empty space
+    const childrenHeight = children.reduce((sum, child) => sum + (child.height > 200 ? 100 : child.height) + padding, 0);
+    // Use element.height as the primary value, only expand if content requires it
+    const minContentHeight = headerHeight + childrenHeight + padding * 2 + 60;
+    const dynamicHeight = Math.max(element.height, minContentHeight);
     
     return (
       <div 
@@ -876,14 +998,13 @@ function CanvasElement({ element, isSelected, isEditing, onMouseDown, onDoubleCl
                 {isColumnHovered && dropInsertIndex === idx && (
                   <div className="h-1 bg-cyan-400 rounded-full mb-2 animate-pulse" />
                 )}
-                {/* Child element preview */}
-                <div 
-                  className="bg-white rounded-lg shadow-sm border border-slate-200 p-2 text-xs text-slate-600 overflow-hidden"
-                  style={{ height: child.height, maxHeight: 120 }}
-                >
-                  <div className="font-medium truncate">{child.type}</div>
-                  <div className="text-slate-400 truncate">{child.content || 'No content'}</div>
-                </div>
+                {/* Render child based on type */}
+                <ColumnChildElement 
+                  child={child} 
+                  onContentChange={(c) => onChildContentChange?.(child.id, c)} 
+                  onMetadataChange={onMetadataChange}
+                  onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onChildContextMenu?.(e, child.id); }}
+                />
               </div>
             ))
           )}
