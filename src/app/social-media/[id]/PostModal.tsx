@@ -31,6 +31,8 @@ type Post = {
   creative_notes: string | null;
   danote_board_id: string | null;
   platform_budgets: Record<string, number>;
+  published_urls: Record<string, string>;
+  created_at: string;
 };
 
 type DanoteBoard = {
