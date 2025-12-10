@@ -384,8 +384,9 @@ export default function PostModal({ post, projectId, availablePlatforms, onClose
               {/* Danote Board Association - Searchable */}
               <div className="relative">
                 <label className="mb-1.5 block text-xs font-medium text-slate-600">📋 Link to Danote Board</label>
-                <div className="relative">
-                  <input
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
                     type="text"
                     value={showBoardDropdown ? boardSearch : selectedBoardName}
                     onChange={(e) => {
@@ -397,17 +398,29 @@ export default function PostModal({ post, projectId, availablePlatforms, onClose
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-purple-300 focus:outline-none pr-8"
                   />
                   {selectedBoardName && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDanoteBoardId("");
-                        setSelectedBoardName("");
-                        setBoardSearch("");
-                      }}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600"
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDanoteBoardId("");
+                          setSelectedBoardName("");
+                          setBoardSearch("");
+                        }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600"
+                      >
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                      </button>
+                    )}
+                  </div>
+                  {danoteBoardId && (
+                    <a
+                      href={`/danote/${danoteBoardId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 px-3 py-2 bg-purple-100 text-purple-700 rounded-lg text-sm font-medium hover:bg-purple-200 whitespace-nowrap"
                     >
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-                    </button>
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                      Open Board
+                    </a>
                   )}
                 </div>
                 {showBoardDropdown && (
