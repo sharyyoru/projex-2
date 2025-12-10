@@ -713,10 +713,10 @@ export default function DanoteCanvas({ boardId }: { boardId: string }) {
           </div>;
         })()}
         
-        {/* Floating comments button */}
+        {/* Floating comments button - positioned below header */}
         <button
           onClick={() => setShowComments(!showComments)}
-          className="fixed top-20 right-6 p-3 bg-gradient-to-br from-cyan-500 to-teal-500 text-white rounded-full shadow-lg hover:shadow-xl hover:scale-105 transition-all z-40"
+          className="fixed top-24 right-6 p-3 bg-gradient-to-br from-cyan-500 to-teal-500 text-white rounded-full shadow-lg hover:shadow-xl hover:scale-105 transition-all z-30"
           title="Comments"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

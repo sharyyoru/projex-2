@@ -271,7 +271,7 @@ export default function DanoteComments({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed right-0 top-0 h-full w-96 bg-white shadow-2xl border-l border-slate-200 z-50 flex flex-col">
+    <div className="fixed right-0 top-[72px] w-96 bg-white shadow-2xl border-l border-slate-200 z-40 flex flex-col rounded-tl-2xl" style={{ height: 'calc(100vh - 72px - 80px)' }}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
         <h2 className="font-semibold text-slate-800 flex items-center gap-2">
