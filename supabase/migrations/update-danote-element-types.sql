@@ -21,7 +21,9 @@ CHECK (type IN (
   'rectangle',
   'circle',
   'line',
-  'arrow'
+  'arrow',
+  'container',
+  'audio'
 ));
 
 -- Also update the danote_unsorted table if needed

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabaseClient } from "@/lib/supabaseClient";
 
-type ElementType = "note" | "text-header" | "text-paragraph" | "text-sentence" | "image" | "todo" | "color-swatch" | "column" | "rectangle" | "circle" | "line" | "arrow";
+type ElementType = "note" | "text-header" | "text-paragraph" | "text-sentence" | "image" | "todo" | "color-swatch" | "column" | "rectangle" | "circle" | "line" | "arrow" | "container" | "audio";
 
 type BoardElement = {
   id: string;
@@ -46,6 +46,8 @@ const ELEMENT_DEFAULTS: Record<ElementType, { width: number; height: number; col
   circle: { width: 100, height: 100, color: "#1e293b", metadata: { fillColor: "#1e293b", strokeColor: "transparent", strokeWidth: 2 } },
   line: { width: 200, height: 4, color: "#1e293b", metadata: { strokeColor: "#1e293b", strokeWidth: 3 } },
   arrow: { width: 200, height: 4, color: "#1e293b", metadata: { strokeColor: "#1e293b", strokeWidth: 3 } },
+  container: { width: 320, height: 450, color: "#ffffff" },
+  audio: { width: 280, height: 100, color: "#1e293b" },
 };
 
 const SHAPE_COLORS = [
@@ -347,6 +349,8 @@ export default function DanoteCanvas({ boardId }: { boardId: string }) {
 
   const sidebarItems = [
     { type: "note" as ElementType, icon: "M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2zM7 7h10M7 11h10M7 15h4", label: "Note Card" },
+    { type: "container" as ElementType, icon: "M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z", label: "Container" },
+    { type: "audio" as ElementType, icon: "M9 18V5l12-2v13M9 18a3 3 0 11-6 0 3 3 0 016 0zM21 16a3 3 0 11-6 0 3 3 0 016 0z", label: "Audio" },
     { type: "todo" as ElementType, icon: "M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11", label: "To-Do List" },
     { type: "column" as ElementType, icon: "M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18", label: "Column" },
     { type: "color-swatch" as ElementType, icon: "M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01", label: "Color Swatch" },
@@ -527,6 +531,129 @@ function CanvasElement({ element, isSelected, isEditing, onMouseDown, onDoubleCl
       <div className="border-b border-slate-200 px-4 py-3">{isEditing ? <input autoFocus type="text" defaultValue={element.content} onBlur={(e) => { onContentChange(e.target.value); onEditEnd(); }} className="w-full bg-transparent font-semibold text-slate-700 focus:outline-none" />
         : <h3 className="font-semibold text-slate-700">{element.content || "Untitled Column"}</h3>}</div>
       <div className="p-2 text-center text-xs text-slate-400">Drop cards here</div></div>;
+  }
+
+  // Container (Scene/Reel card with header and content area)
+  if (element.type === "container") {
+    const meta = element.metadata || {};
+    const subtitle = meta.subtitle || "";
+    const location = meta.location || "";
+    const camera = meta.camera || "";
+    const action = meta.action || "";
+    
+    return (
+      <div 
+        style={{ ...base, backgroundColor: element.color }} 
+        className={`rounded-2xl border border-slate-200 shadow-lg overflow-hidden ${sel}`} 
+        onMouseDown={onMouseDown} 
+        onDoubleClick={onDoubleClick} 
+        onContextMenu={onContextMenu}
+      >
+        {/* Header */}
+        <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-center">
+          {isEditing ? (
+            <input 
+              autoFocus 
+              type="text" 
+              defaultValue={element.content} 
+              onBlur={(e) => { onContentChange(e.target.value); onEditEnd(); }} 
+              className="w-full bg-transparent text-center font-bold text-black focus:outline-none" 
+              placeholder="Container Title..."
+            />
+          ) : (
+            <h3 className="font-bold text-slate-900">{element.content || "Untitled Container"}</h3>
+          )}
+          {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
+        </div>
+        
+        {/* Content area */}
+        <div className="p-4 flex-1 min-h-[200px] bg-white">
+          {location && (
+            <p className="text-xs text-slate-600 mb-2">
+              <span className="text-slate-400">Location:</span> {location}
+            </p>
+          )}
+          
+          {/* Image placeholder area */}
+          <div className="aspect-[4/5] bg-slate-100 rounded-lg border-2 border-dashed border-slate-200 flex items-center justify-center mb-3">
+            <div className="text-center text-slate-400">
+              <svg className="h-8 w-8 mx-auto mb-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <path d="M21 15l-5-5L5 21" />
+              </svg>
+              <p className="text-xs">Drop image here</p>
+            </div>
+          </div>
+          
+          {camera && (
+            <p className="text-xs text-slate-600 mb-1">
+              <span className="text-slate-400">Camera:</span> {camera}
+            </p>
+          )}
+          {action && (
+            <p className="text-xs text-slate-600">
+              <span className="text-slate-400">Action:</span> {action}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Audio element (Spotify-style embed)
+  if (element.type === "audio") {
+    const meta = element.metadata || {};
+    const audioUrl = meta.url || "";
+    const artist = meta.artist || "Unknown Artist";
+    
+    return (
+      <div 
+        style={{ ...base, backgroundColor: element.color }} 
+        className={`rounded-xl shadow-lg overflow-hidden ${sel}`} 
+        onMouseDown={onMouseDown} 
+        onDoubleClick={onDoubleClick}
+        onContextMenu={onContextMenu}
+      >
+        <div className="flex items-center gap-3 p-3 h-full">
+          {/* Album art placeholder */}
+          <div className="w-16 h-16 flex-shrink-0 bg-gradient-to-br from-green-400 to-green-600 rounded-lg flex items-center justify-center">
+            <svg className="h-8 w-8 text-white" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+            </svg>
+          </div>
+          
+          {/* Track info */}
+          <div className="flex-1 min-w-0">
+            {isEditing ? (
+              <input 
+                autoFocus 
+                type="text" 
+                defaultValue={element.content} 
+                onBlur={(e) => { onContentChange(e.target.value); onEditEnd(); }} 
+                className="w-full bg-transparent text-sm font-semibold text-white focus:outline-none" 
+                placeholder="Track name..."
+              />
+            ) : (
+              <p className="text-sm font-semibold text-white truncate">{element.content || "Audio Track"}</p>
+            )}
+            <p className="text-xs text-slate-300 truncate">{artist}</p>
+            {audioUrl && (
+              <a href={audioUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-green-400 hover:underline truncate block mt-1">
+                🔗 {audioUrl.length > 30 ? audioUrl.substring(0, 30) + '...' : audioUrl}
+              </a>
+            )}
+          </div>
+          
+          {/* Play button */}
+          <button className="w-10 h-10 flex-shrink-0 bg-green-500 hover:bg-green-400 rounded-full flex items-center justify-center transition-colors">
+            <svg className="h-5 w-5 text-white ml-0.5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M8 5v14l11-7z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    );
   }
 
   // Shape: Rectangle

@@ -26,7 +26,7 @@ create index if not exists danote_boards_project_id_idx on danote_boards(project
 create table if not exists danote_elements (
   id uuid primary key default gen_random_uuid(),
   board_id uuid not null references danote_boards(id) on delete cascade,
-  type text not null check (type in ('note', 'text', 'text-header', 'text-paragraph', 'text-sentence', 'image', 'todo', 'column', 'color-swatch', 'board-link', 'rectangle', 'circle', 'line', 'arrow')),
+  type text not null check (type in ('note', 'text', 'text-header', 'text-paragraph', 'text-sentence', 'image', 'todo', 'column', 'color-swatch', 'board-link', 'rectangle', 'circle', 'line', 'arrow', 'container', 'audio')),
   x numeric not null default 0,
   y numeric not null default 0,
   width numeric not null default 240,
