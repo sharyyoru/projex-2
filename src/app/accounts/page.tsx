@@ -6,6 +6,7 @@ import { supabaseClient } from "@/lib/supabaseClient";
 
 type AccountClient = {
   id: string;
+  company_id: string | null;
   client_name: string;
   industry: string | null;
   avatar_url: string | null;
@@ -21,6 +22,18 @@ type AccountClient = {
   adhoc_fee: number;
   currency: string;
   created_at: string | null;
+};
+
+type Company = {
+  id: string;
+  name: string;
+  industry: string | null;
+};
+
+type Project = {
+  id: string;
+  name: string;
+  company_id: string;
 };
 
 const CLIENT_TYPE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
@@ -661,6 +674,78 @@ function NewClientForm({
   const [error, setError] = useState<string | null>(null);
   const [services, setServices] = useState<string[]>([]);
   const [serviceInput, setServiceInput] = useState("");
+  
+  // Company selection
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
+  const [companySearch, setCompanySearch] = useState("");
+  
+  // Project association
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
+  const [showNewProjectForm, setShowNewProjectForm] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [creatingProject, setCreatingProject] = useState(false);
+
+  useEffect(() => {
+    loadCompanies();
+  }, []);
+
+  useEffect(() => {
+    if (selectedCompanyId) {
+      loadProjects(selectedCompanyId);
+    } else {
+      setProjects([]);
+      setSelectedProjectIds([]);
+    }
+  }, [selectedCompanyId]);
+
+  async function loadCompanies() {
+    const { data } = await supabaseClient
+      .from("companies")
+      .select("id, name, industry")
+      .order("name");
+    setCompanies(data || []);
+  }
+
+  async function loadProjects(companyId: string) {
+    const { data } = await supabaseClient
+      .from("projects")
+      .select("id, name, company_id")
+      .eq("company_id", companyId)
+      .order("name");
+    setProjects(data || []);
+  }
+
+  async function handleCreateProject() {
+    if (!newProjectName.trim() || !selectedCompanyId) return;
+    setCreatingProject(true);
+    try {
+      const { data, error } = await supabaseClient
+        .from("projects")
+        .insert({ name: newProjectName.trim(), company_id: selectedCompanyId })
+        .select("id, name, company_id")
+        .single();
+      if (data) {
+        setProjects((prev) => [...prev, data]);
+        setSelectedProjectIds((prev) => [...prev, data.id]);
+        setNewProjectName("");
+        setShowNewProjectForm(false);
+      }
+    } catch (err) {
+      console.error("Failed to create project:", err);
+    } finally {
+      setCreatingProject(false);
+    }
+  }
+
+  function toggleProject(projectId: string) {
+    setSelectedProjectIds((prev) =>
+      prev.includes(projectId)
+        ? prev.filter((id) => id !== projectId)
+        : [...prev, projectId]
+    );
+  }
 
   const serviceOptions = [
     "CRM Development",
@@ -686,24 +771,31 @@ function NewClientForm({
     setServices(services.filter((s) => s !== service));
   }
 
+  const selectedCompany = companies.find((c) => c.id === selectedCompanyId);
+  const filteredCompanies = companies.filter((c) =>
+    c.name.toLowerCase().includes(companySearch.toLowerCase())
+  );
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
     const formData = new FormData(form);
 
-    const clientName = (formData.get("client_name") as string)?.trim();
-    if (!clientName) {
-      setError("Client name is required.");
+    if (!selectedCompanyId) {
+      setError("Please select a company.");
       return;
     }
+
+    const clientName = selectedCompany?.name || "";
 
     setLoading(true);
     setError(null);
 
     try {
       const payload = {
+        company_id: selectedCompanyId,
         client_name: clientName,
-        industry: (formData.get("industry") as string)?.trim() || null,
+        industry: selectedCompany?.industry || (formData.get("industry") as string)?.trim() || null,
         client_type: (formData.get("client_type") as string) || null,
         client_category: (formData.get("client_category") as string) || "active_retainer",
         client_since: (formData.get("client_since") as string) || null,
@@ -727,6 +819,16 @@ function NewClientForm({
         setError(insertError?.message || "Failed to create client.");
         setLoading(false);
         return;
+      }
+
+      // Create project associations
+      if (selectedProjectIds.length > 0) {
+        await supabaseClient.from("account_client_projects").insert(
+          selectedProjectIds.map((projectId) => ({
+            account_client_id: data.id,
+            project_id: projectId,
+          }))
+        );
       }
 
       onCreated({
@@ -767,39 +869,153 @@ function NewClientForm({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="space-y-1.5">
+          {/* Company Selection */}
+          <div className="sm:col-span-2 lg:col-span-3 space-y-1.5">
             <label className="block text-[12px] font-semibold text-slate-700 uppercase tracking-wide">
-              Client Name *
+              Select Company *
             </label>
-            <input
-              name="client_name"
-              type="text"
-              required
-              placeholder="Enter client name"
-              className="block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm text-black placeholder:text-slate-400 shadow-sm focus:border-teal-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20"
-            />
+            <div className="relative">
+              <input
+                type="text"
+                value={selectedCompany ? selectedCompany.name : companySearch}
+                onChange={(e) => {
+                  setCompanySearch(e.target.value);
+                  setSelectedCompanyId("");
+                }}
+                placeholder="Search for a company..."
+                className="block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm text-black placeholder:text-slate-400 shadow-sm focus:border-teal-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+              />
+              {!selectedCompanyId && companySearch && filteredCompanies.length > 0 && (
+                <div className="absolute z-10 mt-1 w-full rounded-xl border border-slate-200 bg-white shadow-lg max-h-48 overflow-y-auto">
+                  {filteredCompanies.slice(0, 10).map((company) => (
+                    <button
+                      key={company.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedCompanyId(company.id);
+                        setCompanySearch("");
+                      }}
+                      className="w-full px-4 py-2.5 text-left text-sm text-black hover:bg-teal-50 flex items-center justify-between"
+                    >
+                      <span className="font-medium">{company.name}</span>
+                      {company.industry && (
+                        <span className="text-[10px] rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">{company.industry}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {selectedCompany && (
+              <div className="flex items-center gap-2 mt-2">
+                <span className="inline-flex items-center gap-2 rounded-full bg-teal-50 px-3 py-1.5 text-[12px] font-medium text-teal-700 border border-teal-200">
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M3 21h18" />
+                    <path d="M5 21V7l8-4v18" />
+                    <path d="M19 21V11l-6-4" />
+                  </svg>
+                  {selectedCompany.name}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCompanyId("");
+                      setCompanySearch("");
+                    }}
+                    className="ml-1 text-teal-500 hover:text-teal-700"
+                  >
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M18 6 6 18" />
+                      <path d="m6 6 12 12" />
+                    </svg>
+                  </button>
+                </span>
+                {selectedCompany.industry && (
+                  <span className="text-[11px] text-slate-500">Industry: {selectedCompany.industry}</span>
+                )}
+              </div>
+            )}
           </div>
 
-          <div className="space-y-1.5">
-            <label className="block text-[12px] font-semibold text-slate-700 uppercase tracking-wide">
-              Industry
-            </label>
-            <select
-              name="industry"
-              className="block w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-black shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
-            >
-              <option value="">Select industry</option>
-              <option value="Medical">Medical</option>
-              <option value="F&B">F&B</option>
-              <option value="Healthcare">Healthcare</option>
-              <option value="Finance">Finance</option>
-              <option value="Technology">Technology</option>
-              <option value="Hospitality">Hospitality</option>
-              <option value="Retail">Retail</option>
-              <option value="Education">Education</option>
-              <option value="Real Estate">Real Estate</option>
-            </select>
-          </div>
+          {/* Project Association */}
+          {selectedCompanyId && (
+            <div className="sm:col-span-2 lg:col-span-3 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="block text-[12px] font-semibold text-slate-700 uppercase tracking-wide">
+                  Associate Projects (Optional)
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowNewProjectForm(!showNewProjectForm)}
+                  className="text-[11px] font-medium text-teal-600 hover:text-teal-700 flex items-center gap-1"
+                >
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M12 5v14" />
+                    <path d="M5 12h14" />
+                  </svg>
+                  Create New Project
+                </button>
+              </div>
+              
+              {showNewProjectForm && (
+                <div className="flex gap-2 p-3 rounded-lg bg-teal-50 border border-teal-200">
+                  <input
+                    type="text"
+                    value={newProjectName}
+                    onChange={(e) => setNewProjectName(e.target.value)}
+                    placeholder="New project name..."
+                    className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCreateProject}
+                    disabled={creatingProject || !newProjectName.trim()}
+                    className="px-3 py-2 bg-teal-500 text-white text-sm rounded-lg disabled:opacity-50"
+                  >
+                    {creatingProject ? "Creating..." : "Create"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowNewProjectForm(false)}
+                    className="px-3 py-2 text-slate-600 text-sm"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+
+              {projects.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {projects.map((project) => (
+                    <button
+                      key={project.id}
+                      type="button"
+                      onClick={() => toggleProject(project.id)}
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium border transition-all ${
+                        selectedProjectIds.includes(project.id)
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-300"
+                          : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                      }`}
+                    >
+                      {selectedProjectIds.includes(project.id) && (
+                        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      )}
+                      {project.name}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[12px] text-slate-400">No projects found for this company. Create one above.</p>
+              )}
+              
+              {selectedProjectIds.length > 0 && (
+                <p className="text-[11px] text-emerald-600 font-medium">
+                  {selectedProjectIds.length} project(s) will be associated
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <label className="block text-[12px] font-semibold text-slate-700 uppercase tracking-wide">

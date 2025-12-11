@@ -7,6 +7,7 @@ import { supabaseClient } from "@/lib/supabaseClient";
 
 type AccountClient = {
   id: string;
+  company_id: string | null;
   client_name: string;
   industry: string | null;
   avatar_url: string | null;
@@ -23,6 +24,12 @@ type AccountClient = {
   currency: string;
   notes: string | null;
   created_at: string | null;
+};
+
+type AssociatedProject = {
+  id: string;
+  name: string;
+  status: string | null;
 };
 
 type ClientDocument = {
@@ -81,6 +88,7 @@ export default function ClientProfilePage() {
   const [client, setClient] = useState<AccountClient | null>(null);
   const [documents, setDocuments] = useState<ClientDocument[]>([]);
   const [adhocItems, setAdhocItems] = useState<AdhocRequirement[]>([]);
+  const [associatedProjects, setAssociatedProjects] = useState<AssociatedProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"overview" | "documents" | "soa">("overview");
 
@@ -91,10 +99,11 @@ export default function ClientProfilePage() {
   async function loadClient() {
     try {
       setLoading(true);
-      const [clientRes, docsRes, adhocRes] = await Promise.all([
+      const [clientRes, docsRes, adhocRes, projectsRes] = await Promise.all([
         supabaseClient.from("account_clients").select("*").eq("id", clientId).single(),
         supabaseClient.from("account_client_documents").select("*").eq("client_id", clientId).order("created_at", { ascending: false }),
         supabaseClient.from("account_adhoc_requirements").select("*").eq("client_id", clientId).order("date_requested", { ascending: false }),
+        supabaseClient.from("account_client_projects").select("project_id, projects(id, name, status)").eq("account_client_id", clientId),
       ]);
 
       if (clientRes.data) {
@@ -108,6 +117,10 @@ export default function ClientProfilePage() {
       }
       setDocuments(docsRes.data || []);
       setAdhocItems((adhocRes.data || []).map((a) => ({ ...a, amount: Number(a.amount) || 0 })));
+      
+      // Extract associated projects from join query
+      const projectsList = (projectsRes.data || []).map((p: any) => p.projects).filter(Boolean);
+      setAssociatedProjects(projectsList);
     } catch (err) {
       console.error("Failed to load client:", err);
     } finally {
@@ -207,7 +220,7 @@ export default function ClientProfilePage() {
 
       {/* Tab Content */}
       {activeTab === "overview" && (
-        <OverviewTab client={client} />
+        <OverviewTab client={client} associatedProjects={associatedProjects} />
       )}
       {activeTab === "documents" && (
         <DocumentsTab clientId={clientId} documents={documents} onRefresh={loadClient} />
@@ -219,13 +232,39 @@ export default function ClientProfilePage() {
   );
 }
 
-function OverviewTab({ client }: { client: AccountClient }) {
+function OverviewTab({ client, associatedProjects }: { client: AccountClient; associatedProjects: AssociatedProject[] }) {
   const totalFees = client.retainer_fee + client.service_based_fee + client.adhoc_fee;
 
   return (
     <div className="grid gap-6 lg:grid-cols-3">
       {/* Left Column - Key Metadata */}
       <div className="lg:col-span-2 space-y-6">
+        {/* Associated Projects */}
+        {associatedProjects.length > 0 && (
+          <div className="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 p-5">
+            <h3 className="text-[14px] font-semibold text-emerald-700 mb-4">Associated Projects</h3>
+            <div className="flex flex-wrap gap-2">
+              {associatedProjects.map((project) => (
+                <Link
+                  key={project.id}
+                  href={`/projects/${project.id}`}
+                  className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-[12px] font-medium text-emerald-700 border border-emerald-200 hover:bg-emerald-50 transition-colors"
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                  </svg>
+                  {project.name}
+                  {project.status && (
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] text-emerald-600">
+                      {project.status}
+                    </span>
+                  )}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Services */}
         <div className="rounded-xl border border-slate-200 bg-white p-5">
           <h3 className="text-[14px] font-semibold text-slate-700 mb-4">Services from Mutant</h3>
