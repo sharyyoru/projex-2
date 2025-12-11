@@ -93,6 +93,10 @@ export default function ClientProfilePage() {
   const [associatedProjects, setAssociatedProjects] = useState<AssociatedProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"overview" | "documents" | "soa">("overview");
+  
+  // Edit mode state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (clientId) loadClient();
@@ -194,7 +198,10 @@ export default function ClientProfilePage() {
           </div>
 
           <div className="flex items-center gap-3">
-            <button className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-[13px] font-medium text-slate-700 shadow-sm hover:bg-slate-50">
+            <button 
+              onClick={() => setShowEditModal(true)}
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-[13px] font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+            >
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
               </svg>
@@ -225,9 +232,18 @@ export default function ClientProfilePage() {
         ))}
       </div>
 
+      {/* Edit Modal */}
+      {showEditModal && (
+        <EditClientModal 
+          client={client} 
+          onClose={() => setShowEditModal(false)} 
+          onSave={() => { setShowEditModal(false); loadClient(); }} 
+        />
+      )}
+
       {/* Tab Content */}
       {activeTab === "overview" && (
-        <OverviewTab client={client} associatedProjects={associatedProjects} />
+        <OverviewTab client={client} associatedProjects={associatedProjects} onRefresh={loadClient} />
       )}
       {activeTab === "documents" && (
         <DocumentsTab clientId={clientId} documents={documents} associatedProjects={associatedProjects} onRefresh={loadClient} />
@@ -239,17 +255,347 @@ export default function ClientProfilePage() {
   );
 }
 
-function OverviewTab({ client, associatedProjects }: { client: AccountClient; associatedProjects: AssociatedProject[] }) {
+// Edit Client Modal Component
+function EditClientModal({ client, onClose, onSave }: { client: AccountClient; onClose: () => void; onSave: () => void }) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [services, setServices] = useState<string[]>(client.services_signed || []);
+  const [serviceInput, setServiceInput] = useState("");
+
+  const serviceOptions = [
+    "CRM Development", "Hubspot Management", "Website Maintenance", "Social Media Management",
+    "SEO Services", "CDN Services", "Email Marketing", "Content Creation", "Branding", "UI/UX Design",
+  ];
+
+  function addService(service: string) {
+    if (service && !services.includes(service)) {
+      setServices([...services, service]);
+    }
+    setServiceInput("");
+  }
+
+  function removeService(service: string) {
+    setServices(services.filter((s) => s !== service));
+  }
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const { error: updateError } = await supabaseClient
+        .from("account_clients")
+        .update({
+          industry: (formData.get("industry") as string) || null,
+          client_type: (formData.get("client_type") as string) || null,
+          client_category: (formData.get("client_category") as string) || "active_retainer",
+          client_since: (formData.get("client_since") as string) || null,
+          end_date: (formData.get("end_date") as string) || null,
+          services_signed: services,
+          contract_type: (formData.get("contract_type") as string) || null,
+          invoice_due_day: (formData.get("invoice_due_day") as string)?.trim() || null,
+          retainer_fee: parseFloat((formData.get("retainer_fee") as string) || "0") || 0,
+          service_based_fee: parseFloat((formData.get("service_based_fee") as string) || "0") || 0,
+          notes: (formData.get("notes") as string)?.trim() || null,
+        })
+        .eq("id", client.id);
+
+      if (updateError) throw updateError;
+      onSave();
+    } catch (err: any) {
+      setError(err.message || "Failed to update client");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
+        <button onClick={onClose} className="absolute right-4 top-4 text-slate-400 hover:text-slate-600">
+          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+        </button>
+
+        <h2 className="text-lg font-semibold text-slate-900 mb-4">Edit Client: {client.client_name}</h2>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="block text-[12px] font-semibold text-slate-700 mb-1">Industry</label>
+              <select name="industry" defaultValue={client.industry || ""} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-black">
+                <option value="">Select industry</option>
+                <option value="Medical">Medical</option>
+                <option value="F&B">F&B</option>
+                <option value="Healthcare">Healthcare</option>
+                <option value="Finance">Finance</option>
+                <option value="Technology">Technology</option>
+                <option value="Hospitality">Hospitality</option>
+                <option value="Retail">Retail</option>
+                <option value="Education">Education</option>
+                <option value="Real Estate">Real Estate</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[12px] font-semibold text-slate-700 mb-1">Client Type</label>
+              <select name="client_type" defaultValue={client.client_type || ""} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-black">
+                <option value="">Select type</option>
+                <option value="high_maintenance">High Maintenance</option>
+                <option value="mid_maintenance">Mid Maintenance</option>
+                <option value="low_maintenance">Low Maintenance</option>
+                <option value="standard">Standard</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[12px] font-semibold text-slate-700 mb-1">Category</label>
+              <select name="client_category" defaultValue={client.client_category || "active_retainer"} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-black">
+                <option value="active_retainer">Active Retainer</option>
+                <option value="project_based">Project Based</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[12px] font-semibold text-slate-700 mb-1">Contract Type</label>
+              <select name="contract_type" defaultValue={client.contract_type || ""} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-black">
+                <option value="">Select contract</option>
+                <option value="service_based">Service-Based</option>
+                <option value="3_month">3-Month Contract</option>
+                <option value="6_month">6-Month Contract</option>
+                <option value="12_month">12-Month Contract</option>
+                <option value="project_based">Project-Based</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[12px] font-semibold text-slate-700 mb-1">Client Since</label>
+              <input name="client_since" type="date" defaultValue={client.client_since || ""} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-black" />
+            </div>
+            <div>
+              <label className="block text-[12px] font-semibold text-slate-700 mb-1">End Date</label>
+              <input name="end_date" type="date" defaultValue={client.end_date || ""} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-black" />
+            </div>
+            <div>
+              <label className="block text-[12px] font-semibold text-slate-700 mb-1">Invoice Due Every</label>
+              <input name="invoice_due_day" type="text" defaultValue={client.invoice_due_day || ""} placeholder="e.g., 1st, 15th, Annual" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-black placeholder:text-slate-400" />
+            </div>
+            <div>
+              <label className="block text-[12px] font-semibold text-slate-700 mb-1">Retainer Fee (AED)</label>
+              <input name="retainer_fee" type="number" step="0.01" defaultValue={client.retainer_fee || 0} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-black" />
+            </div>
+            <div>
+              <label className="block text-[12px] font-semibold text-slate-700 mb-1">Service-Based Fee (AED)</label>
+              <input name="service_based_fee" type="number" step="0.01" defaultValue={client.service_based_fee || 0} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-black" />
+            </div>
+          </div>
+
+          {/* Services */}
+          <div>
+            <label className="block text-[12px] font-semibold text-slate-700 mb-1">Services Signed</label>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {services.map((service) => (
+                <span key={service} className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-3 py-1 text-[11px] font-medium text-teal-700 border border-teal-200">
+                  {service}
+                  <button type="button" onClick={() => removeService(service)} className="text-teal-500 hover:text-teal-700">
+                    <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <select value={serviceInput} onChange={(e) => setServiceInput(e.target.value)} className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-black">
+                <option value="">Select a service...</option>
+                {serviceOptions.filter((s) => !services.includes(s)).map((service) => (
+                  <option key={service} value={service}>{service}</option>
+                ))}
+              </select>
+              <button type="button" onClick={() => addService(serviceInput)} disabled={!serviceInput} className="px-3 py-2 bg-teal-500 text-white text-[12px] rounded-lg disabled:opacity-50">Add</button>
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="block text-[12px] font-semibold text-slate-700 mb-1">Notes</label>
+            <textarea name="notes" rows={3} defaultValue={client.notes || ""} placeholder="Additional notes..." className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-black placeholder:text-slate-400" />
+          </div>
+
+          {error && <p className="text-[12px] text-red-600">{error}</p>}
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-[13px] text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
+            <button type="submit" disabled={saving} className="px-4 py-2 bg-teal-500 text-white text-[13px] font-medium rounded-lg disabled:opacity-50">
+              {saving ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function OverviewTab({ client, associatedProjects, onRefresh }: { client: AccountClient; associatedProjects: AssociatedProject[]; onRefresh: () => void }) {
   const totalFees = client.retainer_fee + client.service_based_fee + client.adhoc_fee;
+  
+  // Project association state
+  const [showProjectManager, setShowProjectManager] = useState(false);
+  const [companyProjects, setCompanyProjects] = useState<AssociatedProject[]>([]);
+  const [loadingProjects, setLoadingProjects] = useState(false);
+  const [savingProject, setSavingProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [creatingProject, setCreatingProject] = useState(false);
+
+  async function loadCompanyProjects() {
+    if (!client.company_id) return;
+    setLoadingProjects(true);
+    try {
+      const { data } = await supabaseClient
+        .from("projects")
+        .select("id, name, status")
+        .eq("company_id", client.company_id)
+        .order("name");
+      setCompanyProjects(data || []);
+    } catch (err) {
+      console.error("Failed to load projects:", err);
+    } finally {
+      setLoadingProjects(false);
+    }
+  }
+
+  async function handleToggleProject(projectId: string, isCurrentlyAssociated: boolean) {
+    setSavingProject(true);
+    try {
+      if (isCurrentlyAssociated) {
+        await supabaseClient
+          .from("account_client_projects")
+          .delete()
+          .eq("account_client_id", client.id)
+          .eq("project_id", projectId);
+      } else {
+        await supabaseClient
+          .from("account_client_projects")
+          .insert({ account_client_id: client.id, project_id: projectId });
+      }
+      onRefresh();
+    } catch (err) {
+      console.error("Failed to update project association:", err);
+    } finally {
+      setSavingProject(false);
+    }
+  }
+
+  async function handleCreateProject() {
+    if (!newProjectName.trim() || !client.company_id) return;
+    setCreatingProject(true);
+    try {
+      const { data: newProject } = await supabaseClient
+        .from("projects")
+        .insert({ name: newProjectName.trim(), company_id: client.company_id })
+        .select("id, name, status")
+        .single();
+      
+      if (newProject) {
+        // Auto-associate the new project
+        await supabaseClient
+          .from("account_client_projects")
+          .insert({ account_client_id: client.id, project_id: newProject.id });
+        setNewProjectName("");
+        loadCompanyProjects();
+        onRefresh();
+      }
+    } catch (err) {
+      console.error("Failed to create project:", err);
+    } finally {
+      setCreatingProject(false);
+    }
+  }
+
+  useEffect(() => {
+    if (showProjectManager && client.company_id) {
+      loadCompanyProjects();
+    }
+  }, [showProjectManager, client.company_id]);
+
+  const associatedProjectIds = associatedProjects.map(p => p.id);
 
   return (
     <div className="grid gap-6 lg:grid-cols-3">
       {/* Left Column - Key Metadata */}
       <div className="lg:col-span-2 space-y-6">
         {/* Associated Projects */}
-        {associatedProjects.length > 0 && (
-          <div className="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 p-5">
-            <h3 className="text-[14px] font-semibold text-emerald-700 mb-4">Associated Projects</h3>
+        <div className="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-[14px] font-semibold text-emerald-700">Associated Projects</h3>
+            <button
+              onClick={() => setShowProjectManager(!showProjectManager)}
+              className="text-[11px] font-medium text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
+            >
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                {showProjectManager ? <path d="M18 6 6 18M6 6l12 12" /> : <><path d="M12 5v14" /><path d="M5 12h14" /></>}
+              </svg>
+              {showProjectManager ? "Close" : "Manage Projects"}
+            </button>
+          </div>
+          
+          {/* Project Manager Panel */}
+          {showProjectManager && (
+            <div className="mb-4 p-4 rounded-lg bg-white border border-emerald-200">
+              <p className="text-[12px] text-slate-600 mb-3">Select projects from <span className="font-semibold">{client.client_name}</span> to associate with this account:</p>
+              
+              {/* Create new project */}
+              <div className="flex gap-2 mb-3">
+                <input
+                  type="text"
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  placeholder="New project name..."
+                  className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] text-black placeholder:text-slate-400"
+                />
+                <button
+                  onClick={handleCreateProject}
+                  disabled={creatingProject || !newProjectName.trim()}
+                  className="px-3 py-2 bg-emerald-500 text-white text-[11px] font-medium rounded-lg disabled:opacity-50"
+                >
+                  {creatingProject ? "Creating..." : "+ Create & Add"}
+                </button>
+              </div>
+              
+              {loadingProjects ? (
+                <p className="text-[12px] text-slate-400">Loading projects...</p>
+              ) : companyProjects.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {companyProjects.map((project) => {
+                    const isAssociated = associatedProjectIds.includes(project.id);
+                    return (
+                      <button
+                        key={project.id}
+                        onClick={() => handleToggleProject(project.id, isAssociated)}
+                        disabled={savingProject}
+                        className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-medium border transition-all disabled:opacity-50 ${
+                          isAssociated
+                            ? "bg-emerald-100 text-emerald-700 border-emerald-300"
+                            : "bg-white text-slate-600 border-slate-200 hover:border-emerald-300"
+                        }`}
+                      >
+                        {isAssociated && (
+                          <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
+                        {project.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-[12px] text-slate-400">No projects found for this company. Create one above.</p>
+              )}
+            </div>
+          )}
+          
+          {/* Display associated projects */}
+          {associatedProjects.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {associatedProjects.map((project) => (
                 <Link
@@ -269,8 +615,10 @@ function OverviewTab({ client, associatedProjects }: { client: AccountClient; as
                 </Link>
               ))}
             </div>
-          </div>
-        )}
+          ) : (
+            <p className="text-[12px] text-slate-400">No projects associated yet. Click "Manage Projects" to add some.</p>
+          )}
+        </div>
 
         {/* Services */}
         <div className="rounded-xl border border-slate-200 bg-white p-5">
