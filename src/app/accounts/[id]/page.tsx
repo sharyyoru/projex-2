@@ -34,6 +34,8 @@ type AssociatedProject = {
 
 type ClientDocument = {
   id: string;
+  project_id: string | null;
+  project_name: string | null;
   document_type: string;
   title: string;
   description: string | null;
@@ -101,7 +103,7 @@ export default function ClientProfilePage() {
       setLoading(true);
       const [clientRes, docsRes, adhocRes, projectsRes] = await Promise.all([
         supabaseClient.from("account_clients").select("*").eq("id", clientId).single(),
-        supabaseClient.from("account_client_documents").select("*").eq("client_id", clientId).order("created_at", { ascending: false }),
+        supabaseClient.from("account_client_documents").select("*, projects(name)").eq("client_id", clientId).order("created_at", { ascending: false }),
         supabaseClient.from("account_adhoc_requirements").select("*").eq("client_id", clientId).order("date_requested", { ascending: false }),
         supabaseClient.from("account_client_projects").select("project_id, projects(id, name, status)").eq("account_client_id", clientId),
       ]);
@@ -115,7 +117,12 @@ export default function ClientProfilePage() {
           adhoc_fee: Number(clientRes.data.adhoc_fee) || 0,
         });
       }
-      setDocuments(docsRes.data || []);
+      // Map documents to include project_name from join
+      const docsWithProjects = (docsRes.data || []).map((doc: any) => ({
+        ...doc,
+        project_name: doc.projects?.name || null,
+      }));
+      setDocuments(docsWithProjects);
       setAdhocItems((adhocRes.data || []).map((a) => ({ ...a, amount: Number(a.amount) || 0 })));
       
       // Extract associated projects from join query
@@ -223,7 +230,7 @@ export default function ClientProfilePage() {
         <OverviewTab client={client} associatedProjects={associatedProjects} />
       )}
       {activeTab === "documents" && (
-        <DocumentsTab clientId={clientId} documents={documents} onRefresh={loadClient} />
+        <DocumentsTab clientId={clientId} documents={documents} associatedProjects={associatedProjects} onRefresh={loadClient} />
       )}
       {activeTab === "soa" && (
         <SOATab clientId={clientId} client={client} adhocItems={adhocItems} onRefresh={loadClient} />
@@ -364,9 +371,11 @@ function OverviewTab({ client, associatedProjects }: { client: AccountClient; as
   );
 }
 
-function DocumentsTab({ clientId, documents, onRefresh }: { clientId: string; documents: ClientDocument[]; onRefresh: () => void }) {
+function DocumentsTab({ clientId, documents, associatedProjects, onRefresh }: { clientId: string; documents: ClientDocument[]; associatedProjects: AssociatedProject[]; onRefresh: () => void }) {
   const [uploading, setUploading] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+  const [filterProjectId, setFilterProjectId] = useState<string>("all");
 
   const docTypes = [
     { key: "moa", label: "MOA", icon: "📜", color: "from-violet-500 to-purple-500" },
@@ -375,6 +384,21 @@ function DocumentsTab({ clientId, documents, onRefresh }: { clientId: string; do
     { key: "roadmap", label: "Roadmaps", icon: "🗺️", color: "from-amber-500 to-orange-500" },
   ];
 
+  // Filter documents by project
+  const filteredDocuments = filterProjectId === "all" 
+    ? documents 
+    : filterProjectId === "none"
+      ? documents.filter(d => !d.project_id)
+      : documents.filter(d => d.project_id === filterProjectId);
+
+  // Group documents by project
+  const documentsByProject = documents.reduce((acc, doc) => {
+    const key = doc.project_id || "unassigned";
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(doc);
+    return acc;
+  }, {} as Record<string, ClientDocument[]>);
+
   async function handleUpload(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
@@ -382,13 +406,14 @@ function DocumentsTab({ clientId, documents, onRefresh }: { clientId: string; do
     const file = formData.get("file") as File;
     const docType = formData.get("document_type") as string;
     const title = (formData.get("title") as string)?.trim();
+    const projectId = selectedProjectId || null;
 
     if (!file || !docType || !title) return;
 
     setUploading(true);
     try {
       const fileName = `${Date.now()}_${file.name}`;
-      const filePath = `account-documents/${clientId}/${fileName}`;
+      const filePath = `account-documents/${clientId}/${projectId || "general"}/${fileName}`;
 
       const { error: uploadError } = await supabaseClient.storage
         .from("documents")
@@ -400,6 +425,7 @@ function DocumentsTab({ clientId, documents, onRefresh }: { clientId: string; do
 
       await supabaseClient.from("account_client_documents").insert({
         client_id: clientId,
+        project_id: projectId,
         document_type: docType,
         title,
         file_name: file.name,
@@ -409,6 +435,7 @@ function DocumentsTab({ clientId, documents, onRefresh }: { clientId: string; do
       });
 
       form.reset();
+      setSelectedProjectId("");
       setShowUpload(false);
       onRefresh();
     } catch (err) {
@@ -421,7 +448,21 @@ function DocumentsTab({ clientId, documents, onRefresh }: { clientId: string; do
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="text-[15px] font-semibold text-slate-700">Document Repository</h3>
+        <div className="flex items-center gap-4">
+          <h3 className="text-[15px] font-semibold text-slate-700">Document Repository</h3>
+          {/* Project Filter */}
+          <select
+            value={filterProjectId}
+            onChange={(e) => setFilterProjectId(e.target.value)}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] text-black"
+          >
+            <option value="all">All Projects</option>
+            <option value="none">General (No Project)</option>
+            {associatedProjects.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+        </div>
         <button
           onClick={() => setShowUpload(!showUpload)}
           className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-teal-500 to-emerald-500 px-4 py-2 text-[13px] font-medium text-white shadow-lg shadow-teal-500/25"
@@ -437,7 +478,21 @@ function DocumentsTab({ clientId, documents, onRefresh }: { clientId: string; do
 
       {showUpload && (
         <form onSubmit={handleUpload} className="rounded-xl border border-teal-200 bg-teal-50/50 p-4 space-y-4">
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <label className="block text-[12px] font-semibold text-slate-700 mb-1.5">Project *</label>
+              <select 
+                value={selectedProjectId} 
+                onChange={(e) => setSelectedProjectId(e.target.value)}
+                required
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-black"
+              >
+                <option value="">Select project...</option>
+                {associatedProjects.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
             <div>
               <label className="block text-[12px] font-semibold text-slate-700 mb-1.5">Document Type</label>
               <select name="document_type" required className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-black">
@@ -460,59 +515,114 @@ function DocumentsTab({ clientId, documents, onRefresh }: { clientId: string; do
           </div>
           <div className="flex justify-end gap-2">
             <button type="button" onClick={() => setShowUpload(false)} className="px-4 py-2 text-[13px] text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
-            <button type="submit" disabled={uploading} className="px-4 py-2 text-[13px] bg-teal-500 text-white rounded-lg disabled:opacity-50">
+            <button type="submit" disabled={uploading || !selectedProjectId} className="px-4 py-2 text-[13px] bg-teal-500 text-white rounded-lg disabled:opacity-50">
               {uploading ? "Uploading..." : "Upload"}
             </button>
           </div>
         </form>
       )}
 
-      {/* Document Categories */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {docTypes.map((type) => {
-          const typeDocs = documents.filter((d) => d.document_type === type.key);
-          return (
-            <div key={type.key} className="rounded-xl border border-slate-200 bg-white p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-xl">{type.icon}</span>
-                <h4 className="text-[14px] font-semibold text-slate-700">{type.label}</h4>
-                <span className="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">{typeDocs.length}</span>
-              </div>
-              <div className="space-y-2">
-                {typeDocs.length === 0 ? (
-                  <p className="text-[12px] text-slate-400">No documents</p>
+      {/* Documents by Project */}
+      {associatedProjects.length > 0 && filterProjectId === "all" && (
+        <div className="space-y-4">
+          {associatedProjects.map((project) => {
+            const projectDocs = documentsByProject[project.id] || [];
+            return (
+              <div key={project.id} className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                <div className="flex items-center gap-3 border-b border-slate-100 bg-gradient-to-r from-emerald-50 to-teal-50 px-4 py-3">
+                  <svg className="h-5 w-5 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                  </svg>
+                  <h4 className="text-[14px] font-semibold text-emerald-700">{project.name}</h4>
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-600">
+                    {projectDocs.length} doc{projectDocs.length !== 1 ? "s" : ""}
+                  </span>
+                </div>
+                {projectDocs.length > 0 ? (
+                  <div className="grid gap-2 p-3 sm:grid-cols-2 lg:grid-cols-4">
+                    {projectDocs.map((doc) => (
+                      <a
+                        key={doc.id}
+                        href={doc.file_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 rounded-lg border border-slate-100 bg-slate-50 p-3 hover:bg-slate-100 transition-colors"
+                      >
+                        <span className="text-lg">
+                          {docTypes.find(t => t.key === doc.document_type)?.icon || "📎"}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[12px] font-medium text-slate-700 truncate">{doc.title}</p>
+                          <p className="text-[10px] text-slate-400 uppercase">{doc.document_type}</p>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
                 ) : (
-                  typeDocs.slice(0, 3).map((doc) => (
-                    <a key={doc.id} href={doc.file_url} target="_blank" rel="noopener noreferrer" className="block rounded-lg bg-slate-50 p-2 hover:bg-slate-100 transition-colors">
-                      <p className="text-[12px] font-medium text-slate-700 truncate">{doc.title}</p>
-                      <p className="text-[10px] text-slate-400">{formatDate(doc.created_at)}</p>
-                    </a>
-                  ))
+                  <p className="px-4 py-6 text-center text-[12px] text-slate-400">No documents uploaded for this project</p>
                 )}
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Document Categories - only show when filtering a specific project */}
+      {filterProjectId !== "all" && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {docTypes.map((type) => {
+            const typeDocs = filteredDocuments.filter((d) => d.document_type === type.key);
+            return (
+              <div key={type.key} className="rounded-xl border border-slate-200 bg-white p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-xl">{type.icon}</span>
+                  <h4 className="text-[14px] font-semibold text-slate-700">{type.label}</h4>
+                  <span className="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">{typeDocs.length}</span>
+                </div>
+                <div className="space-y-2">
+                  {typeDocs.length === 0 ? (
+                    <p className="text-[12px] text-slate-400">No documents</p>
+                  ) : (
+                    typeDocs.slice(0, 3).map((doc) => (
+                      <a key={doc.id} href={doc.file_url} target="_blank" rel="noopener noreferrer" className="block rounded-lg bg-slate-50 p-2 hover:bg-slate-100 transition-colors">
+                        <p className="text-[12px] font-medium text-slate-700 truncate">{doc.title}</p>
+                        <p className="text-[10px] text-slate-400">{formatDate(doc.created_at)}</p>
+                      </a>
+                    ))
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* All Documents Table */}
-      {documents.length > 0 && (
+      {filteredDocuments.length > 0 && filterProjectId !== "all" && (
         <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
           <table className="w-full text-[13px]">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50">
                 <th className="px-4 py-3 text-left font-semibold text-slate-600">Title</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-600">Type</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-600">Project</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-600">Uploaded</th>
                 <th className="px-4 py-3 text-right font-semibold text-slate-600">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {documents.map((doc) => (
+              {filteredDocuments.map((doc) => (
                 <tr key={doc.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3 font-medium text-slate-900">{doc.title}</td>
                   <td className="px-4 py-3">
                     <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 uppercase">{doc.document_type}</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    {doc.project_name ? (
+                      <span className="text-[12px] text-emerald-600 font-medium">{doc.project_name}</span>
+                    ) : (
+                      <span className="text-[12px] text-slate-400">General</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-slate-600">{formatDate(doc.created_at)}</td>
                   <td className="px-4 py-3 text-right">
@@ -522,6 +632,13 @@ function DocumentsTab({ clientId, documents, onRefresh }: { clientId: string; do
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {associatedProjects.length === 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-center">
+          <p className="text-[13px] text-amber-700">No projects associated with this account yet. Associate projects first to upload documents.</p>
         </div>
       )}
     </div>
