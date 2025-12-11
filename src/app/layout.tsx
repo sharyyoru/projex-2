@@ -128,6 +128,22 @@ export default function RootLayout({
                   <span>Contacts</span>
                 </Link>
 
+                {/* Accounts - Client Directory */}
+                <Link
+                  href="/accounts"
+                  className="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium text-slate-600 transition-all hover:bg-gradient-to-r hover:from-teal-50 hover:to-emerald-50 hover:text-slate-900 hover:shadow-sm"
+                >
+                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-teal-100 to-emerald-100 text-teal-600 shadow-sm transition-all group-hover:from-teal-500 group-hover:to-emerald-500 group-hover:text-white group-hover:shadow-lg group-hover:shadow-teal-500/25">
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                      <circle cx="9" cy="7" r="4" />
+                      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    </svg>
+                  </span>
+                  <span>Accounts</span>
+                </Link>
+
                 {/* Projects - NEW */}
                 <Link
                   href="/projects"
