@@ -58,6 +58,28 @@ const WORKFLOW_LABELS: Record<WorkflowStatus, string> = {
   posted: "Posted",
 };
 
+const CONTENT_TYPES = [
+  "Reel",
+  "Moving Carousel",
+  "Static Carousel",
+  "Moving & Static Carousel",
+  "Story",
+  "Post",
+  "Video",
+  "Live",
+];
+
+const CONTENT_TYPE_ICONS: Record<string, string> = {
+  "Reel": "🎬",
+  "Moving Carousel": "📱",
+  "Static Carousel": "🖼️",
+  "Moving & Static Carousel": "🎭",
+  "Story": "⏱️",
+  "Post": "📝",
+  "Video": "🎥",
+  "Live": "🔴",
+};
+
 export default function ContentCalendar({ projectId, platforms, brandColor }: Props) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,7 +88,10 @@ export default function ContentCalendar({ projectId, platforms, brandColor }: Pr
   const [showPostModal, setShowPostModal] = useState(false);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [draggedPost, setDraggedPost] = useState<Post | null>(null);
+  const [dragOverDay, setDragOverDay] = useState<number | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [statusFilter, setStatusFilter] = useState<WorkflowStatus | "all">("all");
+  const [contentTypeFilter, setContentTypeFilter] = useState<string | "all">("all");
 
   useEffect(() => {
     loadPosts();
@@ -102,10 +127,18 @@ export default function ContentCalendar({ projectId, platforms, brandColor }: Pr
   for (let i = 0; i < firstDay; i++) calendarDays.push(null);
   for (let i = 1; i <= daysInMonth; i++) calendarDays.push(i);
 
-  // Filter posts by status
-  const filteredPosts = statusFilter === "all" 
-    ? posts 
-    : posts.filter(p => p.workflow_status === statusFilter);
+  // Filter posts by status and content type
+  const filteredPosts = posts.filter(p => {
+    if (statusFilter !== "all" && p.workflow_status !== statusFilter) return false;
+    if (contentTypeFilter !== "all" && p.content_type !== contentTypeFilter) return false;
+    return true;
+  });
+
+  // Content type counts for filter badges
+  const contentTypeCounts = CONTENT_TYPES.reduce((acc, type) => {
+    acc[type] = posts.filter(p => p.content_type === type).length;
+    return acc;
+  }, {} as Record<string, number>);
 
   const getPostsForDay = (day: number) =>
     filteredPosts.filter((post) => {
@@ -146,34 +179,69 @@ export default function ContentCalendar({ projectId, platforms, brandColor }: Pr
         </div>
       </div>
 
-      {/* Workflow Status Filter */}
-      <div className="mb-4 flex flex-wrap gap-2">
-        <button
-          onClick={() => setStatusFilter("all")}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-            statusFilter === "all" ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-          }`}
-        >
-          All ({posts.length})
-        </button>
-        {(Object.keys(WORKFLOW_COLORS) as WorkflowStatus[]).map((status) => {
-          const count = posts.filter(p => p.workflow_status === status).length;
-          const colors = WORKFLOW_COLORS[status];
-          return (
-            <button
-              key={status}
-              onClick={() => setStatusFilter(status)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
-                statusFilter === status 
-                  ? `${colors.bg} ${colors.text} ring-2 ring-offset-1 ring-current` 
-                  : `${colors.bg} ${colors.text} opacity-70 hover:opacity-100`
-              }`}
-            >
-              <span className={`w-2 h-2 rounded-full ${colors.dot}`} />
-              {WORKFLOW_LABELS[status]} ({count})
-            </button>
-          );
-        })}
+      {/* Filters Section */}
+      <div className="mb-4 space-y-3">
+        {/* Workflow Status Filter */}
+        <div className="flex flex-wrap gap-2">
+          <span className="text-xs font-medium text-slate-500 flex items-center mr-1">Status:</span>
+          <button
+            onClick={() => setStatusFilter("all")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              statusFilter === "all" ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
+          >
+            All ({posts.length})
+          </button>
+          {(Object.keys(WORKFLOW_COLORS) as WorkflowStatus[]).map((status) => {
+            const count = posts.filter(p => p.workflow_status === status).length;
+            const colors = WORKFLOW_COLORS[status];
+            return (
+              <button
+                key={status}
+                onClick={() => setStatusFilter(status)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
+                  statusFilter === status 
+                    ? `${colors.bg} ${colors.text} ring-2 ring-offset-1 ring-current` 
+                    : `${colors.bg} ${colors.text} opacity-70 hover:opacity-100`
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full ${colors.dot}`} />
+                {WORKFLOW_LABELS[status]} ({count})
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Content Type Filter */}
+        <div className="flex flex-wrap gap-2">
+          <span className="text-xs font-medium text-slate-500 flex items-center mr-1">Format:</span>
+          <button
+            onClick={() => setContentTypeFilter("all")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              contentTypeFilter === "all" ? "bg-purple-600 text-white" : "bg-purple-100 text-purple-700 hover:bg-purple-200"
+            }`}
+          >
+            All Formats
+          </button>
+          {CONTENT_TYPES.map((type) => {
+            const count = contentTypeCounts[type] || 0;
+            if (count === 0) return null;
+            return (
+              <button
+                key={type}
+                onClick={() => setContentTypeFilter(type)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
+                  contentTypeFilter === type 
+                    ? "bg-purple-600 text-white ring-2 ring-offset-1 ring-purple-400" 
+                    : "bg-purple-100 text-purple-700 hover:bg-purple-200"
+                }`}
+              >
+                <span>{CONTENT_TYPE_ICONS[type]}</span>
+                {type} ({count})
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {loading ? (
@@ -190,9 +258,21 @@ export default function ContentCalendar({ projectId, platforms, brandColor }: Pr
               const dayPosts = day ? getPostsForDay(day) : [];
               const isToday = day && new Date().getFullYear() === year && new Date().getMonth() === month && new Date().getDate() === day;
               return (
-                <div key={idx} className={`min-h-[120px] border-b border-r border-slate-100 p-2 transition-colors ${day ? "hover:bg-slate-50" : "bg-slate-50/50"}`}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={() => { if (day && draggedPost) { updatePostDate(draggedPost.id, new Date(year, month, day, 10, 0, 0)); setDraggedPost(null); } }}>
+                <div key={idx} className={`min-h-[120px] border-b border-r border-slate-100 p-2 transition-all ${
+                        day ? "hover:bg-slate-50" : "bg-slate-50/50"
+                      } ${dragOverDay === day ? "bg-pink-50 ring-2 ring-inset ring-pink-400 scale-[1.02]" : ""} ${
+                        isDragging ? "cursor-copy" : ""
+                      }`}
+                      onDragOver={(e) => { e.preventDefault(); if (day) setDragOverDay(day); }}
+                      onDragLeave={() => setDragOverDay(null)}
+                      onDrop={() => {
+                        if (day && draggedPost) {
+                          updatePostDate(draggedPost.id, new Date(year, month, day, 10, 0, 0));
+                          setDraggedPost(null);
+                        }
+                        setDragOverDay(null);
+                        setIsDragging(false);
+                      }}>
                   {day && (
                     <>
                       <div className={`mb-1 text-sm ${isToday ? "flex h-6 w-6 items-center justify-center rounded-full bg-pink-500 font-semibold text-white" : "font-medium text-slate-700"}`}>{day}</div>
@@ -200,8 +280,13 @@ export default function ContentCalendar({ projectId, platforms, brandColor }: Pr
                         {dayPosts.slice(0, 3).map((post) => {
                           const style = getWorkflowStyle(post.workflow_status);
                           return (
-                            <div key={post.id} draggable onDragStart={() => setDraggedPost(post)} onClick={() => { setEditingPost(post); setShowPostModal(true); }}
-                              className={`cursor-pointer rounded-lg overflow-hidden border ${style.border} ${style.bg} transition-all hover:scale-105 hover:shadow-md`}>
+                            <div key={post.id} draggable
+                              onDragStart={() => { setDraggedPost(post); setIsDragging(true); }}
+                              onDragEnd={() => { setDraggedPost(null); setDragOverDay(null); setIsDragging(false); }}
+                              onClick={() => { setEditingPost(post); setShowPostModal(true); }}
+                              className={`cursor-grab active:cursor-grabbing rounded-lg overflow-hidden border ${style.border} ${style.bg} transition-all hover:scale-105 hover:shadow-md ${
+                                draggedPost?.id === post.id ? "opacity-50 ring-2 ring-pink-400" : ""
+                              }`}>
                               {/* Image Preview */}
                               {post.image_asset_url && (
                                 <div className="h-12 w-full overflow-hidden">
@@ -211,7 +296,12 @@ export default function ContentCalendar({ projectId, platforms, brandColor }: Pr
                               <div className="px-2 py-1">
                                 <div className="flex items-center gap-1 mb-0.5">
                                   {(post.platforms || []).slice(0, 2).map((p) => <span key={p} className="opacity-70 text-[10px]">{PLATFORM_ICONS[p.toLowerCase()]}</span>)}
-                                  <span className={`ml-auto w-1.5 h-1.5 rounded-full ${style.dot}`} title={WORKFLOW_LABELS[post.workflow_status || "new"]} />
+                                  {post.content_type && (
+                                    <span className="text-[9px] ml-auto" title={post.content_type}>
+                                      {CONTENT_TYPE_ICONS[post.content_type] || "📝"}
+                                    </span>
+                                  )}
+                                  <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} title={WORKFLOW_LABELS[post.workflow_status || "new"]} />
                                 </div>
                                 <div className={`line-clamp-1 text-[10px] ${style.text}`}>{post.caption || "No caption"}</div>
                               </div>
@@ -266,6 +356,13 @@ export default function ContentCalendar({ projectId, platforms, brandColor }: Pr
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Drag hint */}
+      {isDragging && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-4 py-2 rounded-full text-sm font-medium shadow-xl z-50 animate-bounce">
+          Drop on a date to reschedule
         </div>
       )}
 

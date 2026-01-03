@@ -57,7 +57,16 @@ const WORKFLOW_STEPS: { key: WorkflowStatus; label: string }[] = [
   { key: "posted", label: "Posted" },
 ];
 
-const CONTENT_TYPES = ["Reel", "Carousel", "Story", "Post", "Video", "Live"];
+const CONTENT_TYPES = [
+  "Reel",
+  "Moving Carousel",
+  "Static Carousel",
+  "Moving & Static Carousel",
+  "Story",
+  "Post",
+  "Video",
+  "Live",
+];
 
 export default function PostModal({ post, projectId, availablePlatforms, onClose, onSaved }: Props) {
   // Basic fields
